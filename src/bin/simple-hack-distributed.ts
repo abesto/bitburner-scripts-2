@@ -4,10 +4,13 @@ import minimist from "minimist";
 import { autonuke } from "/autonuke";
 import { db } from "/database";
 import { Fmt } from "/fmt";
+import { SupervisorCtl } from "/supervisorctl";
 
 export async function main(ns: NS): Promise<void> {
   const args = minimist(ns.args as string[]);
   const host = args._[0];
+  const supervisorctl = new SupervisorCtl(ns);
+
   if (!host) {
     ns.tprint("ERROR No host specified");
     return;
