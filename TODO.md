@@ -5,8 +5,6 @@
   * DONE `/bin/` prefix for ts/js
   * figure out double-deployment in `bitburner-filesync` (both x and dist/x)
   * post in `#project-showcases` / send PR, add note about `window` / `document` etc
-* subscriber-based `SupervisorEvents`
-  * enforce listening for the event from a command via the API
 * rename supervisor to scheduler
 * add services to scheduler
   * configured in text file(s)

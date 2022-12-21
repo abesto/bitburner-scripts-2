@@ -1,5 +1,5 @@
 import { NS, NetscriptPort } from "@ns";
-import { findPortMessage, supervisorEvents } from "./ports";
+import { waitForMessage, supervisorEvents } from "./ports";
 
 export type SupervisorEvent = BatchDone | BatchStarted;
 
@@ -48,39 +48,26 @@ export class SupervisorEvents {
   public async waitForBatchStarted(
     requestId: string
   ): Promise<{ batchId: string; threads: number }> {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const message = findPortMessage(this.port, (data) => {
-        const message = JSON.parse(data.toString()) as SupervisorEvent;
-        return (
-          message.type === "batch-started" &&
-          message.payload.requestId === requestId
-        );
-      });
-      if (message) {
-        const parsed = JSON.parse(message.toString()) as BatchStarted;
-        return {
-          batchId: parsed.payload.batchId,
-          threads: parsed.payload.threads,
-        };
-      }
-      await this.port.nextWrite();
-    }
+    const message = await waitForMessage(this.port, (data) => {
+      const message = JSON.parse(data.toString()) as SupervisorEvent;
+      return (
+        message.type === "batch-started" &&
+        message.payload.requestId === requestId
+      );
+    });
+    const parsed = JSON.parse(message.toString()) as BatchStarted;
+    return {
+      batchId: parsed.payload.batchId,
+      threads: parsed.payload.threads,
+    };
   }
 
   public async waitForBatchDone(batchId: string): Promise<void> {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const message = findPortMessage(this.port, (data) => {
-        const message = JSON.parse(data.toString()) as SupervisorEvent;
-        return (
-          message.type === "batch-done" && message.payload.batchId === batchId
-        );
-      });
-      if (message) {
-        return;
-      }
-      await this.port.nextWrite();
-    }
+    await waitForMessage(this.port, (data) => {
+      const message = JSON.parse(data.toString()) as SupervisorEvent;
+      return (
+        message.type === "batch-done" && message.payload.batchId === batchId
+      );
+    });
   }
 }

@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { AutocompleteData, NS } from "@ns";
 
 import { SupervisorCtl } from "/supervisorctl";
 import { SupervisorEvents } from "/supervisorEvent";
@@ -65,5 +65,25 @@ export async function main(ns: NS): Promise<void> {
 
   async function exit() {
     await ctl.exit();
+  }
+}
+
+export function autocomplete(data: AutocompleteData, args: string[]): string[] {
+  const commands = [
+    "echo",
+    "status",
+    "start",
+    "exit",
+    "restart-daemon",
+    "tail-daemon",
+  ];
+  if (args.length === 0) {
+    return commands;
+  } else if (args.length === 1) {
+    return commands.filter((c) => c.startsWith(args[0]));
+  } else if (args[0] === "start") {
+    return data.scripts.filter((s) => s.startsWith(args[1]));
+  } else {
+    return [];
   }
 }

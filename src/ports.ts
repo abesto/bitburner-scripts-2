@@ -12,24 +12,27 @@ export function dbLockPort(ns: NS): NetscriptPort {
   return ns.getPortHandle(3);
 }
 
-export function findPortMessage(
+const ping = JSON.stringify({ type: "ping" });
+
+export async function waitForMessage(
   port: NetscriptPort,
   pred: (data: PortData) => boolean
-): PortData | null {
-  const messages = [];
-
-  while (!port.empty()) {
-    messages.push(port.read());
+): Promise<PortData> {
+  while (port.empty() || !pred(port.peek())) {
+    if (port.peek() === ping) {
+      port.read();
+      continue;
+    }
+    await port.nextWrite();
   }
 
-  const index = messages.findIndex(pred);
-  const retval = index !== -1 ? messages[index] : null;
+  const message = port.read();
+  if (!pred(message)) {
+    throw new Error("Unexpected message");
+  }
 
-  messages.forEach((message) => {
-    if (message !== retval) {
-      port.write(message);
-    }
-  });
+  // Trigger other nextWrite() calls
+  port.write(ping);
 
-  return retval;
+  return message;
 }
