@@ -5,8 +5,7 @@
   * DONE `/bin/` prefix for ts/js
   * figure out double-deployment in `bitburner-filesync` (both x and dist/x)
   * post in `#project-showcases` / send PR, add note about `window` / `document` etc
-* supervisor: emit event when exec fails
-* supervisor: watch for processes going down without reporting back
+* add locking to DB access
 * subscriber-based `SupervisorEvents`
   * enforce listening for the event from a command via the API
 * rename supervisor to scheduler

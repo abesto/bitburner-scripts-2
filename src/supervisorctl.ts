@@ -22,11 +22,9 @@ export type Message =
 
 export class SupervisorCtl {
   private port: NetscriptPort;
-  private eventsPort: NetscriptPort;
 
   constructor(ns: NS) {
     this.port = supervisorControl(ns);
-    this.eventsPort = supervisorEvents(ns);
   }
 
   public async echo(payload: string): Promise<void> {
@@ -66,4 +64,9 @@ export class SupervisorCtl {
   public async tailDaemon(): Promise<void> {
     this.port.write(JSON.stringify({ type: "tail-daemon" }));
   }
+}
+
+export function thisProcessFinished(ns: NS): void {
+  const ctl = new SupervisorCtl(ns);
+  ctl.finished(ns.getRunningScript()!.pid, ns.getHostname());
 }

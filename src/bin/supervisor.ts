@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 import { supervisorControl } from "/ports";
-import { Message } from "../supervisorctl";
+import { Message } from "/supervisorctl";
 import { autonuke } from "/autonuke";
 import { discoverServers } from "/discoverServers";
 import { Fmt } from "/fmt";
@@ -9,20 +9,40 @@ import { db, saveDb, SupervisorBatch } from "/database";
 import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
+  class CrashWatcher {
+    private cancelled = false;
+
+    async watch() {
+      while (!this.cancelled) {
+        if (checkCrashes()) {
+          return;
+        }
+        await ns.asleep(1000);
+      }
+    }
+
+    cancel() {
+      this.cancelled = true;
+    }
+  }
+
   const ctlPort = supervisorControl(ns);
-  const eventsPort = new SupervisorEvents(ns);
+  const eventsClient = new SupervisorEvents(ns);
   const fmt = new Fmt(ns);
+
+  const syntheticEvents: Message[] = [];
 
   ns.disableLog("ALL");
 
   let exit = false;
   while (!exit) {
-    if (ctlPort.empty()) {
-      await ctlPort.nextWrite();
+    if (ctlPort.empty() && syntheticEvents.length === 0) {
+      const crashWatcher = new CrashWatcher();
+      await Promise.any([ctlPort.nextWrite(), crashWatcher.watch()]);
+      crashWatcher.cancel();
+      continue;
     }
-    const messageRaw = ctlPort.read().toString();
-    ns.print(`Got message: ${messageRaw}`);
-    const message = JSON.parse(messageRaw) as Message;
+    const message = nextMessage();
     if (message.type === "echo") {
       echo(message);
     } else if (message.type === "status") {
@@ -38,6 +58,18 @@ export async function main(ns: NS): Promise<void> {
       ns.tail();
     } else {
       ns.tprint(`WARN Unknown message type ${JSON.stringify(message)}`);
+    }
+  }
+
+  function nextMessage(): Message {
+    const message = syntheticEvents.pop();
+    if (message === undefined) {
+      const messageRaw = ctlPort.read().toString();
+      ns.print(`Got message: ${messageRaw}`);
+      return JSON.parse(messageRaw);
+    } else {
+      ns.print(`Got synthetic message: ${JSON.stringify(message)}`);
+      return message;
     }
   }
 
@@ -60,7 +92,8 @@ export async function main(ns: NS): Promise<void> {
             `SUCCESS [bat=${batchId}] finished (${batch.script} ${batch.args} with ${batch.threads} threads)`
           );
           delete memdb.supervisor.batches[batchId];
-          eventsPort.batchDone(batchId);
+
+          eventsClient.batchDone(batchId);
         }
         saveDb(ns, memdb);
         return;
@@ -158,7 +191,8 @@ export async function main(ns: NS): Promise<void> {
     } else {
       ns.print(`SUCCESS [req=${requestId}] Scheduled ${scheduled} threads`);
     }
-    await eventsPort.batchStarted(requestId, batchId, scheduled);
+
+    await eventsClient.batchStarted(requestId, batchId, scheduled);
   }
 
   function status() {
@@ -170,6 +204,31 @@ export async function main(ns: NS): Promise<void> {
 
   function echo(message: { type: "echo"; payload: string }) {
     ns.tprint(message.payload);
+  }
+
+  function checkCrashes(): boolean {
+    let retval = false;
+    const memdb = db(ns);
+    for (const batchId in memdb.supervisor.batches) {
+      const batch = memdb.supervisor.batches[batchId];
+      for (const hostname in batch.deployments) {
+        const deployment = batch.deployments[hostname];
+        if (!ns.isRunning(deployment.pid, hostname)) {
+          ns.tprint(
+            `WARN [bat=${batchId}] ${hostname} crashed '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${deployment.pid})`
+          );
+          syntheticEvents.push({
+            type: "finished",
+            payload: {
+              hostname,
+              pid: deployment.pid,
+            },
+          });
+          retval = true;
+        }
+      }
+    }
+    return retval;
   }
 }
 
