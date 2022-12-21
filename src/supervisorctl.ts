@@ -1,6 +1,6 @@
 import { NS, NetscriptPort } from "@ns";
 
-import { supervisorControl } from "/ports";
+import { supervisorControl, supervisorEvents } from "/ports";
 
 export type Message =
   | { type: "echo"; payload: string }
@@ -12,6 +12,7 @@ export type Message =
         script: string;
         args: string[];
         threads: number;
+        requestId: string;
       };
     }
   | { type: "finished"; payload: { pid: number; hostname: string } }
@@ -21,9 +22,11 @@ export type Message =
 
 export class SupervisorCtl {
   private port: NetscriptPort;
+  private eventsPort: NetscriptPort;
 
   constructor(ns: NS) {
     this.port = supervisorControl(ns);
+    this.eventsPort = supervisorEvents(ns);
   }
 
   public async echo(payload: string): Promise<void> {
@@ -42,10 +45,16 @@ export class SupervisorCtl {
     script: string,
     args: string[],
     threads: number
-  ): Promise<void> {
+  ): Promise<string> {
+    const requestId =
+      Math.random().toString(36).substring(2) + "." + Date.now().toString(36);
     this.port.write(
-      JSON.stringify({ type: "start", payload: { script, args, threads } })
+      JSON.stringify({
+        type: "start",
+        payload: { script, args, threads, requestId },
+      })
     );
+    return requestId;
   }
 
   public async finished(pid: number, hostname: string): Promise<void> {

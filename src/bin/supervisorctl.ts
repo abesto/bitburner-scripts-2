@@ -2,9 +2,11 @@ import { NS } from "@ns";
 import minimist from "minimist";
 
 import { SupervisorCtl } from "/supervisorctl";
+import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
   const ctl = new SupervisorCtl(ns);
+  const events = new SupervisorEvents(ns);
   const args = minimist(ns.args as string[]);
 
   if (args._[0] == "start-daemon") {
@@ -31,7 +33,11 @@ export async function main(ns: NS): Promise<void> {
       ns.tprint("ERROR threads not specified");
       return;
     }
-    await ctl.start(args._[1], args._.slice(2), args.threads);
+    const requestId = await ctl.start(args._[1], args._.slice(2), args.threads);
+    const batch = await events.waitForBatchStarted(requestId);
+    ns.tprint(`Started batch ${batch.batchId} with ${batch.threads} threads`);
+    await events.waitForBatchDone(batch.batchId);
+    ns.tprint(`Finished batch ${batch.batchId}`);
   } else if (args._[0] === "exit") {
     await ctl.exit();
   } else if (args._[0] === "tail-daemon") {

@@ -17,7 +17,7 @@ export type DB = {
 };
 
 export type SupervisorDB = {
-  processes: SupervisorBatch[];
+  batches: { [batchID: string]: SupervisorBatch };
 };
 
 export type SupervisorBatch = {
@@ -45,7 +45,7 @@ const DEFAULT_DB: DB = {
     },
   },
   supervisor: {
-    processes: [],
+    batches: {},
   },
 };
 

@@ -6,17 +6,19 @@ import { autonuke } from "/autonuke";
 import { discoverServers } from "/discoverServers";
 import { Fmt } from "/fmt";
 import { db, saveDb, SupervisorBatch } from "/database";
+import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
-  const port = supervisorControl(ns);
+  const ctlPort = supervisorControl(ns);
+  const eventsPort = new SupervisorEvents(ns);
   const fmt = new Fmt(ns);
 
   let exit = false;
   while (!exit) {
-    if (port.empty()) {
-      await port.nextWrite();
+    if (ctlPort.empty()) {
+      await ctlPort.nextWrite();
     }
-    const messageRaw = port.read().toString();
+    const messageRaw = ctlPort.read().toString();
     ns.print(`Got message: ${messageRaw}`);
     const message = JSON.parse(messageRaw) as Message;
     if (message.type === "echo") {
@@ -43,19 +45,20 @@ export async function main(ns: NS): Promise<void> {
   }) {
     const { pid, hostname } = message.payload;
     const memdb = db(ns);
-    for (let id = 0; id < memdb.supervisor.processes.length; id++) {
-      const batch = memdb.supervisor.processes[id];
+    for (const batchId in memdb.supervisor.batches) {
+      const batch = memdb.supervisor.batches[batchId];
       const deployment = batch.deployments[hostname];
       if (deployment?.pid === pid) {
-        ns.tprint(
-          `INFO ${hostname} finished '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${pid}, batch ${id})`
+        ns.print(
+          `INFO [bat=${batchId}] ${hostname} finished '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${pid}})`
         );
         delete batch.deployments[hostname];
         if (Object.keys(batch.deployments).length === 0) {
-          ns.tprint(
-            `SUCCESS Batch ${id} finished (${batch.script} ${batch.args} with ${batch.threads} threads)`
+          ns.print(
+            `SUCCESS [bat=${batchId}] finished (${batch.script} ${batch.args} with ${batch.threads} threads)`
           );
-          memdb.supervisor.processes.splice(id, 1);
+          delete memdb.supervisor.batches[batchId];
+          eventsPort.batchDone(batchId);
         }
         saveDb(ns, memdb);
         return;
@@ -64,22 +67,28 @@ export async function main(ns: NS): Promise<void> {
     ns.tprint(`WARN Could not find batch for ${hostname} PID ${pid}`);
   }
 
-  function start(message: {
+  async function start(message: {
     type: "start";
-    payload: { script: string; args: string[]; threads: number };
+    payload: {
+      script: string;
+      args: string[];
+      threads: number;
+      requestId: string;
+    };
   }) {
-    const { script, args, threads } = message.payload;
+    const { script, args, threads, requestId } = message.payload;
 
     if (!ns.fileExists(script, "home")) {
       ns.tprint(`ERROR Could not find ${script}`);
       return;
     }
 
-    const batchId = Math.random(); // TODO use a proper ID, store it
+    const batchId =
+      Math.random().toString(36).substring(2) + "." + Date.now().toString(36);
     const batch: SupervisorBatch = { script, args, threads, deployments: {} };
     const scriptRam = ns.getScriptRam(script);
-    ns.tprint(
-      `Starting ${script} with args ${args} and threads ${threads} (RAM: ${fmt.memory(
+    ns.print(
+      `INFO [req=${requestId}] Starting ${script} with args ${args} and threads ${threads} (RAM: ${fmt.memory(
         scriptRam
       )})`
     );
@@ -100,7 +109,9 @@ export async function main(ns: NS): Promise<void> {
         continue;
       }
       if (!ns.scp(script, hostname)) {
-        ns.tprint(`WARN Could not copy ${script} to ${hostname}`);
+        ns.tprint(
+          `WARN [req=${requestId}] Could not copy ${script} to ${hostname}`
+        );
         continue;
       }
       const threadsThisHost = Math.min(availableThreads, threads - scheduled);
@@ -114,13 +125,13 @@ export async function main(ns: NS): Promise<void> {
       );
       if (pid === 0) {
         ns.tprint(
-          `WARN Could not start ${script} on ${hostname} (tried ${threadsThisHost} threads)`
+          `WARN [req=${requestId}] Could not start ${script} on ${hostname} (tried ${threadsThisHost} threads)`
         );
         continue;
       }
       scheduled += threadsThisHost * cores;
-      ns.tprint(
-        `INFO Started ${script} on ${hostname} (PID: ${pid}, threads: ${threadsThisHost}, cores: ${cores}), remaining: ${
+      ns.print(
+        `INFO [req=${requestId}] Started ${script} on ${hostname} (PID: ${pid}, threads: ${threadsThisHost}, cores: ${cores}), remaining: ${
           threads - scheduled
         }`
       );
@@ -134,16 +145,17 @@ export async function main(ns: NS): Promise<void> {
     }
 
     const memdb = db(ns);
-    memdb.supervisor.processes.push(batch);
+    memdb.supervisor.batches[batchId] = batch;
     saveDb(ns, memdb);
 
     if (scheduled < threads) {
-      ns.tprint(
-        `ERROR Could not schedule ${threads} threads, scheduled ${scheduled}`
+      ns.print(
+        `WARN [req=${requestId}] Could not schedule ${threads} threads, scheduled ${scheduled}`
       );
     } else {
-      ns.tprint(`SUCCESS Scheduled ${scheduled} threads`);
+      ns.print(`SUCCESS [req=${requestId}] Scheduled ${scheduled} threads`);
     }
+    await eventsPort.batchStarted(requestId, batchId, scheduled);
   }
 
   function status() {
