@@ -1,18 +1,18 @@
 import { NS } from "@ns";
-import minimist from "minimist";
 
-import { autonuke } from "/autonuke";
+//import { autonuke } from "/autonuke";
 import { db } from "/database";
 import { Fmt } from "/fmt";
 
 export async function main(ns: NS): Promise<void> {
-  const args = minimist(ns.args as string[]);
-  const host = args._[0];
+  const args = ns.flags([["threads", 0]]);
+  const posArgs = args._ as string[];
+  const host = posArgs[0];
   if (!host) {
     ns.tprint("ERROR No host specified");
     return;
   }
-  const maxThreads = args.threads;
+  const maxThreads = args.threads as number;
   if (!maxThreads) {
     ns.tprint("ERROR No threads specified");
     return;
@@ -25,7 +25,7 @@ export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
   const fmt = new Fmt(ns);
 
-  autonuke(ns, host);
+  //autonuke(ns, host);
 
   // eslint-disable-next-line no-constant-condition
   while (true) {

@@ -1,5 +1,4 @@
 import { NS } from "@ns";
-import minimist from "minimist";
 
 import { autonuke } from "/autonuke";
 import { db } from "/database";
@@ -7,8 +6,9 @@ import { Fmt } from "/fmt";
 import { SupervisorCtl } from "/supervisorctl";
 
 export async function main(ns: NS): Promise<void> {
-  const args = minimist(ns.args as string[]);
-  const host = args._[0];
+  const args = ns.flags([["threads", 0]]);
+  const posArgs = args._ as string[];
+  const host = posArgs[0];
   const supervisorctl = new SupervisorCtl(ns);
 
   if (!host) {

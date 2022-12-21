@@ -146,6 +146,7 @@ export async function main(ns: NS): Promise<void> {
       }
     }
 
+    batch.threads = scheduled;
     const memdb = db(ns);
     memdb.supervisor.batches[batchId] = batch;
     saveDb(ns, memdb);

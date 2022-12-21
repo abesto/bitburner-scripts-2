@@ -1,12 +1,12 @@
 # TODOs
 
 * `packup` -> `esbuild`
-  * DONE get rid of double-deploy
   * DONE deploy `.txt` files as is
   * DONE `/bin/` prefix for ts/js
+  * figure out double-deployment in `bitburner-filesync` (both x and dist/x)
   * post in `#project-showcases` / send PR, add note about `window` / `document` etc
-* move from `minimist` to `ns.flags`
-  * https://github.com/danielyxie/bitburner/blob/dev/markdown/bitburner.ns.flags.md
+* supervisor: emit event when exec fails
+* supervisor: watch for processes going down without reporting back
 * subscriber-based `SupervisorEvents`
   * enforce listening for the event from a command via the API
 * rename supervisor to scheduler

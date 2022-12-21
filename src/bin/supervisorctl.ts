@@ -1,5 +1,4 @@
 import { NS } from "@ns";
-import minimist from "minimist";
 
 import { SupervisorCtl } from "/supervisorctl";
 import { SupervisorEvents } from "/supervisorEvent";
@@ -9,9 +8,12 @@ const SUPERVISOR_JS = "/dist/bin/supervisor.js";
 export async function main(ns: NS): Promise<void> {
   const ctl = new SupervisorCtl(ns);
   const events = new SupervisorEvents(ns);
-  const args = minimist(ns.args as string[]);
+  const args = ns.flags([["threads", 0]]);
 
-  if (args._[0] == "start-daemon") {
+  const posArgs = args._ as string[];
+  const command = posArgs[0];
+
+  if (command == "start-daemon") {
     await startDaemon();
     return;
   }
@@ -21,30 +23,31 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  if (args._[0] === "echo") {
-    await ctl.echo(args._.slice(1).join(" "));
-  } else if (args._[0] === "status") {
+  if (command === "echo") {
+    await ctl.echo(posArgs.slice(1).join(" "));
+  } else if (command === "status") {
     await ctl.status();
-  } else if (args._[0] === "start") {
+  } else if (command === "start") {
     await start();
-  } else if (args._[0] === "exit") {
+  } else if (command === "exit") {
     await exit();
-  } else if (args._[0] === "restart-daemon") {
+  } else if (command === "restart-daemon") {
     await exit();
     await ns.sleep(0);
     await startDaemon();
-  } else if (args._[0] === "tail-daemon") {
+  } else if (command === "tail-daemon") {
     await ctl.tailDaemon();
   } else {
     ns.tprint("ERROR Unknown command");
   }
 
   async function start() {
-    if (!args.threads) {
+    const threads = args.threads as number;
+    if (!threads) {
       ns.tprint("ERROR threads not specified");
       return;
     }
-    const requestId = await ctl.start(args._[1], args._.slice(2), args.threads);
+    const requestId = await ctl.start(posArgs[1], posArgs.slice(2), threads);
     const batch = await events.waitForBatchStarted(requestId);
     ns.tprint(`Started batch ${batch.batchId} with ${batch.threads} threads`);
     await events.waitForBatchDone(batch.batchId);

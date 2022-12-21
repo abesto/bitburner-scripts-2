@@ -25,7 +25,6 @@
   "dependencies": {
     "deepmerge-ts": "^4.2.2",
     "esbuild": "0.16.10",
-    "minimist": "^1.2.7",
     "util": "^0.12.5"
   }
 }
