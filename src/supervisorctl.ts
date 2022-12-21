@@ -15,6 +15,16 @@ export type Message =
         requestId: string;
       };
     }
+  | {
+      type: "start-later";
+      payload: {
+        when: number;
+        script: string;
+        args: string[];
+        threads: number;
+        requestId: string;
+      };
+    }
   | { type: "finished"; payload: { pid: number; hostname: string } }
   | { type: "tail-daemon" };
 
@@ -50,6 +60,23 @@ export class SupervisorCtl {
       JSON.stringify({
         type: "start",
         payload: { script, args, threads, requestId },
+      })
+    );
+    return requestId;
+  }
+
+  public async startLater(
+    when: number,
+    script: string,
+    args: string[],
+    threads: number
+  ): Promise<string> {
+    const requestId =
+      Math.random().toString(36).substring(2) + "." + Date.now().toString(36);
+    this.port.write(
+      JSON.stringify({
+        type: "start-later",
+        payload: { when, script, args, threads, requestId },
       })
     );
     return requestId;

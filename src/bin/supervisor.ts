@@ -26,6 +26,23 @@ export async function main(ns: NS): Promise<void> {
     }
   }
 
+  class StartLaterWatcher {
+    private cancelled = false;
+
+    async watch() {
+      while (!this.cancelled) {
+        if (await checkStartLater()) {
+          return;
+        }
+        await ns.asleep(1000);
+      }
+    }
+
+    cancel() {
+      this.cancelled = true;
+    }
+  }
+
   const ctlPort = supervisorControl(ns);
   const eventsClient = new SupervisorEvents(ns);
   const fmt = new Fmt(ns);
@@ -38,10 +55,17 @@ export async function main(ns: NS): Promise<void> {
   while (!exit) {
     if (ctlPort.empty() && syntheticEvents.length === 0) {
       const crashWatcher = new CrashWatcher();
-      await Promise.any([ctlPort.nextWrite(), crashWatcher.watch()]);
+      const startLaterWatcher = new StartLaterWatcher();
+      await Promise.any([
+        ctlPort.nextWrite(),
+        crashWatcher.watch(),
+        startLaterWatcher.watch(),
+      ]);
       crashWatcher.cancel();
+      startLaterWatcher.cancel();
       continue;
     }
+
     const message = nextMessage();
     if (message.type === "echo") {
       echo(message);
@@ -56,6 +80,8 @@ export async function main(ns: NS): Promise<void> {
       finished(message);
     } else if (message.type === "tail-daemon") {
       ns.tail();
+    } else if (message.type === "start-later") {
+      startLater(message);
     } else {
       ns.tprint(`WARN Unknown message type ${JSON.stringify(message)}`);
     }
@@ -78,7 +104,7 @@ export async function main(ns: NS): Promise<void> {
     payload: { pid: number; hostname: string };
   }) {
     const { pid, hostname } = message.payload;
-    dbLock(ns, async (memdb) => {
+    dbLock(ns, "finished", async (memdb) => {
       for (const batchId in memdb.supervisor.batches) {
         const batch = memdb.supervisor.batches[batchId];
         const deployment = batch.deployments[hostname];
@@ -181,7 +207,7 @@ export async function main(ns: NS): Promise<void> {
     }
 
     batch.threads = scheduled;
-    dbLock(ns, async (memdb) => {
+    dbLock(ns, "start", async (memdb) => {
       memdb.supervisor.batches[batchId] = batch;
       return memdb;
     });
@@ -195,6 +221,49 @@ export async function main(ns: NS): Promise<void> {
     }
 
     await eventsClient.batchStarted(requestId, batchId, scheduled);
+  }
+
+  function startLater(message: {
+    type: "start-later";
+    payload: {
+      when: number;
+      script: string;
+      args: string[];
+      threads: number;
+      requestId: string;
+    };
+  }) {
+    const { script, args, threads, requestId, when } = message.payload;
+    ns.print(
+      `INFO [req=${requestId}] Saving '${script} ${args}' with threads ${threads}, will start in ${fmt.time(
+        when - Date.now()
+      )}`
+    );
+    dbLock(ns, "startLater", async (memdb) => {
+      memdb.supervisor.pending.push(message.payload);
+      memdb.supervisor.pending.sort((a, b) => a.when - b.when);
+      return memdb;
+    });
+  }
+
+  async function checkStartLater(): Promise<boolean> {
+    const now = Date.now();
+    let retval = false;
+    await dbLock(ns, "checkStartLater", async (memdb) => {
+      const pending = memdb.supervisor.pending;
+      // pending is sorted
+      while (pending.length > 0 && pending[0].when <= now) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const { script, args, threads, requestId } = pending.shift()!;
+        syntheticEvents.push({
+          type: "start",
+          payload: { script, args, threads, requestId },
+        });
+        retval = true;
+      }
+      return memdb;
+    });
+    return retval;
   }
 
   function status() {

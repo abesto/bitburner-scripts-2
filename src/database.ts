@@ -4,6 +4,9 @@ import { dbLockPort } from "./ports";
 
 export type DB = {
   config: {
+    database: {
+      debugLocks: boolean;
+    };
     simpleHack: {
       // Defines how much money a server should have before we hack it
       moneyThreshold: number;
@@ -19,6 +22,13 @@ export type DB = {
 
 export type SupervisorDB = {
   batches: { [batchID: string]: SupervisorBatch };
+  pending: {
+    when: number;
+    script: string;
+    args: string[];
+    threads: number;
+    requestId: string;
+  }[];
 };
 
 export type SupervisorBatch = {
@@ -37,6 +47,9 @@ const DB_PATH = "/db.json.txt";
 
 const DEFAULT_DB: DB = {
   config: {
+    database: {
+      debugLocks: false,
+    },
     simpleHack: {
       moneyThreshold: 0.75,
       securityThreshold: 5,
@@ -47,11 +60,13 @@ const DEFAULT_DB: DB = {
   },
   supervisor: {
     batches: {},
+    pending: [],
   },
 };
 
 export async function dbLock(
   ns: NS,
+  what: string,
   fn: (db: DB) => Promise<DB | undefined>
 ): Promise<void> {
   if (ns.getHostname() !== "home") {
@@ -62,10 +77,13 @@ export async function dbLock(
   const port = dbLockPort(ns);
 
   while (!port.empty()) {
-    ns.print("Waiting for db lock");
+    ns.print(`Waiting for db lock: ${pid}/${what}`);
     await port.nextWrite();
   }
   port.write(`lock:${pid}`);
+  if (db(ns).config.database.debugLocks) {
+    ns.print(`Got db lock: ${pid}/${what}`);
+  }
 
   let retval;
   try {
@@ -76,6 +94,9 @@ export async function dbLock(
   } finally {
     port.write(`unlock:${pid}`); // to trigger `nextWrite()`
     port.clear();
+    if (db(ns).config.database.debugLocks) {
+      ns.print(`Released db lock: ${pid}/${what}`);
+    }
   }
 
   return retval;

@@ -8,7 +8,10 @@ const SUPERVISOR_JS = "/dist/bin/supervisor.js";
 export async function main(ns: NS): Promise<void> {
   const ctl = new SupervisorCtl(ns);
   const events = new SupervisorEvents(ns);
-  const args = ns.flags([["threads", 0]]);
+  const args = ns.flags([
+    ["threads", 0],
+    ["in-seconds", 0],
+  ]);
 
   const posArgs = args._ as string[];
   const command = posArgs[0];
@@ -29,6 +32,8 @@ export async function main(ns: NS): Promise<void> {
     await ctl.status();
   } else if (command === "start") {
     await start();
+  } else if (command === "start-later") {
+    await startLater();
   } else if (command === "exit") {
     await exit();
   } else if (command === "restart-daemon") {
@@ -48,6 +53,29 @@ export async function main(ns: NS): Promise<void> {
       return;
     }
     const requestId = await ctl.start(posArgs[1], posArgs.slice(2), threads);
+    const batch = await events.waitForBatchStarted(requestId);
+    ns.tprint(`Started batch ${batch.batchId} with ${batch.threads} threads`);
+    await events.waitForBatchDone(batch.batchId);
+    ns.tprint(`Finished batch ${batch.batchId}`);
+  }
+
+  async function startLater() {
+    const threads = args.threads as number;
+    if (!threads) {
+      ns.tprint("ERROR --threads not specified");
+      return;
+    }
+    const inSeconds = args["in-seconds"] as number;
+    if (!inSeconds) {
+      ns.tprint("ERROR --in-seconds not specified");
+      return;
+    }
+    const requestId = await ctl.startLater(
+      Date.now() + inSeconds * 1000,
+      posArgs[1],
+      posArgs.slice(2),
+      threads
+    );
     const batch = await events.waitForBatchStarted(requestId);
     ns.tprint(`Started batch ${batch.batchId} with ${batch.threads} threads`);
     await events.waitForBatchDone(batch.batchId);
