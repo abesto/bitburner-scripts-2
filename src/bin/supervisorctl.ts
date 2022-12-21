@@ -4,22 +4,19 @@ import minimist from "minimist";
 import { SupervisorCtl } from "/supervisorctl";
 import { SupervisorEvents } from "/supervisorEvent";
 
+const SUPERVISOR_JS = "/dist/bin/supervisor.js";
+
 export async function main(ns: NS): Promise<void> {
   const ctl = new SupervisorCtl(ns);
   const events = new SupervisorEvents(ns);
   const args = minimist(ns.args as string[]);
 
   if (args._[0] == "start-daemon") {
-    if (ns.scriptRunning("supervisor.js", ns.getHostname())) {
-      ns.tprint("ERROR Supervisor already running");
-      return;
-    }
-    const pid = ns.exec("supervisor.js", ns.getHostname());
-    ns.tprint(`Started supervisor with pid ${pid}`);
+    await startDaemon();
     return;
   }
 
-  if (!ns.scriptRunning("supervisor.js", ns.getHostname())) {
+  if (!ns.scriptRunning(SUPERVISOR_JS, ns.getHostname())) {
     ns.tprint("ERROR Supervisor not running");
     return;
   }
@@ -29,6 +26,20 @@ export async function main(ns: NS): Promise<void> {
   } else if (args._[0] === "status") {
     await ctl.status();
   } else if (args._[0] === "start") {
+    await start();
+  } else if (args._[0] === "exit") {
+    await exit();
+  } else if (args._[0] === "restart-daemon") {
+    await exit();
+    await ns.sleep(0);
+    await startDaemon();
+  } else if (args._[0] === "tail-daemon") {
+    await ctl.tailDaemon();
+  } else {
+    ns.tprint("ERROR Unknown command");
+  }
+
+  async function start() {
     if (!args.threads) {
       ns.tprint("ERROR threads not specified");
       return;
@@ -38,11 +49,18 @@ export async function main(ns: NS): Promise<void> {
     ns.tprint(`Started batch ${batch.batchId} with ${batch.threads} threads`);
     await events.waitForBatchDone(batch.batchId);
     ns.tprint(`Finished batch ${batch.batchId}`);
-  } else if (args._[0] === "exit") {
+  }
+
+  async function startDaemon() {
+    if (ns.scriptRunning(SUPERVISOR_JS, ns.getHostname())) {
+      ns.tprint("ERROR Supervisor already running");
+      return;
+    }
+    const pid = ns.exec(SUPERVISOR_JS, ns.getHostname());
+    ns.tprint(`Started supervisor with pid ${pid}`);
+  }
+
+  async function exit() {
     await ctl.exit();
-  } else if (args._[0] === "tail-daemon") {
-    await ctl.tailDaemon();
-  } else {
-    ns.tprint("ERROR Unknown command");
   }
 }

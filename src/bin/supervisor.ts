@@ -13,6 +13,8 @@ export async function main(ns: NS): Promise<void> {
   const eventsPort = new SupervisorEvents(ns);
   const fmt = new Fmt(ns);
 
+  ns.disableLog("ALL");
+
   let exit = false;
   while (!exit) {
     if (ctlPort.empty()) {
