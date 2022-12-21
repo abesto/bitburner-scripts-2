@@ -28,7 +28,11 @@ export class SupervisorEvents {
 
   public async batchDone(batchId: string): Promise<void> {
     this.port.write(
-      JSON.stringify({ type: "batch-done", payload: { batchId } })
+      JSON.stringify({
+        type: "batch-done",
+        timestamp: Date.now(),
+        payload: { batchId },
+      })
     );
   }
 
@@ -40,6 +44,7 @@ export class SupervisorEvents {
     this.port.write(
       JSON.stringify({
         type: "batch-started",
+        timestamp: Date.now(),
         payload: { requestId, batchId, threads },
       })
     );

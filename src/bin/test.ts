@@ -8,7 +8,11 @@ export async function main(ns: NS): Promise<void> {
       port.write(x as string);
     }
   } else if (ns.args[0] === "wait") {
-    ns.tprint(await waitForMessage(port, (data) => data === ns.args[1]));
+    ns.tprint(
+      ns.args[1] +
+        ": " +
+        (await waitForMessage(port, (data) => data === ns.args[1]))
+    );
   } else if (ns.args[0] === "clear") {
     port.clear();
   } else if (ns.args[0] === "write-and-clear") {

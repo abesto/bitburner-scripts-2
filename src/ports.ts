@@ -19,10 +19,23 @@ export async function waitForMessage(
   pred: (data: PortData) => boolean
 ): Promise<PortData> {
   while (port.empty() || !pred(port.peek())) {
+    // Ignore pings
     if (port.peek() === ping) {
       port.read();
       continue;
     }
+
+    // Drop old messages
+    try {
+      const message = JSON.parse(port.peek().toString());
+      if (message.timestamp < Date.now() - 5000) {
+        port.read();
+        continue;
+      }
+    } catch (e) {
+      // Ignore
+    }
+
     await port.nextWrite();
   }
 

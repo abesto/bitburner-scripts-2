@@ -1,27 +1,21 @@
-import { NS } from "@ns";
+import { AutocompleteData, NS } from "@ns";
 
 import { autonuke } from "/autonuke";
 import { db } from "/database";
 import { Fmt } from "/fmt";
 import { SupervisorCtl } from "/supervisorctl";
+import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
-  const args = ns.flags([["threads", 0]]);
+  const args = ns.flags([]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
+
   const supervisorctl = new SupervisorCtl(ns);
+  const supervisorEvents = new SupervisorEvents(ns);
 
   if (!host) {
     ns.tprint("ERROR No host specified");
-    return;
-  }
-  const maxThreads = args.threads;
-  if (!maxThreads) {
-    ns.tprint("ERROR No threads specified");
-    return;
-  }
-  if (!Number.isInteger(maxThreads)) {
-    ns.tprint("ERROR Threads must be an integer");
     return;
   }
 
@@ -33,31 +27,35 @@ export async function main(ns: NS): Promise<void> {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     if (shouldWeaken()) {
-      const threads = weakenThreads();
-      ns.print(
-        `Weakening ${host} with ${threads} threads ETA ${fmt.time(
-          ns.getWeakenTime(host)
-        )}`
-      );
-      await ns.weaken(host, { threads });
+      await schedule("weaken", host, weakenThreads(), ns.getWeakenTime(host));
     } else if (shouldGrow()) {
-      const threads = growThreads();
-      ns.print(
-        `Growing ${host} with ${threads} threads ETA ${fmt.time(
-          ns.getGrowTime(host)
-        )}`
-      );
-      await ns.grow(host, { threads: growThreads() });
+      await schedule("grow", host, growThreads(), ns.getGrowTime(host));
     } else {
-      const threads = hackThreads();
-      ns.print(
-        `Hacking ${host} with ${threads} threads ETA ${fmt.time(
-          ns.getHackTime(host)
-        )}`
-      );
-      const stolen = await ns.hack(host, { threads: hackThreads() });
-      ns.print(`Stole ${fmt.money(stolen)} from ${host}`);
+      await schedule("hack", host, hackThreads(), ns.getHackTime(host));
     }
+  }
+
+  async function schedule(
+    kind: string,
+    host: string,
+    wantThreads: number,
+    eta: number
+  ): Promise<void> {
+    const requestId = await supervisorctl.start(
+      `/bin/payloads/${kind}.js`,
+      [host],
+      wantThreads
+    );
+    const { batchId, threads } = await supervisorEvents.waitForBatchStarted(
+      requestId
+    );
+    ns.print(
+      `Starting ${kind} against ${host} with ${threads}/${wantThreads} threads ETA ${fmt.time(
+        eta
+      )}`
+    );
+    await supervisorEvents.waitForBatchDone(batchId);
+    ns.print(`Finished ${kind} against ${host}`);
   }
 
   function shouldWeaken(): boolean {
@@ -91,8 +89,6 @@ export async function main(ns: NS): Promise<void> {
   }
 
   function weakenThreads(): number {
-    return maxThreads;
-    /*
     const minSecurity = ns.getServerMinSecurityLevel(host);
     const currentSecurity = ns.getServerSecurityLevel(host);
     const threshold = db(ns).config.simpleHack.securityThreshold + minSecurity;
@@ -105,16 +101,12 @@ export async function main(ns: NS): Promise<void> {
 
     // TODO account for cores
     return Math.ceil((currentSecurity - threshold) / WEAKEN_AMOUNT);
-    */
   }
 
   function growThreads(): number {
-    return maxThreads;
-    /*
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
-    const target = db(ns).config.simpleHack.moneyThreshold * moneyCapacity;
-    const multiplier = target / moneyAvailable;
+    const multiplier = moneyCapacity / moneyAvailable;
 
     if (multiplier <= 1) {
       return 0;
@@ -122,12 +114,9 @@ export async function main(ns: NS): Promise<void> {
 
     // TODO account for cores
     return Math.ceil(ns.growthAnalyze(host, multiplier));
-    */
   }
 
   function hackThreads(): number {
-    return maxThreads;
-    /*
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
     const target = db(ns).config.simpleHack.moneyThreshold * moneyCapacity;
@@ -139,7 +128,6 @@ export async function main(ns: NS): Promise<void> {
 
     // TODO account for cores
     return Math.ceil(ns.hackAnalyzeThreads(host, amount));
-    */
   }
 
   /*
@@ -157,4 +145,11 @@ export async function main(ns: NS): Promise<void> {
     return Math.floor(ramAvailable / scriptRam);
   }
   */
+}
+
+export function autocomplete(data: AutocompleteData, args: string[]): string[] {
+  if (args.length === 1) {
+    return data.servers.filter((server) => server.startsWith(args[0]));
+  }
+  return [];
 }
