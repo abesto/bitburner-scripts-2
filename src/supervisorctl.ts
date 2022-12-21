@@ -1,6 +1,6 @@
 import { NS, NetscriptPort } from "@ns";
 
-import { supervisorControl, supervisorEvents } from "/ports";
+import { supervisorControl } from "/ports";
 
 export type Message =
   | { type: "echo"; payload: string }
@@ -68,5 +68,6 @@ export class SupervisorCtl {
 
 export function thisProcessFinished(ns: NS): void {
   const ctl = new SupervisorCtl(ns);
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   ctl.finished(ns.getRunningScript()!.pid, ns.getHostname());
 }

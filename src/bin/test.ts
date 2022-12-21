@@ -1,12 +1,16 @@
 import { NS } from "@ns";
 
 export async function main(ns: NS): Promise<void> {
-  let count = 0;
-  const port = ns.getPortHandle(1);
-  while (!port.full()) {
-    count += 1;
-    port.write("wheeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+  const port = ns.getPortHandle(100);
+  if (ns.args[0] === "write") {
+    port.write("hello world");
+  } else if (ns.args[0] === "wait-write") {
+    await port.nextWrite();
+    ns.tprint(ns.readPort(100));
+  } else if (ns.args[0] === "clear") {
+    port.clear();
+  } else if (ns.args[0] === "write-and-clear") {
+    port.write("whey");
+    port.clear();
   }
-  port.clear();
-  ns.tprint(`Wrote ${count} messagesssss`);
 }

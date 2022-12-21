@@ -8,6 +8,10 @@ export function supervisorEvents(ns: NS): NetscriptPort {
   return ns.getPortHandle(2);
 }
 
+export function dbLockPort(ns: NS): NetscriptPort {
+  return ns.getPortHandle(3);
+}
+
 export function findPortMessage(
   port: NetscriptPort,
   pred: (data: PortData) => boolean

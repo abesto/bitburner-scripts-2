@@ -5,7 +5,7 @@ import { Message } from "/supervisorctl";
 import { autonuke } from "/autonuke";
 import { discoverServers } from "/discoverServers";
 import { Fmt } from "/fmt";
-import { db, saveDb, SupervisorBatch } from "/database";
+import { db, dbLock, SupervisorBatch } from "/database";
 import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
@@ -78,28 +78,29 @@ export async function main(ns: NS): Promise<void> {
     payload: { pid: number; hostname: string };
   }) {
     const { pid, hostname } = message.payload;
-    const memdb = db(ns);
-    for (const batchId in memdb.supervisor.batches) {
-      const batch = memdb.supervisor.batches[batchId];
-      const deployment = batch.deployments[hostname];
-      if (deployment?.pid === pid) {
-        ns.print(
-          `INFO [bat=${batchId}] ${hostname} finished '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${pid}})`
-        );
-        delete batch.deployments[hostname];
-        if (Object.keys(batch.deployments).length === 0) {
+    dbLock(ns, async (memdb) => {
+      for (const batchId in memdb.supervisor.batches) {
+        const batch = memdb.supervisor.batches[batchId];
+        const deployment = batch.deployments[hostname];
+        if (deployment?.pid === pid) {
           ns.print(
-            `SUCCESS [bat=${batchId}] finished (${batch.script} ${batch.args} with ${batch.threads} threads)`
+            `INFO [bat=${batchId}] ${hostname} finished '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${pid}})`
           );
-          delete memdb.supervisor.batches[batchId];
+          delete batch.deployments[hostname];
+          if (Object.keys(batch.deployments).length === 0) {
+            ns.print(
+              `SUCCESS [bat=${batchId}] finished (${batch.script} ${batch.args} with ${batch.threads} threads)`
+            );
+            delete memdb.supervisor.batches[batchId];
 
-          eventsClient.batchDone(batchId);
+            eventsClient.batchDone(batchId);
+          }
+          return memdb;
         }
-        saveDb(ns, memdb);
-        return;
       }
-    }
-    ns.tprint(`WARN Could not find batch for ${hostname} PID ${pid}`);
+      ns.tprint(`WARN Could not find batch for ${hostname} PID ${pid}`);
+      return;
+    });
   }
 
   async function start(message: {
@@ -180,9 +181,10 @@ export async function main(ns: NS): Promise<void> {
     }
 
     batch.threads = scheduled;
-    const memdb = db(ns);
-    memdb.supervisor.batches[batchId] = batch;
-    saveDb(ns, memdb);
+    dbLock(ns, async (memdb) => {
+      memdb.supervisor.batches[batchId] = batch;
+      return memdb;
+    });
 
     if (scheduled < threads) {
       ns.print(

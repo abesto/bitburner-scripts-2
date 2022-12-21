@@ -1,5 +1,6 @@
 import { NS } from "@ns";
 import { deepmerge } from "deepmerge-ts";
+import { dbLockPort } from "./ports";
 
 export type DB = {
   config: {
@@ -49,7 +50,41 @@ const DEFAULT_DB: DB = {
   },
 };
 
+export async function dbLock(
+  ns: NS,
+  fn: (db: DB) => Promise<DB | undefined>
+): Promise<void> {
+  if (ns.getHostname() !== "home") {
+    throw new Error("dbLock() can only be called from home");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const pid = ns.getRunningScript()!.pid;
+  const port = dbLockPort(ns);
+
+  while (!port.empty()) {
+    ns.print("Waiting for db lock");
+    await port.nextWrite();
+  }
+  port.write(`lock:${pid}`);
+
+  let retval;
+  try {
+    const newDb = await fn(db(ns));
+    if (newDb !== undefined) {
+      saveDb(ns, newDb);
+    }
+  } finally {
+    port.write(`unlock:${pid}`); // to trigger `nextWrite()`
+    port.clear();
+  }
+
+  return retval;
+}
+
 export function db(ns: NS): DB {
+  if (ns.getHostname() !== "home") {
+    throw new Error("db() can only be called from home");
+  }
   if (!ns.fileExists(DB_PATH)) {
     ns.write(DB_PATH, "{}", "w");
   }
@@ -57,6 +92,9 @@ export function db(ns: NS): DB {
   return deepmerge(DEFAULT_DB, contents);
 }
 
-export function saveDb(ns: NS, db: DB): void {
+function saveDb(ns: NS, db: DB): void {
+  if (ns.getHostname() !== "home") {
+    throw new Error("saveDb() can only be called from home");
+  }
   ns.write(DB_PATH, JSON.stringify(db, null, 4), "w");
 }
