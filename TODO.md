@@ -8,10 +8,14 @@
   * add safety check to `hwgw-batch`: if we fail to schedule all tasks, kill the whole batch
   * add safety check to `hwgw-controller`: if money goes significantly below threshold, kill everything and grow it back
   * add safety check to `hwgw-controller`: if security goes too high, kill everything and shrink it back
+  * `hwgw-controller`: kill all processes against the target on startup
   * add nice reporting
-* scheduler: immediately emit batchdone if threadcount=0
-* scheduler: separate port for responses to each ... request?
-* scheduler: pick server with best-match free mem
+* scheduler
+  * add `status <batch-id>`
+  * add `tail <batch-id>`
+  * immediately emit batchdone if threadcount=0
+  * separate port for responses to each ... request?
+  * pick server with best-match free mem
 * make DB accessible from non-home hosts; scp fails way too often
 * add timers to scheduler
   * configured in text file(s)

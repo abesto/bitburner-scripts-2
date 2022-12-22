@@ -7,24 +7,32 @@ import { SupervisorEvents } from "/supervisorEvent";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
-  const args = ns.flags([["batch", ""]]);
+  const args = ns.flags([
+    ["batch", ""],
+    ["initial", false],
+  ]);
   const host = (args._ as string[])[0];
   const batchId = args["batch"] as string;
+  const initial = args["initial"] as boolean;
+
   if (!host || !batchId) {
     throw new Error(
-      `Usage: run hwgw-batch.js <host> --batch <batch-id>\nGot args: ${JSON.stringify(
+      `Usage: run hwgw-batch.js <host> --batch <batch-id> [--initial]\nGot args: ${JSON.stringify(
         args
       )}`
     );
   }
 
   const supervisorEvents = new SupervisorEvents(ns);
-  // Self-ACK, the controller doesn't care
-  // TODO make this timeout configurable
-  await silentTimeout(
-    supervisorEvents.waitForBatchStartedByBatchId(batchId),
-    200
-  );
+
+  if (!initial) {
+    // Self-ACK, the controller doesn't care
+    // TODO make this timeout configurable
+    await silentTimeout(
+      supervisorEvents.waitForBatchStartedByBatchId(batchId),
+      200
+    );
+  }
 
   try {
     await db(ns);
@@ -46,7 +54,9 @@ export async function main(ns: NS): Promise<void> {
   const hackSecurityGrowth = ns.hackAnalyzeSecurity(hackThreads);
   const hackWeakenThreads = Math.ceil(hackSecurityGrowth / 0.05);
 
-  const growMultiplier = 1 + moneySteal / moneyAfterHack;
+  const growMultiplier = initial
+    ? moneyMax / ns.getServerMoneyAvailable(host)
+    : 1 + moneySteal / moneyAfterHack;
   const growThreads = Math.ceil(ns.growthAnalyze(host, growMultiplier));
   const growSecurityGrowth = ns.growthAnalyzeSecurity(growThreads);
   const growWeakenThreads = Math.ceil(growSecurityGrowth / 0.05);
@@ -76,12 +86,19 @@ export async function main(ns: NS): Promise<void> {
 
   const supervisorctl = new SupervisorCtl(ns);
 
-  const { batchId: hackWeakenBatchId } = await schedule(
-    "weaken",
-    host,
-    hackWeakenThreads,
-    weakenLength
-  );
+  let hackWeakenBatchId;
+
+  if (initial) {
+    ns.print("Skipping hack-weaken");
+  } else {
+    const { batchId: _hackWeakenBatchId } = await schedule(
+      "weaken",
+      host,
+      hackWeakenThreads,
+      weakenLength
+    );
+    hackWeakenBatchId = _hackWeakenBatchId;
+  }
 
   const hackWeakenStart = Date.now();
   const hackWeakenEnd = hackWeakenStart + weakenLength;
@@ -121,37 +138,49 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  ns.print(`Sleeping for ${fmt.time(hackStart - Date.now())} until hack start`);
-  await ns.sleep(hackStart - Date.now());
-  const { batchId: hackBatchId, threads: hackThreadsScheduled } =
-    await schedule("hack", host, hackThreads, hackLength);
-  if (hackThreadsScheduled !== hackThreads) {
+  let hackBatchId;
+  if (initial) {
+    ns.print("Skipping hack");
+  } else {
     ns.print(
-      `ERROR Scheduled ${hackThreadsScheduled} hack threads, wanted ${hackThreads}`
+      `Sleeping for ${fmt.time(hackStart - Date.now())} until hack start`
     );
-    // TODO kill all batches
+    await ns.sleep(hackStart - Date.now());
+    const { batchId: _hackBatchId, threads: hackThreadsScheduled } =
+      await schedule("hack", host, hackThreads, hackLength);
+    hackBatchId = _hackBatchId;
+    if (hackThreadsScheduled !== hackThreads) {
+      ns.print(
+        `ERROR Scheduled ${hackThreadsScheduled} hack threads, wanted ${hackThreads}`
+      );
+      // TODO kill all batches
+    }
   }
 
   const fullTimeout = growWeakenEnd - Date.now() + spacing * 5;
   ns.print(
     `Waiting for everything to finish up, at most ${fmt.time(fullTimeout)}`
   );
-  await silentTimeout(
-    Promise.all([
-      logDone(hackWeakenBatchId, "hack-weaken"),
-      logDone(growWeakenBatchId, "grow-weaken"),
-      logDone(growBatchId, "grow"),
-      logDone(hackBatchId, "hack"),
-    ]),
-    fullTimeout
-  );
+  const jobs = [
+    logDone(growWeakenBatchId, "hack-weaken"),
+    logDone(growBatchId, "grow"),
+  ];
+  if (!initial && hackBatchId !== undefined) {
+    jobs.push(logDone(hackBatchId, "hack"));
+  }
+  if (!initial && hackWeakenBatchId !== undefined) {
+    jobs.push(logDone(hackWeakenBatchId, "grow-weaken"));
+  }
+  await silentTimeout(Promise.all(jobs), fullTimeout);
 
   ns.print("All done, reporting");
   thisProcessFinished(ns);
-  // Self-ACK, controller doesn't care
-  // TODO make this timeout configurable
-  ns.print("Self-ACK");
-  await silentTimeout(supervisorEvents.waitForBatchDone(batchId), 200);
+  if (!initial) {
+    // Self-ACK, controller doesn't care
+    // TODO make this timeout configurable
+    ns.print("Self-ACK");
+    await silentTimeout(supervisorEvents.waitForBatchDone(batchId), 200);
+  }
   ns.print("All done");
 
   async function logDone(batchId: string, kind: string): Promise<void> {

@@ -26,48 +26,18 @@ export async function main(ns: NS): Promise<void> {
   autonuke(ns, host);
 
   // eslint-disable-next-line no-constant-condition
-  ns.print("Initial preparation: weaken, grow");
+  ns.print("Initial preparation: weaken, grow, weaken");
   while (shouldWeaken() || (await shouldGrow())) {
-    const weakenLength = ns.getWeakenTime(host);
-    const { batchId: weakenBatchId } = await schedule(
-      "weaken",
-      host,
-      weakenThreads(),
-      weakenLength
+    const requestId = await supervisorctl.start(
+      "/dist/bin/hwgw-batch.js",
+      [host, "--initial"],
+      1,
+      true
     );
-
-    const weakenEta = Date.now() + weakenLength;
-
-    const growLength = ns.getGrowTime(host);
-    const growTargetEnd = weakenEta + (await spacing());
-    const growStart = growTargetEnd - growLength;
-    const growSleep = growStart - Date.now();
-    ns.print(`Sleeping ${fmt.time(growSleep)} until grow`);
-    await ns.sleep(growSleep);
-
-    const { batchId: growBatchId } = await schedule(
-      "grow",
-      host,
-      growThreads(),
-      growLength
-    );
-
-    await Promise.all([
-      supervisorEvents.waitForBatchDone(weakenBatchId),
-      supervisorEvents.waitForBatchDone(growBatchId),
-    ]);
-  }
-
-  ns.print("Initial preparation: weaken");
-  while (shouldWeaken()) {
-    const weakenLength = ns.getWeakenTime(host);
-    const { batchId: weakenBatchId } = await schedule(
-      "weaken",
-      host,
-      weakenThreads(),
-      weakenLength
-    );
-    await supervisorEvents.waitForBatchDone(weakenBatchId);
+    ns.print(`Starting batch with request id ${requestId}`);
+    const { batchId } = await supervisorEvents.waitForBatchStarted(requestId);
+    ns.print(`Batch started with id ${batchId}`);
+    await supervisorEvents.waitForBatchDone(batchId);
   }
 
   ns.print("Starting batched hacking");
@@ -111,28 +81,6 @@ export async function main(ns: NS): Promise<void> {
     );
   }
 
-  async function schedule(
-    kind: string,
-    host: string,
-    wantThreads: number,
-    eta: number
-  ): Promise<{ batchId: string; threads: number }> {
-    const requestId = await supervisorctl.start(
-      `/dist/bin/payloads/${kind}.js`,
-      [host],
-      wantThreads
-    );
-    const { batchId, threads } = await supervisorEvents.waitForBatchStarted(
-      requestId
-    );
-    ns.print(
-      `Starting ${kind} against ${host} with ${threads}/${wantThreads} threads ETA ${fmt.time(
-        eta
-      )}`
-    );
-    return { batchId, threads };
-  }
-
   function shouldWeaken(): boolean {
     const minSecurity = ns.getServerMinSecurityLevel(host);
     const currentSecurity = ns.getServerSecurityLevel(host);
@@ -160,36 +108,6 @@ export async function main(ns: NS): Promise<void> {
       return true;
     }
     return false;
-  }
-
-  function weakenThreads(): number {
-    const minSecurity = ns.getServerMinSecurityLevel(host);
-    const currentSecurity = ns.getServerSecurityLevel(host);
-
-    if (currentSecurity <= minSecurity) {
-      return 0;
-    }
-
-    const WEAKEN_AMOUNT = 0.05; // Docs say so
-
-    // TODO account for cores
-    return Math.max(
-      1,
-      Math.ceil((currentSecurity - minSecurity) / WEAKEN_AMOUNT)
-    );
-  }
-
-  function growThreads(): number {
-    const moneyAvailable = ns.getServerMoneyAvailable(host);
-    const moneyCapacity = ns.getServerMaxMoney(host);
-    const multiplier = moneyCapacity / moneyAvailable;
-
-    if (multiplier <= 1) {
-      return 0;
-    }
-
-    // TODO account for cores
-    return Math.max(1, Math.ceil(ns.growthAnalyze(host, multiplier)));
   }
 }
 
