@@ -6,6 +6,8 @@ export type Message =
   | { type: "echo"; payload: string }
   | { type: "status" }
   | { type: "exit" }
+  | { type: "kill-all" }
+  | { type: "capacity" }
   | {
       type: "start";
       payload: {
@@ -13,6 +15,7 @@ export type Message =
         args: string[];
         threads: number;
         requestId: string;
+        preferHome: boolean;
       };
     }
   | {
@@ -45,6 +48,14 @@ export class SupervisorCtl {
     this.port.write(JSON.stringify({ type: "status" }));
   }
 
+  public async killAll(): Promise<void> {
+    this.port.write(JSON.stringify({ type: "kill-all" }));
+  }
+
+  public async capacity(): Promise<void> {
+    this.port.write(JSON.stringify({ type: "capacity" }));
+  }
+
   public async exit(): Promise<void> {
     this.port.write(JSON.stringify({ type: "exit" }));
   }
@@ -52,14 +63,15 @@ export class SupervisorCtl {
   public async start(
     script: string,
     args: string[],
-    threads: number
+    threads: number,
+    preferHome = false
   ): Promise<string> {
     const requestId =
       Math.random().toString(36).substring(2) + "." + Date.now().toString(36);
     this.port.write(
       JSON.stringify({
         type: "start",
-        payload: { script, args, threads, requestId },
+        payload: { script, args, threads, requestId, preferHome },
       })
     );
     return requestId;

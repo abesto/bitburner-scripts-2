@@ -14,7 +14,8 @@ export async function main(ns: NS): Promise<void> {
 
     async watch() {
       while (!this.cancelled) {
-        if (checkCrashes()) {
+        if (await checkCrashes()) {
+          ns.print("Got crash");
           return;
         }
         await ns.asleep(1000);
@@ -31,6 +32,7 @@ export async function main(ns: NS): Promise<void> {
 
     async watch() {
       while (!this.cancelled) {
+        ns.print("Later is now");
         if (await checkStartLater()) {
           return;
         }
@@ -55,14 +57,15 @@ export async function main(ns: NS): Promise<void> {
   while (!exit) {
     if (ctlPort.empty() && syntheticEvents.length === 0) {
       const crashWatcher = new CrashWatcher();
-      const startLaterWatcher = new StartLaterWatcher();
+      //const startLaterWatcher = new StartLaterWatcher();
       await Promise.any([
         ctlPort.nextWrite(),
         crashWatcher.watch(),
-        startLaterWatcher.watch(),
+        /*startLaterWatcher.watch(),*/
       ]);
       crashWatcher.cancel();
-      startLaterWatcher.cancel();
+      //startLaterWatcher.cancel();
+      await ns.sleep(0);
       continue;
     }
 
@@ -75,13 +78,17 @@ export async function main(ns: NS): Promise<void> {
       ns.tprint("Exiting...");
       exit = true;
     } else if (message.type === "start") {
-      start(message);
+      await start(message);
     } else if (message.type === "finished") {
-      finished(message);
+      await finished(message);
     } else if (message.type === "tail-daemon") {
       ns.tail();
     } else if (message.type === "start-later") {
-      startLater(message);
+      await startLater(message);
+    } else if (message.type === "kill-all") {
+      await killAll();
+    } else if (message.type === "capacity") {
+      capacity();
     } else {
       ns.tprint(`WARN Unknown message type ${JSON.stringify(message)}`);
     }
@@ -99,12 +106,33 @@ export async function main(ns: NS): Promise<void> {
     }
   }
 
-  function finished(message: {
+  function capacity() {
+    const data = exploreCapacity(ns);
+    const sumFreeMem = data.reduce((acc, x) => acc + x.freeMem, 0);
+    ns.tprint("INFO Free capacity: " + fmt.memory(sumFreeMem));
+  }
+
+  async function killAll() {
+    ns.print("Killing all managed processes");
+    const memdb = await db(ns);
+    for (const batchId in memdb.supervisor.batches) {
+      const batch = memdb.supervisor.batches[batchId];
+      for (const hostname in batch.deployments) {
+        ns.kill(batch.script, hostname, ...batch.args, "--batch", batchId);
+      }
+    }
+    await dbLock(ns, "kill-all", async (memdb) => {
+      memdb.supervisor.batches = {};
+      return memdb;
+    });
+  }
+
+  async function finished(message: {
     type: "finished";
     payload: { pid: number; hostname: string };
   }) {
     const { pid, hostname } = message.payload;
-    dbLock(ns, "finished", async (memdb) => {
+    await dbLock(ns, "finished", async (memdb) => {
       for (const batchId in memdb.supervisor.batches) {
         const batch = memdb.supervisor.batches[batchId];
         const deployment = batch.deployments[hostname];
@@ -136,9 +164,10 @@ export async function main(ns: NS): Promise<void> {
       args: string[];
       threads: number;
       requestId: string;
+      preferHome: boolean;
     };
   }) {
-    const { script, args, threads, requestId } = message.payload;
+    const { script, args, threads, requestId, preferHome } = message.payload;
 
     if (!ns.fileExists(script, "home")) {
       ns.tprint(`ERROR Could not find ${script}`);
@@ -155,14 +184,31 @@ export async function main(ns: NS): Promise<void> {
       )})`
     );
     const capacity = exploreCapacity(ns);
+    capacity.sort((a, b) => {
+      if (a.hostname === "home") {
+        return -1;
+      } else if (b.hostname === "home") {
+        return 1;
+      } else {
+        return 0;
+      }
+    });
+    if (!preferHome) {
+      capacity.reverse();
+    }
+
     let scheduled = 0;
     for (const { hostname, freeMem, cores } of capacity) {
+      if (scheduled >= threads) {
+        break;
+      }
       const availableThreads = Math.max(
         0,
         Math.floor(
           hostname === "home"
             ? Math.floor(
-                (freeMem - db(ns).config.supervisor.reserveHomeRam) / scriptRam
+                (freeMem - (await db(ns)).config.supervisor.reserveHomeRam) /
+                  scriptRam
               )
             : Math.floor(freeMem / scriptRam)
         )
@@ -201,13 +247,10 @@ export async function main(ns: NS): Promise<void> {
         pid,
         threads: threadsThisHost,
       };
-      if (scheduled >= threads) {
-        break;
-      }
     }
 
     batch.threads = scheduled;
-    dbLock(ns, "start", async (memdb) => {
+    await dbLock(ns, "start", async (memdb) => {
       memdb.supervisor.batches[batchId] = batch;
       return memdb;
     });
@@ -223,7 +266,7 @@ export async function main(ns: NS): Promise<void> {
     await eventsClient.batchStarted(requestId, batchId, scheduled);
   }
 
-  function startLater(message: {
+  async function startLater(message: {
     type: "start-later";
     payload: {
       when: number;
@@ -239,7 +282,7 @@ export async function main(ns: NS): Promise<void> {
         when - Date.now()
       )}`
     );
-    dbLock(ns, "startLater", async (memdb) => {
+    await dbLock(ns, "startLater", async (memdb) => {
       memdb.supervisor.pending.push(message.payload);
       memdb.supervisor.pending.sort((a, b) => a.when - b.when);
       return memdb;
@@ -257,7 +300,7 @@ export async function main(ns: NS): Promise<void> {
         const { script, args, threads, requestId } = pending.shift()!;
         syntheticEvents.push({
           type: "start",
-          payload: { script, args, threads, requestId },
+          payload: { script, args, threads, requestId, preferHome: false },
         });
         retval = true;
       }
@@ -266,10 +309,21 @@ export async function main(ns: NS): Promise<void> {
     return retval;
   }
 
-  function status() {
+  async function status() {
     ns.tprint("INFO I'm alive! Available capacity:");
     for (const { hostname, freeMem, cores } of exploreCapacity(ns)) {
       ns.tprint(`  ${hostname}: ${fmt.memory(freeMem)} (${cores} cores)`);
+    }
+    ns.tprint("INFO Running batches:");
+    for (const batchId in (await db(ns)).supervisor.batches) {
+      const batch = (await db(ns)).supervisor.batches[batchId];
+      ns.tprint(`  ${batchId}: ${batch.script} ${batch.args}`);
+      for (const hostname in batch.deployments) {
+        const deployment = batch.deployments[hostname];
+        ns.tprint(
+          `    ${hostname}: ${deployment.threads} (PID ${deployment.pid})`
+        );
+      }
     }
   }
 
@@ -277,15 +331,15 @@ export async function main(ns: NS): Promise<void> {
     ns.tprint(message.payload);
   }
 
-  function checkCrashes(): boolean {
+  async function checkCrashes(): Promise<boolean> {
     let retval = false;
-    const memdb = db(ns);
+    const memdb = await db(ns);
     for (const batchId in memdb.supervisor.batches) {
       const batch = memdb.supervisor.batches[batchId];
       for (const hostname in batch.deployments) {
         const deployment = batch.deployments[hostname];
         if (!ns.isRunning(deployment.pid, hostname)) {
-          ns.tprint(
+          ns.print(
             `WARN [bat=${batchId}] ${hostname} crashed '${batch.script} ${batch.args}' with ${deployment.threads} (PID ${deployment.pid})`
           );
           syntheticEvents.push({

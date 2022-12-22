@@ -29,7 +29,7 @@ export async function main(ns: NS): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    if (shouldWeaken()) {
+    if (await shouldWeaken()) {
       const threads = weakenThreads();
       ns.print(
         `Weakening ${host} with ${threads} threads ETA ${fmt.time(
@@ -37,7 +37,7 @@ export async function main(ns: NS): Promise<void> {
         )}`
       );
       await ns.weaken(host, { threads });
-    } else if (shouldGrow()) {
+    } else if (await shouldGrow()) {
       const threads = growThreads();
       ns.print(
         `Growing ${host} with ${threads} threads ETA ${fmt.time(
@@ -57,10 +57,11 @@ export async function main(ns: NS): Promise<void> {
     }
   }
 
-  function shouldWeaken(): boolean {
+  async function shouldWeaken(): Promise<boolean> {
     const minSecurity = ns.getServerMinSecurityLevel(host);
     const currentSecurity = ns.getServerSecurityLevel(host);
-    const threshold = db(ns).config.simpleHack.securityThreshold + minSecurity;
+    const threshold =
+      (await db(ns)).config.simpleHack.securityThreshold + minSecurity;
 
     if (currentSecurity > threshold) {
       ns.print(
@@ -71,10 +72,11 @@ export async function main(ns: NS): Promise<void> {
     return false;
   }
 
-  function shouldGrow(): boolean {
+  async function shouldGrow(): Promise<boolean> {
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
-    const threshold = db(ns).config.simpleHack.moneyThreshold * moneyCapacity;
+    const threshold =
+      (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
 
     if (moneyAvailable < threshold) {
       ns.print(
@@ -92,7 +94,7 @@ export async function main(ns: NS): Promise<void> {
     /*
     const minSecurity = ns.getServerMinSecurityLevel(host);
     const currentSecurity = ns.getServerSecurityLevel(host);
-    const threshold = db(ns).config.simpleHack.securityThreshold + minSecurity;
+    const threshold = (await db(ns)).config.simpleHack.securityThreshold + minSecurity;
 
     if (currentSecurity <= threshold) {
       return 0;
@@ -110,7 +112,7 @@ export async function main(ns: NS): Promise<void> {
     /*
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
-    const target = db(ns).config.simpleHack.moneyThreshold * moneyCapacity;
+    const target = (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
     const multiplier = target / moneyAvailable;
 
     if (multiplier <= 1) {
@@ -127,7 +129,7 @@ export async function main(ns: NS): Promise<void> {
     /*
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
-    const target = db(ns).config.simpleHack.moneyThreshold * moneyCapacity;
+    const target = (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
     const amount = moneyAvailable - target;
 
     if (amount <= 0) {

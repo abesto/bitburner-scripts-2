@@ -1,0 +1,12 @@
+import { NS } from "@ns";
+import { thisProcessFinished } from "/supervisorctl";
+
+export async function main(ns: NS): Promise<void> {
+  const host = ns.args[0] as string;
+  if (!host) {
+    throw new Error("Usage: run weaken.js <host>");
+  }
+  const weakened = await ns.weaken(host);
+  // TODO report weakened
+  thisProcessFinished(ns);
+}

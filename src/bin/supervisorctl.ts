@@ -42,6 +42,10 @@ export async function main(ns: NS): Promise<void> {
     await startDaemon();
   } else if (command === "tail-daemon") {
     await ctl.tailDaemon();
+  } else if (command === "kill-all") {
+    await ctl.killAll();
+  } else if (command == "capacity") {
+    await ctl.capacity();
   } else {
     ns.tprint("ERROR Unknown command");
   }

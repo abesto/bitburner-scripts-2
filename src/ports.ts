@@ -28,7 +28,7 @@ export async function waitForMessage(
     // Drop old messages
     try {
       const message = JSON.parse(port.peek().toString());
-      if (message.timestamp < Date.now() - 5000) {
+      if (message.timestamp < Date.now() - 1000) {
         port.read();
         continue;
       }
