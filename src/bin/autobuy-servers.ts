@@ -4,11 +4,27 @@ import { Fmt } from "/fmt";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
+  const args = ns.flags([
+    ["loop", false],
+    ["buy-at", "$1.5b"],
+    ["sleep-ms", 5000],
+  ]);
+
   const fmt = new Fmt(ns);
   const config = (await db(ns)).config.autobuyServers;
   const reserveMoney = fmt.parseMoney(config.reserveMoney);
 
-  await purchaseWorkers();
+  if (args.loop) {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (ns.getPlayer().money >= fmt.parseMoney(args["buy-at"] as string)) {
+        await purchaseWorkers();
+      }
+      await ns.sleep(args["sleep-ms"] as number);
+    }
+  } else {
+    await purchaseWorkers();
+  }
 
   async function deleteWeakestWorker(keep: number): Promise<string | null> {
     const server = ns
