@@ -1,8 +1,8 @@
 import { NS } from "@ns";
-import { PortRegistryService } from "/services/PortRegistry/service";
+import { SchedulerService } from "/services/Scheduler/service";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
-  const portRegistry = new PortRegistryService(ns);
+  const portRegistry = new SchedulerService(ns);
   await portRegistry.listen();
 }

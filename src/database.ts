@@ -1,6 +1,7 @@
 import { NS } from "@ns";
 import { deepmerge } from "deepmerge-ts";
 import { dbLockPort } from "./ports";
+import { Job, JobId } from "./services/Scheduler/types";
 
 export type DB = {
   config: {
@@ -20,11 +21,15 @@ export type DB = {
     supervisor: {
       reserveHomeRam: number;
     };
+    scheduler: {
+      reserveHomeRam: number;
+    };
     autobuyServers: {
       reserveMoney: string;
     };
   };
   supervisor: SupervisorDB;
+  scheduler: SchedulerDB;
 };
 
 export type SupervisorDB = {
@@ -36,6 +41,10 @@ export type SupervisorDB = {
     threads: number;
     requestId: string;
   }[];
+};
+
+export type SchedulerDB = {
+  jobs: { [jobId: string]: Job };
 };
 
 export type SupervisorBatch = {
@@ -68,6 +77,9 @@ const DEFAULT_DB: DB = {
     supervisor: {
       reserveHomeRam: 8,
     },
+    scheduler: {
+      reserveHomeRam: 8,
+    },
     autobuyServers: {
       reserveMoney: "$10m",
     },
@@ -75,6 +87,9 @@ const DEFAULT_DB: DB = {
   supervisor: {
     batches: {},
     pending: [],
+  },
+  scheduler: {
+    jobs: new Map(),
   },
 };
 

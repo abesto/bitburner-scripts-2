@@ -7,8 +7,9 @@
 * simple `share` service
 * `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
 * scheduler: assign task id to each task, pass that along with the job id
-* hwgw
   * optimize payloads: get task ID for done-reporting from args
+  * include core count in 1. scheduling decisions 2. thread count accounting
+* hwgw
   * add safety check to `hwgw-batch`: when grow finishes, verify that money on server is good; kill hack jobs if not
   * add safety check to `hwgw-batch`: if we fail to schedule all tasks, kill the whole batch
   * add safety check to `hwgw-controller`: if money goes significantly below threshold, kill everything and grow it back

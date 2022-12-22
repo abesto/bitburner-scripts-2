@@ -1,7 +1,16 @@
 import { NS, NetscriptPort, PortData } from "@ns";
 
+import { SERVICE_ID as SCHEDULER } from "./services/Scheduler/types";
+import { SERVICE_ID as PORT_REGISTRY } from "./services/PortRegistry/types";
+
+export const PORTS = {
+  [SCHEDULER]: 1,
+  [PORT_REGISTRY]: 4,
+  FreePorts: 5,
+};
+
 export function supervisorControl(ns: NS): NetscriptPort {
-  return ns.getPortHandle(1);
+  return ns.getPortHandle(PORTS[SCHEDULER]);
 }
 
 export function supervisorEvents(ns: NS): NetscriptPort {
@@ -13,11 +22,11 @@ export function dbLockPort(ns: NS): NetscriptPort {
 }
 
 export function portRegistry(ns: NS): NetscriptPort {
-  return ns.getPortHandle(4);
+  return ns.getPortHandle(PORTS[PORT_REGISTRY]);
 }
 
 export function freePorts(ns: NS): NetscriptPort {
-  return ns.getPortHandle(5);
+  return ns.getPortHandle(PORTS.FreePorts);
 }
 
 const ping = JSON.stringify({ type: "ping" });
