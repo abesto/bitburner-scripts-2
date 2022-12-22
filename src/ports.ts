@@ -12,6 +12,14 @@ export function dbLockPort(ns: NS): NetscriptPort {
   return ns.getPortHandle(3);
 }
 
+export function portRegistry(ns: NS): NetscriptPort {
+  return ns.getPortHandle(4);
+}
+
+export function freePorts(ns: NS): NetscriptPort {
+  return ns.getPortHandle(5);
+}
+
 const ping = JSON.stringify({ type: "ping" });
 
 export async function waitForMessage(

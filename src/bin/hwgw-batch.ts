@@ -52,7 +52,9 @@ export async function main(ns: NS): Promise<void> {
   const hackThreads = Math.floor(moneySteal / moneyStolenPerThread);
   const moneyAfterHack = moneyMax - moneyStolenPerThread * hackThreads;
   const hackSecurityGrowth = ns.hackAnalyzeSecurity(hackThreads);
-  const hackWeakenThreads = Math.ceil(hackSecurityGrowth / 0.05);
+  const hackWeakenThreads = Math.ceil(
+    (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth) / 0.05
+  );
 
   const growMultiplier = initial
     ? moneyMax / ns.getServerMoneyAvailable(host)
@@ -86,19 +88,12 @@ export async function main(ns: NS): Promise<void> {
 
   const supervisorctl = new SupervisorCtl(ns);
 
-  let hackWeakenBatchId;
-
-  if (initial) {
-    ns.print("Skipping hack-weaken");
-  } else {
-    const { batchId: _hackWeakenBatchId } = await schedule(
-      "weaken",
-      host,
-      hackWeakenThreads,
-      weakenLength
-    );
-    hackWeakenBatchId = _hackWeakenBatchId;
-  }
+  const { batchId: hackWeakenBatchId } = await schedule(
+    "weaken",
+    host,
+    hackWeakenThreads,
+    weakenLength
+  );
 
   const hackWeakenStart = Date.now();
   const hackWeakenEnd = hackWeakenStart + weakenLength;
@@ -129,9 +124,12 @@ export async function main(ns: NS): Promise<void> {
   await ns.sleep(growStart - Date.now());
   const { batchId: growBatchId, threads: growThreadsScheduled } =
     await schedule("grow", host, growThreads, growLength);
-  if (growThreadsScheduled !== growThreads) {
+  if (
+    growThreadsScheduled !== growThreads &&
+    ((initial && growThreadsScheduled === 0) || !initial)
+  ) {
     ns.tprint(
-      `ERROR Scheduled ${growThreadsScheduled} grow-hack threads, wanted ${growThreads}`
+      `ERROR Scheduled ${growThreadsScheduled} grow threads, wanted ${growThreads}`
     );
     thisProcessFinished(ns);
     // TODO kill growWeaken batch

@@ -16,6 +16,8 @@
   * immediately emit batchdone if threadcount=0
   * separate port for responses to each ... request?
   * pick server with best-match free mem
+* `PortRegistry`
+  * implement safe restart (transfer internal state)
 * make DB accessible from non-home hosts; scp fails way too often
 * add timers to scheduler
   * configured in text file(s)

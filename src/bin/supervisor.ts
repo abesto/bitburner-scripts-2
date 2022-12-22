@@ -109,7 +109,12 @@ export async function main(ns: NS): Promise<void> {
   function capacity() {
     const data = exploreCapacity(ns);
     const sumFreeMem = data.reduce((acc, x) => acc + x.freeMem, 0);
-    ns.tprint("INFO Free capacity: " + fmt.memory(sumFreeMem));
+    const sumTotalMem = data.reduce((acc, x) => acc + x.totalMem, 0);
+    ns.tprint(
+      `INFO Free capacity: ${fmt.memory(sumFreeMem)} / ${fmt.memory(
+        sumTotalMem
+      )}`
+    );
   }
 
   async function killAll() {
@@ -311,8 +316,12 @@ export async function main(ns: NS): Promise<void> {
 
   async function status() {
     ns.tprint("INFO I'm alive! Available capacity:");
-    for (const { hostname, freeMem, cores } of exploreCapacity(ns)) {
-      ns.tprint(`  ${hostname}: ${fmt.memory(freeMem)} (${cores} cores)`);
+    for (const { hostname, freeMem, cores, totalMem } of exploreCapacity(ns)) {
+      ns.tprint(
+        `  ${hostname}: free ${fmt.memory(freeMem)} / ${fmt.memory(
+          totalMem
+        )} (${cores} cores)`
+      );
     }
     ns.tprint("INFO Running batches:");
     for (const batchId in (await db(ns)).supervisor.batches) {
@@ -359,6 +368,7 @@ export async function main(ns: NS): Promise<void> {
 
 type Capacity = {
   hostname: string;
+  totalMem: number;
   freeMem: number;
   cores: number;
 };
@@ -372,12 +382,10 @@ function exploreCapacity(ns: NS): Capacity[] {
     }
     const server = ns.getServer(hostname);
     const freeMem = server.maxRam - ns.getServerUsedRam(hostname);
-    if (freeMem < 1) {
-      continue;
-    }
     capacities.push({
       hostname,
       freeMem,
+      totalMem: server.maxRam,
       cores: server.cpuCores,
     });
   }
