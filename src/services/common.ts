@@ -3,12 +3,27 @@ import { NS, NetscriptPort } from "@ns";
 export class ClientPort<T> {
   private readonly port: NetscriptPort;
 
-  constructor(private readonly ns: NS, portNumber: number) {
+  constructor(private readonly ns: NS, private readonly portNumber: number) {
     this.port = ns.getPortHandle(portNumber);
   }
 
   async write(data: T): Promise<void> {
-    this.port.write(JSON.stringify(data));
+    let old = this.port.write(JSON.stringify(data));
+    await this.ns.sleep(0);
+    // TODO make jitter magnitude and backoffBase configurable
+    const jitter = () => Math.floor(Math.random() * 100);
+    const backoffBase = 100;
+    let backoffExp = 1;
+    while (old !== null) {
+      await this.ns.sleep(backoffBase ** backoffExp + jitter());
+      backoffExp += 1;
+      old = this.port.write(old);
+      if (backoffExp > 10) {
+        this.ns.tprint(
+          `ERROR Backoff number ${backoffExp} to write to port ${this.portNumber}`
+        );
+      }
+    }
     await this.ns.sleep(0);
   }
 }

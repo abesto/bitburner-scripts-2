@@ -19,5 +19,6 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
   await ns.share();
+
   await new NoResponseSchedulerClient(ns).taskFinished(jobId, taskId);
 }

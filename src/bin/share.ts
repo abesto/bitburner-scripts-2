@@ -29,6 +29,7 @@ export async function main(ns: NS): Promise<void> {
       });
       ns.print(`Job ${jobId} started with ${threads} threads`);
       await schedulerClient.waitForJobFinished(jobId);
+      ns.print(`Job ${jobId} finished`);
     }
   });
 }

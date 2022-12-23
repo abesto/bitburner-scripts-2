@@ -1,13 +1,15 @@
 # TODOs
 
-* handle ports getting full
 * database service (with a lock queue)
-* pid lookup regularly fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
+  * client: read the db from disk if we're on `home` (but always lock/write through the service)
+  * client: caching reader for config (with configurable TTL)
+* pid lookup occasionally fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
 * `Scheduler`
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
   * add `tail <job-id>:<task-id>`
   * still seems to schedule lots of things to `home` even when there's capacity elsewhere, review / tweak host selection logic
+  * monitor / alert on scheduling latency
 * add services to scheduler
   * configured in text file(s)
   * add service listing to `status`
