@@ -1,44 +1,48 @@
 import { NS } from "@ns";
 import { db } from "/database";
 import { Fmt } from "/fmt";
-import { silentTimeout, timeout } from "/promise";
-import { SupervisorCtl, thisProcessFinished } from "/supervisorctl";
-import { SupervisorEvents } from "/supervisorEvent";
+import { silentTimeout } from "/promise";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import {
+  NoResponseSchedulerClient,
+  SchedulerClient,
+} from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
   const args = ns.flags([
-    ["batch", ""],
+    ["job", ""],
+    ["task", -1],
     ["initial", false],
   ]);
   const host = (args._ as string[])[0];
-  const batchId = args["batch"] as string;
+  const jobId = args["job"] as string;
+  const taskId = args["task"] as number;
   const initial = args["initial"] as boolean;
 
-  if (!host || !batchId) {
+  if (!host || !jobId || taskId < 0) {
     throw new Error(
-      `Usage: run hwgw-batch.js <host> --batch <batch-id> [--initial]\nGot args: ${JSON.stringify(
+      `Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial]\nGot args: ${JSON.stringify(
         args
       )}`
     );
   }
 
-  const supervisorEvents = new SupervisorEvents(ns);
+  const portRegistryClient = new PortRegistryClient(ns);
 
-  if (!initial) {
-    // Self-ACK, the controller doesn't care
-    // TODO make this timeout configurable
-    await silentTimeout(
-      supervisorEvents.waitForBatchStartedByBatchId(batchId),
-      200
-    );
+  async function finished() {
+    const schedulerClient = new NoResponseSchedulerClient(ns);
+    await schedulerClient.taskFinished(jobId, taskId);
+    if (initial) {
+      ns.closeTail();
+    }
   }
 
   try {
     await db(ns);
   } catch (e) {
     ns.tprint(`ERROR: failed to get DB ${e}`);
-    thisProcessFinished(ns);
+    await finished();
     return;
   }
 
@@ -70,7 +74,8 @@ export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
   ns.print(
     fmt.keyValue(
-      ["batchId", batchId],
+      ["jobId", jobId],
+      ["taskId", taskId.toString()],
       ["host", host],
       ["moneyMax", fmt.money(moneyMax)],
       ["moneyThreshold", fmt.money(moneyThreshold)],
@@ -86,9 +91,7 @@ export async function main(ns: NS): Promise<void> {
     )
   );
 
-  const supervisorctl = new SupervisorCtl(ns);
-
-  const { batchId: hackWeakenBatchId } = await schedule(
+  const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
     "weaken",
     host,
     hackWeakenThreads,
@@ -110,20 +113,26 @@ export async function main(ns: NS): Promise<void> {
     )} until grow-weaken start`
   );
   await ns.sleep(growWeakenStart - Date.now());
-  const { batchId: growWeakenBatchId, threads: scheduledGrowWeakenThreads } =
-    await schedule("weaken", host, growWeakenThreads, weakenLength);
+  const {
+    jobId: growWeakenJobId,
+    threads: scheduledGrowWeakenThreads,
+    client: growWeakenClient,
+  } = await schedule("weaken", host, growWeakenThreads, weakenLength);
   if (scheduledGrowWeakenThreads !== growWeakenThreads) {
     ns.tprint(
       `ERROR Scheduled ${scheduledGrowWeakenThreads} grow-weaken threads, wanted ${growWeakenThreads}`
     );
-    thisProcessFinished(ns);
+    await finished();
     return;
   }
 
   ns.print(`Sleeping for ${fmt.time(growStart - Date.now())} until grow start`);
   await ns.sleep(growStart - Date.now());
-  const { batchId: growBatchId, threads: growThreadsScheduled } =
-    await schedule("grow", host, growThreads, growLength);
+  const {
+    jobId: growJobId,
+    threads: growThreadsScheduled,
+    client: growClient,
+  } = await schedule("grow", host, growThreads, growLength);
   if (
     growThreadsScheduled !== growThreads &&
     ((initial && growThreadsScheduled === 0) || !initial)
@@ -131,12 +140,12 @@ export async function main(ns: NS): Promise<void> {
     ns.tprint(
       `ERROR Scheduled ${growThreadsScheduled} grow threads, wanted ${growThreads}`
     );
-    thisProcessFinished(ns);
     // TODO kill growWeaken batch
+    await finished();
     return;
   }
 
-  let hackBatchId;
+  let hackJobId, hackClient;
   if (initial) {
     ns.print("Skipping hack");
   } else {
@@ -144,9 +153,13 @@ export async function main(ns: NS): Promise<void> {
       `Sleeping for ${fmt.time(hackStart - Date.now())} until hack start`
     );
     await ns.sleep(hackStart - Date.now());
-    const { batchId: _hackBatchId, threads: hackThreadsScheduled } =
-      await schedule("hack", host, hackThreads, hackLength);
-    hackBatchId = _hackBatchId;
+    const {
+      jobId: _hackJobId,
+      threads: hackThreadsScheduled,
+      client: _hackClient,
+    } = await schedule("hack", host, hackThreads, hackLength);
+    hackJobId = _hackJobId;
+    hackClient = _hackClient;
     if (hackThreadsScheduled !== hackThreads) {
       ns.print(
         `ERROR Scheduled ${hackThreadsScheduled} hack threads, wanted ${hackThreads}`
@@ -156,34 +169,32 @@ export async function main(ns: NS): Promise<void> {
   }
 
   const fullTimeout = growWeakenEnd - Date.now() + spacing * 5;
-  ns.print(
-    `Waiting for everything to finish up, at most ${fmt.time(fullTimeout)}`
-  );
-  const jobs = [
-    logDone(growWeakenBatchId, "hack-weaken"),
-    logDone(growBatchId, "grow"),
-  ];
-  if (!initial && hackBatchId !== undefined) {
-    jobs.push(logDone(hackBatchId, "hack"));
+  ns.print(`Waiting for everything to finish up, ETA ${fmt.time(fullTimeout)}`);
+  if (!initial && hackJobId !== undefined && hackClient !== undefined) {
+    await logDone(hackJobId, "hack", hackClient);
   }
-  if (!initial && hackWeakenBatchId !== undefined) {
-    jobs.push(logDone(hackWeakenBatchId, "grow-weaken"));
+  if (!initial && hackWeakenJobId !== undefined) {
+    await logDone(hackWeakenJobId, "hack-weaken", hackWeakenClient);
   }
-  await silentTimeout(Promise.all(jobs), fullTimeout);
+  await logDone(growJobId, "grow", growClient);
+  await logDone(growWeakenJobId, "grow-weaken", growWeakenClient);
 
   ns.print("All done, reporting");
-  thisProcessFinished(ns);
-  if (!initial) {
-    // Self-ACK, controller doesn't care
-    // TODO make this timeout configurable
-    ns.print("Self-ACK");
-    await silentTimeout(supervisorEvents.waitForBatchDone(batchId), 200);
-  }
+  await finished();
   ns.print("All done");
 
-  async function logDone(batchId: string, kind: string): Promise<void> {
-    await supervisorEvents.waitForBatchDone(batchId);
-    ns.print(`Done ${kind} ${batchId}`);
+  async function logDone(
+    jobId: string,
+    kind: string,
+    schedulerClient: SchedulerClient
+  ): Promise<void> {
+    try {
+      await schedulerClient.waitForJobFinished(jobId);
+    } catch (e) {
+      ns.print(`ERROR waiting for ${kind} ${jobId} to finish: ${e}`);
+    }
+    await portRegistryClient.releasePort(schedulerClient.responsePortNumber);
+    ns.print(`Done ${kind} ${jobId}`);
   }
 
   async function schedule(
@@ -191,31 +202,22 @@ export async function main(ns: NS): Promise<void> {
     host: string,
     wantThreads: number,
     eta: number
-  ): Promise<{ batchId: string; threads: number }> {
-    const requestId = await supervisorctl.start(
-      `/dist/bin/payloads/${kind}.js`,
-      [host],
-      wantThreads
-    );
+  ): Promise<{ jobId: string; threads: number; client: SchedulerClient }> {
     ns.print(
       `Starting ${kind} against ${host} with ${wantThreads} threads ETA ${fmt.time(
         eta
-      )} batchId ${batchId}`
+      )}`
     );
-    try {
-      const { batchId, threads } = (await timeout(
-        supervisorEvents.waitForBatchStarted(requestId),
-        2000
-      )) as { batchId: string; threads: number };
-      ns.print(
-        `Started ${kind} batchId ${batchId} threads ${threads}/${wantThreads}`
-      );
-      return { batchId, threads };
-    } catch (e) {
-      ns.tprint(
-        `ERROR scheduling ${wantThreads} ${kind} against ${host} on ${ns.getHostname()} (probably timeout)`
-      );
-      return { batchId: "", threads: 0 };
-    }
+    const responsePort = await portRegistryClient.reservePort();
+    const schedulerClient = new SchedulerClient(ns, responsePort);
+    const { jobId, threads } = await schedulerClient.start({
+      script: `/dist/bin/payloads/${kind}.js`,
+      threads: wantThreads,
+      args: [host],
+    });
+    ns.print(
+      `Started ${kind} jobId ${jobId} threads ${threads}/${wantThreads}`
+    );
+    return { jobId, threads, client: schedulerClient };
   }
 }

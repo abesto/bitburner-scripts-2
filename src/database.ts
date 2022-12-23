@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 import { deepmerge } from "deepmerge-ts";
 import { dbLockPort } from "./ports";
-import { Job, JobId } from "./services/Scheduler/types";
+import { Job } from "./services/Scheduler/types";
 
 export type DB = {
   config: {
@@ -18,45 +18,20 @@ export type DB = {
       moneyThreshold: number;
       spacing: number;
     };
-    supervisor: {
-      reserveHomeRam: number;
-    };
     scheduler: {
       reserveHomeRam: number;
     };
     autobuyServers: {
       reserveMoney: string;
+      buyAt: string;
+      intervalMs: number;
     };
   };
-  supervisor: SupervisorDB;
   scheduler: SchedulerDB;
-};
-
-export type SupervisorDB = {
-  batches: { [batchID: string]: SupervisorBatch };
-  pending: {
-    when: number;
-    script: string;
-    args: string[];
-    threads: number;
-    requestId: string;
-  }[];
 };
 
 export type SchedulerDB = {
   jobs: { [jobId: string]: Job };
-};
-
-export type SupervisorBatch = {
-  script: string;
-  args: string[];
-  threads: number;
-  deployments: {
-    [hostname: string]: {
-      pid: number;
-      threads: number;
-    };
-  };
 };
 
 const DB_PATH = "/db.json.txt";
@@ -74,22 +49,17 @@ const DEFAULT_DB: DB = {
       moneyThreshold: 0.5,
       spacing: 500,
     },
-    supervisor: {
-      reserveHomeRam: 8,
-    },
     scheduler: {
       reserveHomeRam: 8,
     },
     autobuyServers: {
       reserveMoney: "$10m",
+      buyAt: "30m",
+      intervalMs: 5000,
     },
   },
-  supervisor: {
-    batches: {},
-    pending: [],
-  },
   scheduler: {
-    jobs: new Map(),
+    jobs: {},
   },
 };
 

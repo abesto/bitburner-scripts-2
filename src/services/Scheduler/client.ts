@@ -1,42 +1,56 @@
+/* eslint-disable no-constant-condition */
 import { NS } from "@ns";
 import { refinement } from "ts-adt";
 import { ClientPort, ServerPort } from "/services/common";
 import { PORTS } from "/ports";
 
 import {
+  exitRequest,
   JobId,
   JobSpec,
+  killAllRequest,
   killJobRequest,
   SchedulerRequest,
   SchedulerResponse,
   SchedulerResponse$KillJob,
   SchedulerResponse$Start,
+  SchedulerResponse$Status,
+  statusRequest,
   SERVICE_ID as SCHEDULER,
   startRequest,
   taskFinishedRequest,
   TaskId,
   toSchedulerResponse,
+  SchedulerResponse$Capacity,
+  capacityRequest,
 } from "/services/Scheduler/types";
 import { PortRegistryClient } from "../PortRegistry/client";
 
 export class NoResponseSchedulerClient {
   protected readonly schedulerPort: ClientPort<SchedulerRequest>;
 
-  constructor(ns: NS) {
+  constructor(protected readonly ns: NS) {
     this.schedulerPort = new ClientPort(ns, PORTS[SCHEDULER]);
   }
 
   async taskFinished(jobId: JobId, taskId: TaskId): Promise<void> {
     const request = taskFinishedRequest(jobId, taskId);
     await this.schedulerPort.write(request);
-    // No response expected.
+  }
+
+  async exit(): Promise<void> {
+    await this.schedulerPort.write(exitRequest());
+  }
+
+  async killAll(): Promise<void> {
+    await this.schedulerPort.write(killAllRequest());
   }
 }
 
 export class SchedulerClient extends NoResponseSchedulerClient {
   private readonly responsePort: ServerPort<SchedulerResponse>;
 
-  constructor(ns: NS, private readonly responsePortNumber: number) {
+  constructor(ns: NS, readonly responsePortNumber: number) {
     super(ns);
     this.responsePort = new ServerPort(
       ns,
@@ -47,7 +61,7 @@ export class SchedulerClient extends NoResponseSchedulerClient {
 
   async start(
     spec: JobSpec,
-    tail: boolean,
+    tail = false,
     finishNotificationPort: undefined | null | number = undefined
   ): Promise<SchedulerResponse$Start> {
     const request = startRequest(
@@ -80,6 +94,36 @@ export class SchedulerClient extends NoResponseSchedulerClient {
       } else {
         throw new Error(`Unexpected jobId: ${response.jobId}`);
       }
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async status(): Promise<SchedulerResponse$Status> {
+    const request = statusRequest(this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("status")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async capacity(): Promise<SchedulerResponse$Capacity> {
+    const request = capacityRequest(this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("capacity")(response)) {
+      return response;
     } else {
       throw new Error(`Invalid response: ${JSON.stringify(response)}`);
     }

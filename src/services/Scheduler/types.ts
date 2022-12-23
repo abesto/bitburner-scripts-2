@@ -37,8 +37,8 @@ export type Task = {
 };
 
 export type HostAffinity = ADT<{
-  mustRunOn: string;
-  preferToRunOn: string;
+  mustRunOn: { host: string };
+  preferToRunOn: { host: string };
 }>;
 
 export const SERVICE_ID = "Scheduler";
@@ -46,6 +46,7 @@ export type ServiceTag = { service: typeof SERVICE_ID };
 export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
 
 export type SchedulerRequest$Status = ServiceTag & { responsePort: number };
+export type SchedulerRequest$Capacity = ServiceTag & { responsePort: number };
 export type SchedulerRequest$Start = ServiceTag & {
   spec: JobSpec;
   tail: boolean;
@@ -56,15 +57,20 @@ export type SchedulerRequest$TaskFinished = ServiceTag & {
   jobId: JobId;
   taskId: TaskId;
 };
+export type SchedulerRequest$KillAll = ServiceTag;
 export type SchedulerRequest$KillJob = ServiceTag & {
   jobId: JobId;
   responsePort: number;
 };
+export type SchedulerRequest$Exit = ServiceTag;
 export type SchedulerRequest = ADT<{
   status: SchedulerRequest$Status;
+  capacity: SchedulerRequest$Capacity;
   start: SchedulerRequest$Start;
   taskFinished: SchedulerRequest$TaskFinished;
+  killAll: SchedulerRequest$KillAll;
   killJob: SchedulerRequest$KillJob;
+  exit: SchedulerRequest$Exit;
 }>;
 
 export function isSchedulerRequest(obj: unknown): obj is SchedulerRequest {
@@ -110,11 +116,27 @@ export function taskFinishedRequest(
   return { _type: "taskFinished", jobId, taskId, ...SERVICE_TAG };
 }
 
+export function statusRequest(responsePort: number): SchedulerRequest {
+  return { _type: "status", responsePort, ...SERVICE_TAG };
+}
+
+export function capacityRequest(responsePort: number): SchedulerRequest {
+  return { _type: "capacity", responsePort, ...SERVICE_TAG };
+}
+
 export function killJobRequest(
   jobId: JobId,
   responsePort: number
 ): SchedulerRequest {
   return { _type: "killJob", jobId, responsePort, ...SERVICE_TAG };
+}
+
+export function killAllRequest(): SchedulerRequest {
+  return { _type: "killAll", ...SERVICE_TAG };
+}
+
+export function exitRequest(): SchedulerRequest {
+  return { _type: "exit", ...SERVICE_TAG };
 }
 
 export type SchedulerResponse$Start = ServiceTag & {
@@ -127,8 +149,16 @@ export type SchedulerResponse$JobFinished = ServiceTag & {
 export type SchedulerResponse$KillJob = ServiceTag & {
   result: "ok" | "not-found";
 };
+export type SchedulerResponse$Status = ServiceTag & {
+  jobs: Job[];
+};
+export type SchedulerResponse$Capacity = ServiceTag & {
+  capacity: Capacity[];
+};
 export type SchedulerResponse = ADT<{
   start: SchedulerResponse$Start;
+  status: SchedulerResponse$Status;
+  capacity: SchedulerResponse$Capacity;
   jobFinished: SchedulerResponse$JobFinished;
   killJob: SchedulerResponse$KillJob;
 }>;
@@ -161,8 +191,14 @@ export function jobFinishedNotification(jobId: JobId): SchedulerResponse {
   return { _type: "jobFinished", jobId, ...SERVICE_TAG };
 }
 
-export function killJobResponse(
-  payload: SchedulerResponse$KillJob
-): SchedulerResponse {
-  return { _type: "killJob", ...payload, ...SERVICE_TAG };
+export function killJobResponse(result: "ok" | "not-found"): SchedulerResponse {
+  return { _type: "killJob", result, ...SERVICE_TAG };
+}
+
+export function statusResponse(jobs: Job[]): SchedulerResponse {
+  return { _type: "status", jobs, ...SERVICE_TAG };
+}
+
+export function capacityResponse(capacity: Capacity[]): SchedulerResponse {
+  return { _type: "capacity", capacity, ...SERVICE_TAG };
 }

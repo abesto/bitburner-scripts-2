@@ -3,16 +3,17 @@ import { AutocompleteData, NS } from "@ns";
 import { autonuke } from "/autonuke";
 import { db } from "/database";
 import { Fmt } from "/fmt";
-import { SupervisorCtl } from "/supervisorctl";
-import { SupervisorEvents } from "/supervisorEvent";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import {
+  SchedulerClient,
+  withSchedulerClient,
+} from "/services/Scheduler/client";
+import { jobThreads } from "/services/Scheduler/types";
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
-
-  const supervisorctl = new SupervisorCtl(ns);
-  const supervisorEvents = new SupervisorEvents(ns);
 
   if (!host) {
     ns.tprint("ERROR No host specified");
@@ -25,54 +26,75 @@ export async function main(ns: NS): Promise<void> {
 
   autonuke(ns, host);
 
+  const portRegistryClient = new PortRegistryClient(ns);
+  const schedulerResponsePort = await portRegistryClient.reservePort();
+  const schedulerClient = new SchedulerClient(ns, schedulerResponsePort);
+
   // eslint-disable-next-line no-constant-condition
   ns.print("Initial preparation: weaken, grow, weaken");
   while (shouldWeaken() || (await shouldGrow())) {
-    const requestId = await supervisorctl.start(
-      "/dist/bin/hwgw-batch.js",
-      [host, "--initial"],
-      1,
+    const { jobId, threads } = await schedulerClient.start(
+      {
+        script: "/dist/bin/hwgw-batch.js",
+        args: [host, "--initial"],
+        threads: 1,
+        hostAffinity: { _type: "mustRunOn", host: "home" },
+      },
       true
     );
-    ns.print(`Starting batch with request id ${requestId}`);
-    const { batchId } = await supervisorEvents.waitForBatchStarted(requestId);
-    ns.print(`Batch started with id ${batchId}`);
-    await supervisorEvents.waitForBatchDone(batchId);
+    if (threads === 0) {
+      ns.print("Failed to start initial batch, sleeping then trying again");
+      await ns.sleep(1000);
+    }
+    ns.print(`Batch started with job id ${jobId}`);
+    await schedulerClient.waitForJobFinished(jobId);
   }
 
   ns.print("Starting batched hacking");
   // eslint-disable-next-line no-constant-condition
   while (true) {
     ns.print("Starting batch");
-    await supervisorctl.start("/dist/bin/hwgw-batch.js", [host], 1, true);
+    await schedulerClient.start(
+      {
+        script: "/dist/bin/hwgw-batch.js",
+        args: [host],
+        threads: 1,
+        hostAffinity: { _type: "mustRunOn", host: "home" },
+      },
+      false,
+      null
+    );
     await report();
     await ns.sleep((await spacing()) * 5);
   }
 
   async function report() {
-    const memdb = await db(ns);
+    const { jobs } = await withSchedulerClient(
+      ns,
+      async (schedulerClient) => await schedulerClient.status()
+    );
     const countByKind = { batch: 0, hack: 0, weaken: 0, grow: 0 };
-    for (const batch of Object.values(memdb.supervisor.batches)) {
+    for (const job of jobs) {
       if (
-        batch.script.endsWith("/bin/hwgw-batch.js") &&
-        batch.args[0] === host
+        job.spec.script.endsWith("/bin/hwgw-batch.js") &&
+        job.spec.args[0] === host
       ) {
-        countByKind.batch += batch.threads;
+        countByKind.batch += jobThreads(job);
       } else if (
-        batch.script.endsWith("/dist/bin/payloads/hack.js") &&
-        batch.args[0] === host
+        job.spec.script.endsWith("/dist/bin/payloads/hack.js") &&
+        job.spec.args[0] === host
       ) {
-        countByKind.hack += batch.threads;
+        countByKind.hack += jobThreads(job);
       } else if (
-        batch.script.endsWith("/dist/bin/payloads/weaken.js") &&
-        batch.args[0] === host
+        job.spec.script.endsWith("/dist/bin/payloads/weaken.js") &&
+        job.spec.args[0] === host
       ) {
-        countByKind.weaken += batch.threads;
+        countByKind.weaken += jobThreads(job);
       } else if (
-        batch.script.endsWith("/dist/bin/payloads/grow.js") &&
-        batch.args[0] === host
+        job.spec.script.endsWith("/dist/bin/payloads/grow.js") &&
+        job.spec.args[0] === host
       ) {
-        countByKind.grow += batch.threads;
+        countByKind.grow += jobThreads(job);
       }
     }
 

@@ -15,6 +15,9 @@ export class PortRegistryService {
   private readonly reserved: Map<number, { hostname: string; pid: number }> =
     new Map();
 
+  // Ports pushed to the free ports ... port, waiting for someone to take them
+  //private readonly pending: number
+
   // Ports previously taken, and now ready for reuse
   private readonly free: number[] = [];
 
@@ -32,9 +35,11 @@ export class PortRegistryService {
       if (reused === undefined) {
         this.ns.print(`Allocating port ${this.freeHigh}`);
         outputPort.write(this.freeHigh++);
+        this.ns.clearPort(this.freeHigh - 1);
       } else {
         this.ns.print(`Reusing port ${reused}`);
         outputPort.write(reused);
+        this.ns.clearPort(reused);
       }
     }
   }

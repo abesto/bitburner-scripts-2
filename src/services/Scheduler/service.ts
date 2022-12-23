@@ -1,6 +1,7 @@
 import { NS } from "@ns";
-
 import { matchI } from "ts-adt";
+import arrayShuffle from "array-shuffle";
+
 import { ClientPort, ServerPort } from "../common";
 import {
   Capacity,
@@ -14,6 +15,13 @@ import {
   startResponse,
   SchedulerRequest$TaskFinished,
   jobFinishedNotification,
+  SchedulerRequest$Status,
+  statusResponse,
+  JobId,
+  SchedulerRequest$KillJob,
+  killJobResponse,
+  capacityResponse,
+  SchedulerRequest$Capacity,
 } from "./types";
 import { autonuke } from "/autonuke";
 import { db, dbLock } from "/database";
@@ -48,16 +56,79 @@ export class SchedulerService {
       await matchI(request)({
         start: (request) => this.start(request),
         taskFinished: (request) => this.taskFinished(request),
-        status: (request) => {},
-        killJob: (request) => {},
+        exit: () => {
+          exit = true;
+        },
+        status: (request) => this.status(request),
+        capacity: (request) => this.capacity(request),
+        killAll: () => this.killAll(),
+        killJob: (request) => this.killJob(request),
       });
     }
+
+    this.ns.print("SchedulerService exiting");
   }
 
   generateJobId(): string {
-    return (
-      Math.random().toString(36).substring(2) + "." + Date.now().toString(36)
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  async capacity(request: SchedulerRequest$Capacity): Promise<void> {
+    const [client, capacity] = await Promise.all([
+      new ClientPort<SchedulerResponse>(this.ns, request.responsePort),
+      this.exploreCapacity(),
+    ]);
+    await client.write(capacityResponse(capacity));
+  }
+
+  async status(request: SchedulerRequest$Status): Promise<void> {
+    const jobs = await (await db(this.ns)).scheduler.jobs;
+    await new ClientPort<SchedulerResponse>(
+      this.ns,
+      request.responsePort
+    ).write(statusResponse(Object.values(jobs)));
+  }
+
+  async killAll(): Promise<void> {
+    const jobs = await (await db(this.ns)).scheduler.jobs;
+    for (const job of Object.values(jobs)) {
+      await this.doKillJob(job.id);
+    }
+  }
+
+  async killJob(request: SchedulerRequest$KillJob): Promise<void> {
+    const result = await this.doKillJob(request.jobId);
+    const client = new ClientPort<SchedulerResponse>(
+      this.ns,
+      request.responsePort
     );
+    await client.write(killJobResponse(result));
+  }
+
+  private async doKillJob(jobId: JobId): Promise<"ok" | "not-found"> {
+    let retval: "ok" | "not-found" = "ok";
+    await dbLock(this.ns, "doKillJob", async (memdb) => {
+      const job = memdb.scheduler.jobs[jobId];
+      if (job === undefined) {
+        this.ns.tprint(`WARN killJob: Could not find job ${jobId}`);
+        retval = "not-found";
+        return;
+      }
+      if (job.id !== jobId) {
+        this.ns.tprint(`WARN killJob: Job ID mismatch: ${job.id} !== ${jobId}`);
+      }
+
+      for (const task of Object.values(job.tasks)) {
+        this.ns.kill(task.pid);
+        this.ns.print(
+          `[job=${job.id}][task=${task.id}] ${task.hostname}:${task.pid} Killed as requested`
+        );
+      }
+      delete memdb.scheduler.jobs[jobId];
+      this.ns.print(`[job=${job.id}] Killed as requested`);
+      return memdb;
+    });
+    return retval;
   }
 
   async taskFinished(request: SchedulerRequest$TaskFinished): Promise<void> {
@@ -157,18 +228,7 @@ export class SchedulerService {
       if (jobThreads(job) >= threads) {
         break;
       }
-      const availableThreads = Math.max(
-        0,
-        Math.floor(
-          hostname === "home"
-            ? Math.floor(
-                (freeMem -
-                  (await db(this.ns)).config.supervisor.reserveHomeRam) /
-                  scriptRam
-              )
-            : Math.floor(freeMem / scriptRam)
-        )
-      );
+      const availableThreads = Math.max(0, Math.floor(freeMem / scriptRam));
       if (availableThreads < 1) {
         continue;
       }
@@ -192,7 +252,13 @@ export class SchedulerService {
       );
       if (pid === 0) {
         this.ns.tprint(
-          `WARN [job=${job.id}] Could not start ${script} on ${hostname} (tried ${threadsThisHost} threads)`
+          `WARN [job=${
+            job.id
+          }] Could not start ${script} on ${hostname} (tried ${threadsThisHost} threads). Memory: ${this.fmt.memory(
+            freeMem
+          )}. Script mem: ${this.fmt.memory(
+            scriptRam
+          )}. Available threads: ${availableThreads}.`
         );
         continue;
       }
@@ -203,6 +269,7 @@ export class SchedulerService {
           threads - jobThreads(job)
         }`
       );
+
       job.tasks[taskId] = {
         id: taskId,
         hostname,
@@ -212,12 +279,14 @@ export class SchedulerService {
       };
     }
 
-    await dbLock(this.ns, "start", async (memdb) => {
-      memdb.scheduler.jobs[job.id] = job;
-      return memdb;
-    });
-
     const scheduled = jobThreads(job);
+    if (scheduled > 0) {
+      await dbLock(this.ns, "start", async (memdb) => {
+        memdb.scheduler.jobs[job.id] = job;
+        return memdb;
+      });
+    }
+
     if (scheduled < threads) {
       this.ns.print(
         `WARN [job=${job.id}] Could not schedule ${threads} threads, scheduled ${scheduled}`
@@ -234,9 +303,17 @@ export class SchedulerService {
       await responsePort.write(startResponse(job.id, scheduled));
     }
 
+    if (scheduled === 0 && finishNotificationPort !== null) {
+      const clientPort = new ClientPort<SchedulerResponse>(
+        this.ns,
+        finishNotificationPort
+      );
+      await clientPort.write(jobFinishedNotification(job.id));
+    }
+
     const tasks = Object.values(job.tasks);
     if (tasks.length === 1 && request.tail) {
-      this.ns.tail(tasks[0].pid);
+      this.ns.tail(tasks[0].pid, tasks[0].hostname);
     }
   }
 
@@ -245,14 +322,16 @@ export class SchedulerService {
     hostAffinity: HostAffinity | undefined
   ): Capacity[] {
     if (hostAffinity === undefined) {
-      return capacities;
+      // No affinity, shuffle the list and push home to the back
+      const home = capacities.filter((c) => c.hostname === "home");
+      const other = capacities.filter((c) => c.hostname !== "home");
+      return arrayShuffle(other).concat(home);
     }
     return matchI(hostAffinity)({
-      mustRunOn: (hostname) =>
-        capacities.filter((c) => c.hostname === hostname),
-      preferToRunOn: (hostname) => {
-        const preferred = capacities.filter((c) => c.hostname === hostname);
-        const other = capacities.filter((c) => c.hostname !== hostname);
+      mustRunOn: ({ host }) => capacities.filter((c) => c.hostname === host),
+      preferToRunOn: ({ host }) => {
+        const preferred = capacities.filter((c) => c.hostname === host);
+        const other = capacities.filter((c) => c.hostname !== host);
         return preferred.concat(other);
       },
     });
@@ -268,7 +347,7 @@ export class SchedulerService {
       const server = this.ns.getServer(hostname);
       let freeMem = server.maxRam - this.ns.getServerUsedRam(hostname);
       if (hostname === "home") {
-        freeMem -= (await db(this.ns)).config.supervisor.reserveHomeRam;
+        freeMem -= (await db(this.ns)).config.scheduler.reserveHomeRam;
       }
       capacities.push({
         hostname,

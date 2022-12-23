@@ -1,7 +1,6 @@
 import { NS } from "@ns";
 import { Fmt } from "/fmt";
-import { SupervisorCtl } from "/supervisorctl";
-import { SupervisorEvents } from "/supervisorEvent";
+import { withSchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([["mem", 0]]);
@@ -20,16 +19,16 @@ export async function main(ns: NS): Promise<void> {
     )} RAM, for a total of ${fmt.memory(targetThreads * scriptMem)} RAM`
   );
 
-  const supervisorCtl = new SupervisorCtl(ns);
-  const supervisorEvents = new SupervisorEvents(ns);
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const requestId = await supervisorCtl.start(script, [], targetThreads);
-    const { batchId, threads } = await supervisorEvents.waitForBatchStarted(
-      requestId
-    );
-    ns.print(`Batch ${batchId} started with ${threads} threads`);
-    await supervisorEvents.waitForBatchDone(batchId);
-  }
+  await withSchedulerClient(ns, async (schedulerClient) => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { jobId, threads } = await schedulerClient.start({
+        script,
+        args: [],
+        threads: targetThreads,
+      });
+      ns.print(`Job ${jobId} started with ${threads} threads`);
+      await schedulerClient.waitForJobFinished(jobId);
+    }
+  });
 }

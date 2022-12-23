@@ -11,11 +11,13 @@ import { freePorts, portRegistry } from "/ports";
 
 export class PortRegistryClient {
   private readonly ns: NS;
+  private readonly pid: number;
   private readonly servicePort: NetscriptPort;
   private readonly freePortsPort: NetscriptPort;
 
   constructor(ns: NS) {
     this.ns = ns;
+    this.pid = ns.getRunningScript()!.pid;
     this.servicePort = portRegistry(ns);
     this.freePortsPort = freePorts(ns);
   }
@@ -34,32 +36,21 @@ export class PortRegistryClient {
       throw new Error(`Failed to parse port: ${portStr}`);
     }
 
+    this.ns.clearPort(port);
     this.servicePort.write(
-      JSON.stringify(
-        reserveRequest(
-          port,
-          this.ns.getHostname(),
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          this.ns.getRunningScript()!.pid
-        )
-      )
+      JSON.stringify(reserveRequest(port, this.ns.getHostname(), this.pid))
     );
-    this.ns.print(`[PortRegistryClient] Reserved port ${port}`);
+    //this.ns.print(`[PortRegistryClient] Reserved port ${port}`);
     await this.ns.sleep(0);
     return port;
   }
 
   public async releasePort(port: number): Promise<void> {
     const data = JSON.stringify(
-      releaseRequest(
-        port,
-        this.ns.getHostname(),
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        this.ns.getRunningScript()!.pid
-      )
+      releaseRequest(port, this.ns.getHostname(), this.pid)
     );
     this.servicePort.write(data);
-    this.ns.print(`[PortRegistryClient] Released port ${port}: ${data}`);
+    //this.ns.print(`[PortRegistryClient] Released port ${port}: ${data}`);
     await this.ns.sleep(0);
   }
 

@@ -4,26 +4,20 @@ import { Fmt } from "/fmt";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
-  const args = ns.flags([
-    ["loop", false],
-    ["buy-at", "$1.5b"],
-    ["sleep-ms", 5000],
-  ]);
 
   const fmt = new Fmt(ns);
-  const config = (await db(ns)).config.autobuyServers;
-  const reserveMoney = fmt.parseMoney(config.reserveMoney);
+  const config = async () => (await db(ns)).config.autobuyServers;
+  const reserveMoney = async () =>
+    fmt.parseMoney((await config()).reserveMoney);
+  const buyAt = async () => fmt.parseMoney((await config()).buyAt);
+  const interval = async () => (await config()).intervalMs;
 
-  if (args.loop) {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (ns.getPlayer().money >= fmt.parseMoney(args["buy-at"] as string)) {
-        await purchaseWorkers();
-      }
-      await ns.sleep(args["sleep-ms"] as number);
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    if (ns.getPlayer().money >= (await buyAt())) {
+      await purchaseWorkers();
     }
-  } else {
-    await purchaseWorkers();
+    await ns.sleep(await interval());
   }
 
   async function deleteWeakestWorker(keep: number): Promise<string | null> {
@@ -44,7 +38,7 @@ export async function main(ns: NS): Promise<void> {
       `Deleting weakest server: ${server} (${ns.getServerMaxRam(server)}GB)`
     );
     for (const p of ns.ps(server)) {
-      ns.kill(p.pid);
+      ns.kill(p.filename, server, ...p.args);
     }
     if (!ns.deleteServer(server)) {
       throw new Error(`Failed to delete server ${server}`);
@@ -57,9 +51,9 @@ export async function main(ns: NS): Promise<void> {
     purchased: string[];
   }
 
-  function biggestAffordableServer(): number {
+  async function biggestAffordableServer(): Promise<number> {
     let ram = 8;
-    const money = ns.getPlayer().money - reserveMoney;
+    const money = ns.getPlayer().money - (await reserveMoney());
     if (ns.getPurchasedServerCost(ram) > money) {
       return 0;
     }
@@ -74,7 +68,7 @@ export async function main(ns: NS): Promise<void> {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const ram = biggestAffordableServer();
+      const ram = await biggestAffordableServer();
       if (ram === 0) {
         break;
       }
