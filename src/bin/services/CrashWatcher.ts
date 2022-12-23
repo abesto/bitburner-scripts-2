@@ -27,7 +27,7 @@ export async function main(ns: NS): Promise<void> {
             ns.print(
               `Task ${job.id}:${task.id} ${job.spec.script} ${job.spec.args} on ${task.hostname} crashed`
             );
-            await schedulerClient.taskFinished(job.id, task.id);
+            await schedulerClient.taskFinished(job.id, task.id, true);
           } else if (
             process.filename !== job.spec.script ||
             arrayEqual(process.args, task.args)
@@ -35,7 +35,7 @@ export async function main(ns: NS): Promise<void> {
             ns.print(
               `Task ${task.id} changed script or arg: ${process.filename} ${process.args} -> ${job.spec.script} ${task.args}`
             );
-            await schedulerClient.taskFinished(job.id, task.id);
+            await schedulerClient.taskFinished(job.id, task.id, true);
           }
         }
       }

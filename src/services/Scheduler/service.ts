@@ -132,11 +132,13 @@ export class SchedulerService {
   }
 
   async taskFinished(request: SchedulerRequest$TaskFinished): Promise<void> {
-    const { jobId, taskId } = request;
+    const { jobId, taskId, crash } = request;
     await dbLock(this.ns, "finished", async (memdb) => {
       const job = memdb.scheduler.jobs[jobId];
       if (job === undefined) {
-        this.ns.tprint(`WARN taskFinished: Could not find job ${jobId}`);
+        if (!crash) {
+          this.ns.tprint(`WARN taskFinished: Could not find job ${jobId}`);
+        }
         return;
       }
       if (job.id !== jobId) {
@@ -148,7 +150,9 @@ export class SchedulerService {
 
       const task = job.tasks[taskId];
       if (task === undefined) {
-        this.ns.tprint(`WARN taskFinished: Could not find task ${taskId}`);
+        if (!crash) {
+          this.ns.tprint(`WARN taskFinished: Could not find task ${taskId}`);
+        }
         return;
       }
       if (task.id !== taskId) {

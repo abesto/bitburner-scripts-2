@@ -7,7 +7,7 @@
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
   * add `tail <job-id>:<task-id>`
-  * custom request type / maybe a flag for `CrashWatcher` - suppress logs if the task is already gone (boring race condition)
+  * still seems to schedule lots of things to `home` even when there's capacity elsewhere, review / tweak host selection logic
 * add services to scheduler
   * configured in text file(s)
   * add service listing to `status`

@@ -56,6 +56,7 @@ export type SchedulerRequest$Start = ServiceTag & {
 export type SchedulerRequest$TaskFinished = ServiceTag & {
   jobId: JobId;
   taskId: TaskId;
+  crash: boolean;
 };
 export type SchedulerRequest$KillAll = ServiceTag;
 export type SchedulerRequest$KillJob = ServiceTag & {
@@ -111,9 +112,10 @@ export function startRequest(
 
 export function taskFinishedRequest(
   jobId: JobId,
-  taskId: TaskId
+  taskId: TaskId,
+  crash = false
 ): SchedulerRequest {
-  return { _type: "taskFinished", jobId, taskId, ...SERVICE_TAG };
+  return { _type: "taskFinished", jobId, taskId, crash, ...SERVICE_TAG };
 }
 
 export function statusRequest(responsePort: number): SchedulerRequest {

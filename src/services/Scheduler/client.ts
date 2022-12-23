@@ -33,8 +33,12 @@ export class NoResponseSchedulerClient {
     this.schedulerPort = new ClientPort(ns, PORTS[SCHEDULER]);
   }
 
-  async taskFinished(jobId: JobId, taskId: TaskId): Promise<void> {
-    const request = taskFinishedRequest(jobId, taskId);
+  async taskFinished(
+    jobId: JobId,
+    taskId: TaskId,
+    crash = false
+  ): Promise<void> {
+    const request = taskFinishedRequest(jobId, taskId, crash);
     await this.schedulerPort.write(request);
   }
 
