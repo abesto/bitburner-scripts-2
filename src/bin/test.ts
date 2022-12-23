@@ -1,26 +1,41 @@
 import { NS } from "@ns";
-import { waitForMessage } from "/ports";
+import * as asciichart from "asciichart";
 
 export async function main(ns: NS): Promise<void> {
-  const port = ns.getPortHandle(100);
-  if (ns.args[0] === "write") {
-    for (const x of ns.args.slice(1)) {
-      port.write(x as string);
-    }
-  } else if (ns.args[0] === "wait") {
-    ns.tprint(
-      ns.args[1] +
-        ": " +
-        (await waitForMessage(port, (data) => data === ns.args[1]))
-    );
-  } else if (ns.args[0] === "clear") {
-    port.clear();
-  } else if (ns.args[0] === "write-and-clear") {
-    port.write("whey");
-    port.clear();
-  } else if (ns.args[0] === "read") {
-    ns.tprint(port.read());
-  } else if (ns.args[0] === "peek") {
-    ns.tprint(port.peek());
-  }
+  ns.clearLog();
+  const arr1 = new Array(120);
+  arr1[0] = Math.round(Math.random() * 15);
+  for (let i = 1; i < arr1.length; i++)
+    arr1[i] =
+      arr1[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+
+  const arr2 = new Array(120);
+  arr2[0] = Math.round(Math.random() * 15);
+  for (let i = 1; i < arr2.length; i++)
+    arr2[i] =
+      arr2[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+
+  const arr3 = new Array(120);
+  arr3[0] = Math.round(Math.random() * 15);
+  for (let i = 1; i < arr3.length; i++)
+    arr3[i] =
+      arr3[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+
+  const arr4 = new Array(120);
+  arr4[0] = Math.round(Math.random() * 15);
+  for (let i = 1; i < arr4.length; i++)
+    arr4[i] =
+      arr4[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+
+  const config: asciichart.PlotConfig = {
+    colors: [
+      asciichart.blue,
+      asciichart.red,
+      asciichart.lightgray,
+      asciichart.magenta,
+    ],
+    height: 10,
+  };
+
+  ns.print(asciichart.plot([arr1, arr2, arr3, arr4], config));
 }

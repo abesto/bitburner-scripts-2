@@ -4,7 +4,7 @@ import { Fmt } from "/fmt";
 
 export async function main(ns: NS): Promise<void> {
   const hackingLevelThreshold = ns.getPlayer().skills.hacking / 3;
-  let servers = discoverServers(ns);
+  const servers = discoverServers(ns);
 
   // simple
   /*

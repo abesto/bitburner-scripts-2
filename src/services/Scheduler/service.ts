@@ -208,9 +208,10 @@ export class SchedulerService {
       )})`
     );
     let capacity = await this.exploreCapacity();
-    capacity = this.applyHostAffinity(capacity, spec.hostAffinity);
     // Only want hosts that have enough memory for at least one thread
     capacity = capacity.filter((c) => c.freeMem >= scriptRam);
+    // Shuffle!
+    capacity = arrayShuffle(capacity);
     // Prefer those hosts that have enough memory for all threads, and prefer the ones with the least memory between those
     capacity = capacity.sort((a, b) => {
       const aHasEnough = a.freeMem >= scriptRam * threads;
@@ -223,6 +224,8 @@ export class SchedulerService {
       }
       return a.freeMem - b.freeMem;
     });
+    // Apply host affinity
+    capacity = this.applyHostAffinity(capacity, spec.hostAffinity);
 
     for (const { hostname, freeMem, cores } of capacity) {
       if (jobThreads(job) >= threads) {
@@ -322,10 +325,10 @@ export class SchedulerService {
     hostAffinity: HostAffinity | undefined
   ): Capacity[] {
     if (hostAffinity === undefined) {
-      // No affinity, shuffle the list and push home to the back
+      // No affinity, push home to the back
       const home = capacities.filter((c) => c.hostname === "home");
       const other = capacities.filter((c) => c.hostname !== "home");
-      return arrayShuffle(other).concat(home);
+      return other.concat(home);
     }
     return matchI(hostAffinity)({
       mustRunOn: ({ host }) => capacities.filter((c) => c.hostname === host),
