@@ -14,6 +14,7 @@ export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
     ["threads", 0],
     ["stail", false],
+    ["verbose", false],
   ]);
   const posArgs = args._ as string[];
   const command = posArgs[0];
@@ -71,10 +72,12 @@ export async function main(ns: NS): Promise<void> {
           " "
         )}' threads: ${jobThreads(job)} / ${job.spec.threads}`
       );
-      for (const task of Object.values(job.tasks)) {
-        ns.tprint(
-          `      ${task.id} threads=${task.threads} ${task.hostname} PID ${task.pid}`
-        );
+      if (args.verbose as boolean) {
+        for (const task of Object.values(job.tasks)) {
+          ns.tprint(
+            `      ${task.id} threads=${task.threads} ${task.hostname} PID ${task.pid}`
+          );
+        }
       }
     }
   } else if (command === "exit") {

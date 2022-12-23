@@ -36,7 +36,7 @@ export type SchedulerDB = {
 
 const DB_PATH = "/db.json.txt";
 
-const DEFAULT_DB: DB = {
+export const DEFAULT_DB: DB = {
   config: {
     database: {
       debugLocks: false,

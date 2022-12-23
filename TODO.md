@@ -1,15 +1,20 @@
 # TODOs
 
+* `config` / `config`
+  * syntax highlighting on `config.get`
 * database service (with a lock queue)
   * client: read the db from disk if we're on `home` (but always lock/write through the service)
   * client: caching reader for config (with configurable TTL)
 * pid lookup occasionally fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
+* logging lib. with colors!
 * `Scheduler`
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
   * add `tail <job-id>:<task-id>`
   * still seems to schedule lots of things to `home` even when there's capacity elsewhere, review / tweak host selection logic
   * monitor / alert on scheduling latency
+  * monitor / alert on job finish notification latency?
+  * watchdog - alert if scheduler goes down, maybe restart
 * add services to scheduler
   * configured in text file(s)
   * add service listing to `status`
@@ -31,10 +36,6 @@
 * capacity management - reserve ram for full hwgw batch
 * `PortRegistry`
   * implement safe restart (transfer internal state)
-* `config` / `config`
-  * autocomplete keys
-  * validation on `config set`
-  * `config del`
 * `hacknet`
   * turn into service, autobuy (maybe with money reserve)
 * `stock`

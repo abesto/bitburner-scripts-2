@@ -1,22 +1,25 @@
-import { NS } from "@ns";
-import { db, dbLock } from "/database";
+import { AutocompleteData, NS } from "@ns";
+import { db, dbLock, DEFAULT_DB } from "/database";
 
 export async function main(ns: NS): Promise<void> {
   const command = ns.args[0] as string;
   if (command === "get") {
     const key = ns.args[1] as string;
-    if (!key) {
-      throw new Error("Usage: run config.js get <key>");
-    }
     let obj = (await db(ns)).config as any;
-    const path = key.split(".");
-    for (const part of path) {
-      obj = obj[part];
-      if (obj === undefined) {
-        break;
+    if (key) {
+      const path = key.split(".");
+      for (const part of path) {
+        obj = obj[part];
+        if (obj === undefined) {
+          break;
+        }
       }
     }
-    ns.tprint(obj);
+    let output = JSON.stringify(obj, null);
+    if (output.length > 100) {
+      output = JSON.stringify(obj, null, 2);
+    }
+    ns.tprint(output);
   } else if (command === "set") {
     const key = ns.args[1] as string;
     const value = ns.args[2] as string;
@@ -40,11 +43,51 @@ export async function main(ns: NS): Promise<void> {
       }
 
       const lastPart = path[path.length - 1];
+      const oldValue = obj[lastPart];
+      if (typeof oldValue === "object") {
+        ns.tprint(
+          `ERROR ${key} is not a leaf node: ${JSON.stringify(oldValue)}`
+        );
+        return;
+      }
+      if (typeof oldValue !== typeof value) {
+        ns.tprint(
+          `ERROR ${key} is ${typeof oldValue} but ${value} is ${typeof value}`
+        );
+        return;
+      }
       obj[lastPart] = value;
+      ns.tprint(`Set ${key} to ${value}`);
       return memdb;
     });
-    ns.tprint(`Set ${key} to ${value}`);
   } else {
     throw new Error("Usage: run config.js <get|set>");
   }
+}
+
+export function autocomplete(data: AutocompleteData, args: string[]): string[] {
+  if (args.length <= 1) {
+    return ["get", "set"];
+  } else if (args.length === 2) {
+    const shape = DEFAULT_DB.config;
+    const parts = args[1].split(".");
+    const matched: string[] = [];
+    let obj = shape as any;
+    for (const part of parts) {
+      if (obj[part] === undefined) {
+        const options = [];
+        for (const key of Object.keys(obj)) {
+          let option = matched.concat(key).join(".");
+          if (typeof obj[key] === "object") {
+            option += ".";
+          }
+          options.push(option);
+        }
+        return options;
+      }
+      obj = obj[part];
+      matched.push(part);
+    }
+  }
+  return [];
 }
