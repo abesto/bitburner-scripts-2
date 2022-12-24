@@ -1,12 +1,10 @@
-import { NS } from "@ns";
-import { db } from "/database";
-import { Fmt } from "/fmt";
-import { silentTimeout } from "/promise";
-import { PortRegistryClient } from "/services/PortRegistry/client";
-import {
-  NoResponseSchedulerClient,
-  SchedulerClient,
-} from "/services/Scheduler/client";
+import { NS } from '@ns';
+
+import { db } from '/database';
+import { Fmt } from '/fmt';
+import { silentTimeout } from '/promise';
+import { PortRegistryClient } from '/services/PortRegistry/client';
+import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

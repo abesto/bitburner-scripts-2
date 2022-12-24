@@ -1,7 +1,8 @@
-import { NS } from "@ns";
-import { deepmerge } from "deepmerge-ts";
-import { dbLockPort } from "./ports";
-import { Job, ServiceState } from "./services/Scheduler/types";
+import { NS } from '@ns';
+
+import { deepmerge } from 'deepmerge-ts';
+import { dbLockPort } from './ports';
+import { Job, ServiceState } from './services/Scheduler/types';
 
 export type DB = {
   config: {

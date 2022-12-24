@@ -1,5 +1,6 @@
-import { NS } from "@ns";
-import { waitForMessage } from "/ports";
+import { NS } from '@ns';
+
+import { waitForMessage } from '/ports';
 
 export async function main(ns: NS): Promise<void> {
   const port = ns.getPortHandle(ns.args[0] as number);

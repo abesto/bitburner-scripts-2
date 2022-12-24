@@ -1,14 +1,11 @@
-import { AutocompleteData, NS } from "@ns";
+import { AutocompleteData, NS } from '@ns';
 
-import { autonuke } from "/autonuke";
-import { db } from "/database";
-import { Fmt } from "/fmt";
-import { PortRegistryClient } from "/services/PortRegistry/client";
-import {
-  SchedulerClient,
-  withSchedulerClient,
-} from "/services/Scheduler/client";
-import { jobThreads } from "/services/Scheduler/types";
+import { autonuke } from '/autonuke';
+import { db } from '/database';
+import { Fmt } from '/fmt';
+import { PortRegistryClient } from '/services/PortRegistry/client';
+import { SchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
+import { jobThreads } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);

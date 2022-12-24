@@ -1,5 +1,6 @@
-import { NS } from "@ns";
-import { SchedulerService } from "/services/Scheduler/service";
+import { NS } from '@ns';
+
+import { SchedulerService } from '/services/Scheduler/service';
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

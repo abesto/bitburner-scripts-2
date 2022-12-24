@@ -1,7 +1,7 @@
-import { NS, NetscriptPort, PortData } from "@ns";
+import { NetscriptPort, NS, PortData } from '@ns';
 
-import { SERVICE_ID as SCHEDULER } from "./services/Scheduler/types";
-import { SERVICE_ID as PORT_REGISTRY } from "./services/PortRegistry/types";
+import { SERVICE_ID as PORT_REGISTRY } from './services/PortRegistry/types';
+import { SERVICE_ID as SCHEDULER } from './services/Scheduler/types';
 
 export const PORTS = {
   [SCHEDULER]: 1,

@@ -1,5 +1,6 @@
-import { NS } from "@ns";
-import { NoResponseSchedulerClient } from "/services/Scheduler/client";
+import { NS } from '@ns';
+
+import { NoResponseSchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([

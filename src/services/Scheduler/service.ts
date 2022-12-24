@@ -1,52 +1,26 @@
-import { NS } from "@ns";
-import { matchI } from "ts-adt";
-import arrayShuffle from "array-shuffle";
-import deepEqual from "deep-equal";
+import { NS } from '@ns';
 
-import { ClientPort, ServerPort } from "../common";
+import { autonuke } from '/autonuke';
+import { DB, db, dbLock } from '/database';
+import { discoverServers } from '/discoverServers';
+import { Fmt } from '/fmt';
+import { PORTS } from '/ports';
+import arrayShuffle from 'array-shuffle';
+import deepEqual from 'deep-equal';
+import { matchI } from 'ts-adt';
+import { ClientPort, ServerPort } from '../common';
 import {
-  Capacity,
-  HostAffinity,
-  Job,
-  jobThreads,
-  SchedulerRequest$Start,
-  SchedulerResponse,
-  SERVICE_ID as SCHEDULER,
-  toSchedulerRequest,
-  startResponse,
-  SchedulerRequest$TaskFinished,
-  jobFinishedNotification,
-  SchedulerRequest$Status,
-  statusResponse,
-  JobId,
-  SchedulerRequest$KillJob,
-  killJobResponse,
-  capacityResponse,
-  SchedulerRequest$Capacity,
-  reloadResponse,
-  SchedulerRequest$Reload,
-  serviceStatusResponseNotFound,
-  serviceStatusResponseOk,
-  SchedulerRequest$ServiceStatus,
-  SchedulerRequest$StartService,
-  SchedulerRequest$DisableService,
-  SchedulerRequest$EnableService,
-  SchedulerRequest$StopService,
-  startServiceResponseNotFound,
-  startServiceResponseAlreadyRunning,
-  ServiceSpec,
-  startServiceResponseFailedToStart,
-  ServiceStatus,
-  startServiceResponseOk,
-  stopServiceResponse,
-  enableServiceResponse,
-  disableServiceResponse,
-} from "./types";
-import { autonuke } from "/autonuke";
-import { DB, db, dbLock } from "/database";
-import { discoverServers } from "/discoverServers";
-import { Fmt } from "/fmt";
-import { PORTS } from "/ports";
+    Capacity, capacityResponse, disableServiceResponse, enableServiceResponse, HostAffinity, Job,
+    jobFinishedNotification, JobId, jobThreads, killJobResponse, reloadResponse,
+    SchedulerRequest$Capacity, SchedulerRequest$DisableService, SchedulerRequest$EnableService,
+    SchedulerRequest$KillJob, SchedulerRequest$Reload, SchedulerRequest$ServiceStatus,
+    SchedulerRequest$Start, SchedulerRequest$StartService, SchedulerRequest$Status,
+    SchedulerRequest$StopService, SchedulerRequest$TaskFinished, SchedulerResponse,
+    SERVICE_ID as SCHEDULER, ServiceSpec, ServiceStatus, serviceStatusResponseNotFound,
+    serviceStatusResponseOk, startResponse, startServiceResponseAlreadyRunning,
+    startServiceResponseFailedToStart, startServiceResponseNotFound, startServiceResponseOk,
+    statusResponse, stopServiceResponse, toSchedulerRequest
+} from './types';
 
 export class SchedulerService {
   private readonly fmt: Fmt;

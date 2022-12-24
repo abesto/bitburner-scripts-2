@@ -1,42 +1,20 @@
 /* eslint-disable no-constant-condition */
-import { NS } from "@ns";
-import { refinement } from "ts-adt";
-import { ClientPort, ServerPort } from "/services/common";
-import { PORTS } from "/ports";
+import { NS } from '@ns';
 
+import { PORTS } from '/ports';
+import { ClientPort, ServerPort } from '/services/common';
 import {
-  exitRequest,
-  JobId,
-  JobSpec,
-  killAllRequest,
-  killJobRequest,
-  SchedulerRequest,
-  SchedulerResponse,
-  SchedulerResponse$KillJob,
-  SchedulerResponse$Start,
-  SchedulerResponse$Status,
-  statusRequest,
-  SERVICE_ID as SCHEDULER,
-  startRequest,
-  taskFinishedRequest,
-  TaskId,
-  toSchedulerResponse,
-  SchedulerResponse$Capacity,
-  capacityRequest,
-  SchedulerResponse$Reload,
-  reloadRequest,
-  SchedulerResponse$ServiceStatus,
-  serviceStatusRequest,
-  startServiceRequest,
-  SchedulerResponse$StartService,
-  SchedulerResponse$StopService,
-  stopServiceRequest,
-  enableServiceRequest,
-  SchedulerResponse$EnableService,
-  SchedulerResponse$DisableService,
-  disableServiceRequest,
-} from "/services/Scheduler/types";
-import { PortRegistryClient } from "../PortRegistry/client";
+    capacityRequest, disableServiceRequest, enableServiceRequest, exitRequest, JobId, JobSpec,
+    killAllRequest, killJobRequest, reloadRequest, SchedulerRequest, SchedulerResponse,
+    SchedulerResponse$Capacity, SchedulerResponse$DisableService, SchedulerResponse$EnableService,
+    SchedulerResponse$KillJob, SchedulerResponse$Reload, SchedulerResponse$ServiceStatus,
+    SchedulerResponse$Start, SchedulerResponse$StartService, SchedulerResponse$Status,
+    SchedulerResponse$StopService, SERVICE_ID as SCHEDULER, serviceStatusRequest, startRequest,
+    startServiceRequest, statusRequest, stopServiceRequest, taskFinishedRequest, TaskId,
+    toSchedulerResponse
+} from '/services/Scheduler/types';
+import { refinement } from 'ts-adt';
+import { PortRegistryClient } from '../PortRegistry/client';
 
 export class NoResponseSchedulerClient {
   protected readonly schedulerPort: ClientPort<SchedulerRequest>;

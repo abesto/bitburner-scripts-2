@@ -1,6 +1,7 @@
-import { NS } from "@ns";
-import { discoverServers } from "/discoverServers";
-import { Fmt } from "/fmt";
+import { NS } from '@ns';
+
+import { discoverServers } from '/discoverServers';
+import { Fmt } from '/fmt';
 
 export async function main(ns: NS): Promise<void> {
   const hackingLevelThreshold = ns.getPlayer().skills.hacking / 3;

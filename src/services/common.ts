@@ -1,4 +1,4 @@
-import { NS, NetscriptPort } from "@ns";
+import { NetscriptPort, NS } from '@ns';
 
 export class ClientPort<T> {
   private readonly port: NetscriptPort | null;

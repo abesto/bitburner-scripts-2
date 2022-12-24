@@ -1,6 +1,5 @@
 # TODOs
 
-* import sorter for `.ts` files
 * `config` / `config`
   * syntax highlighting on `config.get`
 * database service (with a lock queue)

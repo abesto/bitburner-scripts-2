@@ -1,5 +1,6 @@
-import { NS } from "@ns";
-import * as asciichart from "asciichart";
+import { NS } from '@ns';
+
+import * as asciichart from 'asciichart';
 
 export async function main(ns: NS): Promise<void> {
   ns.clearLog();

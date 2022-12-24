@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS } from '@ns';
 
 export async function main(ns: NS): Promise<void> {
   const hostname = ns.getHostname();

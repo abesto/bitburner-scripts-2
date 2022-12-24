@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS } from '@ns';
 
 const FORMATS = {
   float: "0.000",

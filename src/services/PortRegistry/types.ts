@@ -1,4 +1,4 @@
-import { ADT } from "ts-adt";
+import { ADT } from 'ts-adt';
 
 export const SERVICE_ID = "PortRegistry";
 export type ServiceTag = { service: typeof SERVICE_ID };

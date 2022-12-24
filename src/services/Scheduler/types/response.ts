@@ -1,14 +1,7 @@
-import { ADT } from "ts-adt";
+import { ADT } from 'ts-adt';
 import {
-  ServiceTag,
-  JobId,
-  Job,
-  Capacity,
-  SERVICE_ID,
-  SERVICE_TAG,
-  ServiceState,
-  ServiceStatus,
-} from ".";
+    Capacity, Job, JobId, SERVICE_ID, SERVICE_TAG, ServiceState, ServiceStatus, ServiceTag
+} from './';
 
 export type SchedulerResponse = ADT<{
   status: SchedulerResponse$Status;

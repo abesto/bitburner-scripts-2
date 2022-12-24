@@ -1,6 +1,7 @@
 // CLI for PortRegistry
-import { NS } from "@ns";
-import { PortRegistryClient } from "/services/PortRegistry/client";
+import { NS } from '@ns';
+
+import { PortRegistryClient } from '/services/PortRegistry/client';
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

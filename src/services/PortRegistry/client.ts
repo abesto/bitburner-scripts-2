@@ -1,13 +1,11 @@
-import { NS, NetscriptPort } from "@ns";
-import { matchPI } from "ts-adt";
+import { NetscriptPort, NS } from '@ns';
+
+import { freePorts, portRegistry } from '/ports';
+import { matchPI } from 'ts-adt';
 import {
-  PortRegistryResponse$Status,
-  releaseRequest,
-  reserveRequest,
-  statusRequest,
-  toPortRegistryResponse,
-} from "./types";
-import { freePorts, portRegistry } from "/ports";
+    PortRegistryResponse$Status, releaseRequest, reserveRequest, statusRequest,
+    toPortRegistryResponse
+} from './types';
 
 export class PortRegistryClient {
   private readonly ns: NS;

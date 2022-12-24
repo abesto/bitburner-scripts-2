@@ -1,6 +1,7 @@
-import { NS } from "@ns";
-import { db } from "/database";
-import { Fmt } from "/fmt";
+import { NS } from '@ns';
+
+import { db } from '/database';
+import { Fmt } from '/fmt';
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

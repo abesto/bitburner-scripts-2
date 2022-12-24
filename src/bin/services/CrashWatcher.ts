@@ -1,6 +1,7 @@
 // Watch for processes crashing that the Scheduler manages
-import { NS } from "@ns";
-import { withSchedulerClient } from "/services/Scheduler/client";
+import { NS } from '@ns';
+
+import { withSchedulerClient } from '/services/Scheduler/client';
 
 function arrayEqual(a: unknown[], b: unknown[]): boolean {
   if (a.length !== b.length) {

@@ -1,5 +1,6 @@
-import { NS } from "@ns";
-import { Fmt } from "/fmt";
+import { NS } from '@ns';
+
+import { Fmt } from '/fmt';
 
 export async function main(ns: NS): Promise<void> {
   const nodes = ns.hacknet.numNodes();

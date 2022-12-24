@@ -1,10 +1,10 @@
-import { AutocompleteData, NS } from "@ns";
+import { AutocompleteData, NS } from '@ns';
 
-import { autonuke } from "/autonuke";
-import { db } from "/database";
-import { Fmt } from "/fmt";
-import { SupervisorCtl } from "/supervisorctl";
-import { SupervisorEvents } from "/supervisorEvent";
+import { autonuke } from '/autonuke';
+import { db } from '/database';
+import { Fmt } from '/fmt';
+import { SupervisorCtl } from '/supervisorctl';
+import { SupervisorEvents } from '/supervisorEvent';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);

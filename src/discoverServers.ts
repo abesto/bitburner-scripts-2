@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS } from '@ns';
 
 export function discoverServers(ns: NS): string[] {
   const queue = ["home"];

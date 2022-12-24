@@ -1,5 +1,6 @@
-import { AutocompleteData, NS } from "@ns";
-import { db, dbLock, DEFAULT_DB } from "/database";
+import { AutocompleteData, NS } from '@ns';
+
+import { db, dbLock, DEFAULT_DB } from '/database';
 
 export async function main(ns: NS): Promise<void> {
   const command = ns.args[0] as string;

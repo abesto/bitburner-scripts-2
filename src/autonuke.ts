@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS } from '@ns';
 
 export function autonuke(ns: NS, host: string): boolean {
   if (ns.hasRootAccess(host)) {

@@ -1,8 +1,8 @@
-import { NS } from "@ns";
+import { NS } from '@ns';
 
 //import { autonuke } from "/autonuke";
-import { db } from "/database";
-import { Fmt } from "/fmt";
+import { db } from '/database';
+import { Fmt } from '/fmt';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([["threads", 0]]);

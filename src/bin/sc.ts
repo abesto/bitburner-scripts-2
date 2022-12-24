@@ -1,17 +1,11 @@
 // CLI to talk to SchedulerService
-import { AutocompleteData, NS } from "@ns";
-import { matchI } from "ts-adt";
-import { Fmt } from "/fmt";
-import {
-  NoResponseSchedulerClient,
-  withSchedulerClient,
-} from "/services/Scheduler/client";
-import {
-  jobThreads,
-  ServiceState,
-  ServiceStatus,
-} from "/services/Scheduler/types";
-import * as serviceSpecs from "/bin/services/specs.json.txt";
+import { AutocompleteData, NS } from '@ns';
+
+import * as serviceSpecs from '/bin/services/specs.json.txt';
+import { Fmt } from '/fmt';
+import { NoResponseSchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
+import { jobThreads, ServiceState, ServiceStatus } from '/services/Scheduler/types';
+import { matchI } from 'ts-adt';
 
 const SCHEDULER_SCRIPT = "/bin/services/Scheduler.js";
 

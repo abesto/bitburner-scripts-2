@@ -1,7 +1,7 @@
 /* eslint-disable no-constant-condition */
-import { NS } from "@ns";
+import { NS } from '@ns';
 
-import { Fmt } from "/fmt";
+import { Fmt } from '/fmt';
 
 export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);

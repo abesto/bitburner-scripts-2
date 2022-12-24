@@ -1,5 +1,5 @@
-import { ADT } from "ts-adt";
-import { JobId, JobSpec, ServiceTag, SERVICE_ID, SERVICE_TAG, TaskId } from ".";
+import { ADT } from 'ts-adt';
+import { JobId, JobSpec, SERVICE_ID, SERVICE_TAG, ServiceTag, TaskId } from './';
 
 export type SchedulerRequest = ADT<{
   // Manage the Scheduler itself

@@ -1,4 +1,4 @@
-import { ADT } from "ts-adt";
+import { ADT } from 'ts-adt';
 
 export * from "./request";
 export * from "./response";
