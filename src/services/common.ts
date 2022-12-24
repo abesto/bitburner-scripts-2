@@ -43,7 +43,7 @@ export class ServerPort<T> {
 
   constructor(
     private readonly ns: NS,
-    portNumber: number,
+    private readonly portNumber: number,
     private readonly parse: (message: unknown) => T | null
   ) {
     this.port = ns.getPortHandle(portNumber);
@@ -51,7 +51,9 @@ export class ServerPort<T> {
 
   async read(): Promise<T | null> {
     if (this.port.empty()) {
-      await this.port.nextWrite();
+      if (await Promise.any([this.port.nextWrite(), this.ns.asleep(5000)])) {
+        throw new Error(`Timeout reading from port ${this.portNumber}`);
+      }
     }
     const data = this.port.read();
     await this.ns.sleep(0);
