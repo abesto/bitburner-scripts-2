@@ -89,13 +89,15 @@ export function killJobResponse(result: "ok" | "not-found"): SchedulerResponse {
 
 export type SchedulerResponse$Reload = ServiceTag & {
   discovered: string[];
+  updated: string[];
   removed: string[];
 };
-export function reloadResponse(
-  discovered: string[],
-  removed: string[]
-): SchedulerResponse {
-  return { _type: "reload", discovered, removed, ...SERVICE_TAG };
+export function reloadResponse(result: {
+  discovered: string[];
+  updated: string[];
+  removed: string[];
+}): SchedulerResponse {
+  return { _type: "reload", ...result, ...SERVICE_TAG };
 }
 
 export type SchedulerResponse$ServiceStatus = ServiceTag & {

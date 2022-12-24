@@ -22,7 +22,6 @@
   * monitor / alert on job finish notification latency?
   * extend `CrashWatcher` to alert if the `Scheduler` dies
   * nice formatting for service status, a 'la systemd
-  * `reload`: restart services whose spec changed
   * tiny `CrashWatcherWatcher` service for redundancy
 * `share`
   * turn into service

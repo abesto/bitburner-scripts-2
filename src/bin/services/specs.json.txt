@@ -1,6 +1,10 @@
 {
-  "PortRegistry": {},
-  "CrashWatcher": {},
+  "PortRegistry": {
+    "enableWhenDiscovered": true
+  },
+  "CrashWatcher": {
+    "enableWhenDiscovered": true
+  },
   "BuyWorkers": {
     "hostAffinity": {
       "_type": "mustRunOn",

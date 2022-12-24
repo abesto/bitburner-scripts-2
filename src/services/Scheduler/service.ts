@@ -1,6 +1,7 @@
 import { NS } from "@ns";
 import { matchI } from "ts-adt";
 import arrayShuffle from "array-shuffle";
+import deepEqual from "deep-equal";
 
 import { ClientPort, ServerPort } from "../common";
 import {
@@ -58,6 +59,7 @@ export class SchedulerService {
   }
 
   async listen(): Promise<void> {
+    await this.doReload();
     await this.reviewServices();
 
     const listenPort = new ServerPort(
@@ -321,13 +323,26 @@ export class SchedulerService {
   }
 
   async reload(request: SchedulerRequest$Reload): Promise<void> {
+    const response = await this.doReload();
+    await new ClientPort<SchedulerResponse>(
+      this.ns,
+      request.responsePort
+    ).write(response);
+  }
+
+  protected async doReload(): Promise<SchedulerResponse> {
+    const discovered: string[] = [];
+    const removed: string[] = [];
+    const updated: string[] = [];
     await dbLock(this.ns, "reload", async (memdb) => {
       this.ns.print("Reloading services");
-      const raw: { [name: string]: { hostAffinity?: HostAffinity } } =
-        JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
-      const discovered = [];
-      const removed = [];
-      const updated = [];
+      const raw: {
+        [name: string]: {
+          hostAffinity?: HostAffinity;
+          enableWhenDiscovered?: boolean;
+        };
+      } = JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
+
       for (const name of Object.keys(memdb.scheduler.services)) {
         if (raw[name] === undefined) {
           removed.push(name);
@@ -335,28 +350,37 @@ export class SchedulerService {
           this.ns.print(`Removed service ${name}`);
         }
       }
+
       for (const [name, spec] of Object.entries(raw)) {
         if (memdb.scheduler.services[name] === undefined) {
           discovered.push(name);
           this.ns.print(`Discovered service ${name}`);
+          memdb.scheduler.services[name] = {
+            spec: { name, ...spec },
+            enabled: spec.enableWhenDiscovered !== false,
+            status: { _type: "new" },
+          };
+          if (spec.enableWhenDiscovered !== false) {
+            await this.doStartService({ name, ...spec }, memdb);
+          }
+        } else {
+          const newSpec = { name, ...spec };
+          if (!deepEqual(memdb.scheduler.services[name].spec, newSpec)) {
+            updated.push(name);
+            this.ns.print(`Updated service ${name}`);
+            memdb.scheduler.services[name].spec = newSpec;
+            await this.doStopService(name, memdb);
+            await this.doStartService(newSpec, memdb);
+          }
         }
-        // TODO detect changes
-        updated.push(name);
-        memdb.scheduler.services[name] = {
-          spec: { name, ...spec },
-          enabled: false,
-          status: { _type: "new" },
-        };
       }
-      await new ClientPort<SchedulerResponse>(
-        this.ns,
-        request.responsePort
-      ).write(reloadResponse(discovered, removed));
+
       if (discovered.length > 0 || removed.length > 0 || updated.length > 0) {
         return memdb;
       }
       return;
     });
+    return reloadResponse({ discovered, removed, updated });
   }
 
   protected serviceScript(name: string): string {

@@ -170,9 +170,13 @@ export async function main(ns: NS): Promise<void> {
 
   async function reload() {
     await withSchedulerClient(ns, async (client) => {
-      const { discovered, removed } = await client.reload();
+      const { discovered, removed, updated } = await client.reload();
       ns.tprint(
-        `INFO Service specs reloaded. New services: ${discovered}. Removed: ${removed}`
+        `INFO Service specs reloaded. ${JSON.stringify({
+          discovered,
+          updated,
+          removed,
+        })}`
       );
     });
   }
