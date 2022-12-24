@@ -20,7 +20,6 @@ export type SchedulerRequest = ADT<{
   serviceStatus: SchedulerRequest$ServiceStatus;
   startService: SchedulerRequest$StartService;
   stopService: SchedulerRequest$StopService;
-  restartService: SchedulerRequest$RestartService;
   enableService: SchedulerRequest$EnableService;
   disableService: SchedulerRequest$DisableService;
 }>;
@@ -129,11 +128,11 @@ export function serviceStatusRequest(
 
 export type SchedulerRequest$StartService = ServiceTag & {
   serviceName: string;
-  responsePort: number;
+  responsePort: number | null;
 };
 export function startServiceRequest(
   serviceName: string,
-  responsePort: number
+  responsePort: number | null
 ): SchedulerRequest {
   return { _type: "startService", serviceName, responsePort, ...SERVICE_TAG };
 }
@@ -169,15 +168,4 @@ export function disableServiceRequest(
   responsePort: number
 ): SchedulerRequest {
   return { _type: "disableService", serviceName, responsePort, ...SERVICE_TAG };
-}
-
-export type SchedulerRequest$RestartService = ServiceTag & {
-  serviceName: string;
-  responsePort: number;
-};
-export function restartServiceRequest(
-  serviceName: string,
-  responsePort: number
-): SchedulerRequest {
-  return { _type: "restartService", serviceName, responsePort, ...SERVICE_TAG };
 }

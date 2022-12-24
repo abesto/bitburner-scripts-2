@@ -29,6 +29,8 @@ import {
   serviceStatusRequest,
   startServiceRequest,
   SchedulerResponse$StartService,
+  SchedulerResponse$StopService,
+  stopServiceRequest,
 } from "/services/Scheduler/types";
 import { PortRegistryClient } from "../PortRegistry/client";
 
@@ -54,6 +56,11 @@ export class NoResponseSchedulerClient {
 
   async killAll(): Promise<void> {
     await this.schedulerPort.write(killAllRequest());
+  }
+
+  async startServiceNoResponse(name: string): Promise<void> {
+    const request = startServiceRequest(name, null);
+    await this.schedulerPort.write(request);
   }
 }
 
@@ -193,6 +200,21 @@ export class SchedulerClient extends NoResponseSchedulerClient {
       throw new Error("Invalid response");
     }
     if (refinement("startService")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async stopService(name: string): Promise<SchedulerResponse$StopService> {
+    const request = stopServiceRequest(name, this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("stopService")(response)) {
       return response;
     } else {
       throw new Error(`Invalid response: ${JSON.stringify(response)}`);

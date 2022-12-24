@@ -3,6 +3,6 @@ import { SchedulerService } from "/services/Scheduler/service";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
-  const portRegistry = new SchedulerService(ns);
-  await portRegistry.listen();
+  const scheduler = new SchedulerService(ns);
+  await scheduler.listen();
 }

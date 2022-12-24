@@ -42,6 +42,8 @@ export async function main(ns: NS): Promise<void> {
     services,
     "service-status": serviceStatus,
     "start-service": startService,
+    "stop-service": stopService,
+    "restart-service": restartService,
   };
 
   const impl = commandImpls[command];
@@ -229,17 +231,22 @@ export async function main(ns: NS): Promise<void> {
       ns.tprint("ERROR Missing service name");
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      const status = await client.startService(name);
-      matchI(status.payload)({
-        error: (e) => ns.tprint(`ERROR ${e.kind}`),
-        ok: ({ status }) =>
-          ns.tprint(`INFO Service started: ${serviceStatusToString(status)}`),
+    try {
+      await withSchedulerClient(ns, async (client) => {
+        const status = await client.startService(name);
+        matchI(status.payload)({
+          error: (e) => ns.tprint(`ERROR ${e.kind}`),
+          ok: ({ status }) =>
+            ns.tprint(`INFO Service started: ${serviceStatusToString(status)}`),
+        });
       });
-      if (name === "PortRegistry") {
-        await ns.sleep(100);
-      }
-    });
+    } catch (e) {
+      ns.tprint(`ERROR ${e}`);
+      ns.tprint(
+        "Possibly `PortRegistry` is not running, sending fire-and-forget service start request"
+      );
+      await new NoResponseSchedulerClient(ns).startServiceNoResponse(name);
+    }
   }
 
   async function tailDaemon() {
@@ -249,6 +256,23 @@ export async function main(ns: NS): Promise<void> {
     } else {
       ns.tail(process.pid);
     }
+  }
+
+  async function stopService() {
+    const name = posArgs[1] as string;
+    if (name === undefined) {
+      ns.tprint("ERROR Missing service name");
+      return;
+    }
+    await withSchedulerClient(ns, async (client) => {
+      const status = await client.stopService(name);
+      ns.tprint(`Stopping ${name}: ${status.payload}`);
+    });
+  }
+
+  async function restartService() {
+    await stopService();
+    await startService();
   }
 
   function serviceStateToString(state: ServiceState): string {
@@ -290,6 +314,8 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     "services",
     "service-status",
     "start-service",
+    "stop-service",
+    "restart-service",
   ];
   const cmd = args[0];
   if (cmd === undefined) {
@@ -298,7 +324,14 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     return commands.filter((c) => c.startsWith(args[0]));
   } else if (["start", "run"].includes(cmd)) {
     return data.scripts.filter((s) => s.startsWith(args[1]));
-  } else if (["start-service", "service-status"].includes(cmd)) {
+  } else if (
+    [
+      "start-service",
+      "stop-service",
+      "restart-service",
+      "service-status",
+    ].includes(cmd)
+  ) {
     return Object.keys(JSON.parse(serviceSpecs.default));
   } else {
     return [];

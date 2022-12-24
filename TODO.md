@@ -20,14 +20,11 @@
   * add `tail <job-id>:<task-id>`
   * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?
-  * watchdog - alert if scheduler goes down, maybe restart
-  * nice formatting for service status, a 'la systemd
-* add services to scheduler
-  * configured in text file(s)
-  * check service status at scheduler startup
-  * extend `CrashWatcher` to report crashed services
-    * tiny `CrashWatcherWatcher` service for redundancy
   * extend `CrashWatcher` to alert if the `Scheduler` dies
+  * nice formatting for service status, a 'la systemd
+  * keep `enabled` services alive
+  * `reload`: restart services whose spec changed
+  * tiny `CrashWatcherWatcher` service for redundancy
 * `share`
   * turn into service
   * automatically make decisions about used memory

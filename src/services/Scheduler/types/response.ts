@@ -22,6 +22,7 @@ export type SchedulerResponse = ADT<{
   reload: SchedulerResponse$Reload;
   serviceStatus: SchedulerResponse$ServiceStatus;
   startService: SchedulerResponse$StartService;
+  stopService: SchedulerResponse$StopService;
 }>;
 
 export function isSchedulerResponse(obj: unknown): obj is SchedulerResponse {
@@ -152,6 +153,19 @@ export function startServiceResponseFailedToStart(): SchedulerResponse {
   return {
     _type: "startService",
     payload: { _type: "error", kind: "failed-to-start" },
+    ...SERVICE_TAG,
+  };
+}
+
+export type SchedulerResponse$StopService = ServiceTag & {
+  payload: "ok" | "not-found" | "not-running" | "kill-failed";
+};
+export function stopServiceResponse(
+  payload: "ok" | "not-found" | "not-running" | "kill-failed"
+): SchedulerResponse {
+  return {
+    _type: "stopService",
+    payload,
     ...SERVICE_TAG,
   };
 }
