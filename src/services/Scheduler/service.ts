@@ -352,11 +352,12 @@ export class SchedulerService {
       }
 
       for (const [name, spec] of Object.entries(raw)) {
+        const newSpec: ServiceSpec = { name, hostAffinity: spec.hostAffinity };
         if (memdb.scheduler.services[name] === undefined) {
           discovered.push(name);
           this.ns.print(`Discovered service ${name}`);
           memdb.scheduler.services[name] = {
-            spec: { name, ...spec },
+            spec: newSpec,
             enabled: spec.enableWhenDiscovered !== false,
             status: { _type: "new" },
           };
@@ -364,7 +365,6 @@ export class SchedulerService {
             await this.doStartService({ name, ...spec }, memdb);
           }
         } else {
-          const newSpec = { name, ...spec };
           if (!deepEqual(memdb.scheduler.services[name].spec, newSpec)) {
             updated.push(name);
             this.ns.print(`Updated service ${name}`);
