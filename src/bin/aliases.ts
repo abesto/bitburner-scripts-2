@@ -6,12 +6,12 @@ export async function main(ns: NS): Promise<void> {
     "Copy-paste:\n" +
       ns
         .ls(hostname)
-        .filter((file) => file.endsWith(".js") && file.startsWith("/dist/bin"))
+        .filter((file) => file.match(/^\/bin\/[^/]*\.js$/))
         .map(
           (file) =>
             `alias ${file
               .replace(".js", "")
-              .replace("/dist/bin/", "")}="run ${file}";`
+              .replace("/bin/", "")}="run ${file}";`
         )
         .join("\n")
   );

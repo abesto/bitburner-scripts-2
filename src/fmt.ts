@@ -36,6 +36,11 @@ export class Fmt {
     return this.ns.nFormat(t / 1000, "00:00:00");
   }
 
+  timestamp(ms: number): string {
+    const date = new Date(ms);
+    return date.toISOString();
+  }
+
   memory(t: number): string {
     return this.ns.nFormat(t * 1000 * 1000 * 1000, FORMATS.memory);
   }

@@ -10,7 +10,7 @@ export async function main(ns: NS): Promise<void> {
   if (targetMemory <= 0) {
     throw new Error("Usage: run share.js --mem <memory>");
   }
-  const script = "/dist/bin/payloads/share.js";
+  const script = "/bin/payloads/share.js";
   const scriptMem = ns.getScriptRam(script);
   const targetThreads = Math.floor(targetMemory / scriptMem);
   ns.print(

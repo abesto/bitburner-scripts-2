@@ -1,23 +1,33 @@
 # TODOs
 
+* import sorter for `.ts` files
 * `config` / `config`
   * syntax highlighting on `config.get`
 * database service (with a lock queue)
   * client: read the db from disk if we're on `home` (but always lock/write through the service)
   * client: caching reader for config (with configurable TTL)
 * pid lookup occasionally fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
-* logging lib. with colors!
+* logging lib
+  * formatting, colors
+  * levels
+  * named (hierarchical?) loggers
+  * configured via `database.config`
+  * pull in some existing lib maybe?
+  * persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)
 * `Scheduler`
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
   * add `tail <job-id>:<task-id>`
-  * still seems to schedule lots of things to `home` even when there's capacity elsewhere, review / tweak host selection logic
   * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?
   * watchdog - alert if scheduler goes down, maybe restart
+  * nice formatting for service status, a 'la systemd
 * add services to scheduler
   * configured in text file(s)
-  * add service listing to `status`
+  * check service status at scheduler startup
+  * extend `CrashWatcher` to report crashed services
+    * tiny `CrashWatcherWatcher` service for redundancy
+  * extend `CrashWatcher` to alert if the `Scheduler` dies
 * `share`
   * turn into service
   * automatically make decisions about used memory
@@ -31,6 +41,7 @@
   * add safety check to `hwgw-controller`: if security goes too high, kill everything and shrink it back
   * `hwgw-controller`: kill all processes against the target on startup
   * add nice reporting
+    * including: memory usage over time
 * `hwgw-orchestrator`: manage multiple `hwgw-controller`s and the `hwgw` config
 * `hwgw-simulator`: for given parameters, how much capacity do we need for hwgw against a host?
 * capacity management - reserve ram for full hwgw batch

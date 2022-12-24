@@ -22,6 +22,22 @@ import {
   killJobResponse,
   capacityResponse,
   SchedulerRequest$Capacity,
+  reloadResponse,
+  SchedulerRequest$Reload,
+  serviceStatusResponseNotFound,
+  serviceStatusResponseOk,
+  SchedulerRequest$ServiceStatus,
+  SchedulerRequest$StartService,
+  SchedulerRequest$DisableService,
+  SchedulerRequest$EnableService,
+  SchedulerRequest$RestartService,
+  SchedulerRequest$StopService,
+  startServiceResponseNotFound,
+  startServiceResponseAlreadyRunning,
+  ServiceSpec,
+  startServiceResponseFailedToStart,
+  ServiceStatus,
+  startServiceResponseOk,
 } from "./types";
 import { autonuke } from "/autonuke";
 import { db, dbLock } from "/database";
@@ -33,6 +49,9 @@ export class SchedulerService {
   private readonly fmt: Fmt;
 
   constructor(private readonly ns: NS) {
+    if (this.ns.getHostname() !== "home") {
+      throw new Error("SchedulerService must be run on home");
+    }
     this.fmt = new Fmt(ns);
   }
 
@@ -54,15 +73,25 @@ export class SchedulerService {
         `SchedulerService received request: ${JSON.stringify(request)}`
       );
       await matchI(request)({
-        start: (request) => this.start(request),
-        taskFinished: (request) => this.taskFinished(request),
+        status: (request) => this.status(request),
+        capacity: (request) => this.capacity(request),
         exit: () => {
           exit = true;
         },
-        status: (request) => this.status(request),
-        capacity: (request) => this.capacity(request),
+
+        start: (request) => this.start(request),
         killAll: () => this.killAll(),
         killJob: (request) => this.killJob(request),
+
+        taskFinished: (request) => this.taskFinished(request),
+
+        reload: (request) => this.reload(request),
+        serviceStatus: (request) => this.serviceStatus(request),
+        startService: (request) => this.startService(request),
+        stopService: (request) => this.stopService(request),
+        restartService: (request) => this.restartService(request),
+        enableService: (request) => this.enableService(request),
+        disableService: (request) => this.disableService(request),
       });
     }
 
@@ -71,6 +100,213 @@ export class SchedulerService {
 
   generateJobId(): string {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  async startService(request: SchedulerRequest$StartService): Promise<void> {
+    const memdb = await db(this.ns);
+    const service = memdb.scheduler.services[request.serviceName];
+    const port = new ClientPort<SchedulerResponse>(
+      this.ns,
+      request.responsePort
+    );
+    if (service === undefined) {
+      await port.write(startServiceResponseNotFound());
+      return;
+    }
+    if (service.status._type === "running") {
+      await port.write(startServiceResponseAlreadyRunning());
+      return;
+    }
+    const status = await this.doStartService(service.spec);
+    if (status === null) {
+      await port.write(startServiceResponseFailedToStart());
+      return;
+    }
+    await port.write(startServiceResponseOk(status));
+  }
+
+  protected async doStartService(
+    spec: ServiceSpec
+  ): Promise<ServiceStatus | null> {
+    const script = this.serviceScript(spec.name);
+    const capacity = await this.hostCandidates(
+      spec.hostAffinity,
+      this.ns.getScriptRam(script),
+      1
+    );
+    const hostname = capacity[0]?.hostname;
+    if (hostname === undefined) {
+      this.ns.print(`ERROR failed to find host for ${spec.name}`);
+      return null;
+    }
+
+    if (hostname !== "home") {
+      if (!this.ns.scp(script, hostname)) {
+        this.ns.print(
+          `ERROR failed to copy ${script} to ${hostname} for ${spec.name}`
+        );
+        return null;
+      }
+    }
+
+    const pid = this.ns.exec(script, hostname, 1);
+    if (pid === 0) {
+      this.ns.print(
+        `ERROR failed to start service ${spec.name} on ${hostname}`
+      );
+      return null;
+    }
+    const status: ServiceStatus = {
+      _type: "running",
+      pid,
+      startedAt: Date.now(),
+      hostname,
+    };
+    await dbLock(this.ns, "doStartService", async (memdb) => {
+      memdb.scheduler.services[spec.name].status = status;
+      return memdb;
+    });
+    this.ns.print(`SUCCESS Started service ${spec.name} on ${hostname}`);
+    return status;
+  }
+
+  async stopService(request: SchedulerRequest$StopService): Promise<void> {
+    this.ns.tprint("ERROR stopService not implemented");
+  }
+
+  async restartService(
+    request: SchedulerRequest$RestartService
+  ): Promise<void> {
+    this.ns.tprint("ERROR restartService not implemented");
+  }
+
+  async enableService(request: SchedulerRequest$EnableService): Promise<void> {
+    this.ns.tprint("ERROR enableService not implemented");
+  }
+
+  async disableService(
+    request: SchedulerRequest$DisableService
+  ): Promise<void> {
+    this.ns.tprint("ERROR disableService not implemented");
+  }
+
+  async serviceStatus(request: SchedulerRequest$ServiceStatus): Promise<void> {
+    const memdb = await db(this.ns);
+    const service = memdb.scheduler.services[request.serviceName];
+    await new ClientPort<SchedulerResponse>(
+      this.ns,
+      request.responsePort
+    ).write(
+      service === undefined
+        ? serviceStatusResponseNotFound()
+        : serviceStatusResponseOk(
+            service,
+            await this.serviceLogs(service.spec.name)
+          )
+    );
+  }
+
+  async serviceLogs(name: string): Promise<string[]> {
+    const memdb = await db(this.ns);
+    const service = memdb.scheduler.services[name];
+    if (service === undefined) {
+      return [];
+    }
+    if (service.status._type === "running") {
+      return this.ns.getScriptLogs(
+        this.serviceScript(service.spec.name),
+        service.status.hostname
+      );
+    } else if (
+      service.status._type === "crashed" ||
+      service.status._type === "stopped"
+    ) {
+      const recentScripts = this.ns.getRecentScripts();
+      for (const script of recentScripts) {
+        if (
+          script.pid === service.status.pid &&
+          script.filename === this.serviceScript(service.spec.name) &&
+          script.server === service.status.hostname
+        ) {
+          return this.ns.getScriptLogs(script.filename, script.server);
+        }
+      }
+    }
+    return [];
+  }
+
+  async reload(request: SchedulerRequest$Reload): Promise<void> {
+    await dbLock(this.ns, "reload", async (memdb) => {
+      this.ns.print("Reloading services");
+      const raw: { [name: string]: { hostAffinity?: HostAffinity } } =
+        JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
+      const discovered = [];
+      const removed = [];
+      for (const name of Object.keys(memdb.scheduler.services)) {
+        if (raw[name] === undefined) {
+          removed.push(name);
+          await this.doStopService(name);
+          this.ns.print(`Removed service ${name}`);
+        }
+      }
+      for (const [name, spec] of Object.entries(raw)) {
+        if (memdb.scheduler.services[name] === undefined) {
+          discovered.push(name);
+        }
+        memdb.scheduler.services[name] = {
+          spec: { name, ...spec },
+          enabled: false,
+          status: { _type: "new" },
+        };
+        this.ns.print(`Discovered service ${name}`);
+      }
+      await new ClientPort<SchedulerResponse>(
+        this.ns,
+        request.responsePort
+      ).write(reloadResponse(discovered, removed));
+      if (discovered.length > 0 || removed.length > 0) {
+        return memdb;
+      }
+      return;
+    });
+  }
+
+  protected serviceScript(name: string): string {
+    return `/bin/services/${name}.js`;
+  }
+
+  protected async doStopService(
+    name: string
+  ): Promise<"not-found" | "already-stopped" | "kill-failed" | "ok"> {
+    let retval: "not-found" | "already-stopped" | "kill-failed" | "ok" = "ok";
+    await dbLock(this.ns, "stopService", async (memdb) => {
+      const service = memdb.scheduler.services[name];
+      if (service === undefined) {
+        retval = "not-found";
+        return;
+      } else if (service.status._type !== "running") {
+        retval = "already-stopped";
+        return;
+      } else {
+        if (
+          this.ns.kill(
+            this.serviceScript(service.spec.name),
+            service.status.hostname
+          )
+        ) {
+          service.status = {
+            ...service.status,
+            stoppedAt: Date.now(),
+            _type: "stopped",
+          };
+          return memdb;
+        } else {
+          retval = "kill-failed";
+          return;
+        }
+      }
+    });
+    return retval;
   }
 
   async capacity(request: SchedulerRequest$Capacity): Promise<void> {
@@ -82,11 +318,13 @@ export class SchedulerService {
   }
 
   async status(request: SchedulerRequest$Status): Promise<void> {
-    const jobs = await (await db(this.ns)).scheduler.jobs;
+    const memdb = await db(this.ns);
+    const jobs = memdb.scheduler.jobs;
+    const services = memdb.scheduler.services;
     await new ClientPort<SchedulerResponse>(
       this.ns,
       request.responsePort
-    ).write(statusResponse(Object.values(jobs)));
+    ).write(statusResponse(Object.values(jobs), Object.values(services)));
   }
 
   async killAll(): Promise<void> {
@@ -189,6 +427,33 @@ export class SchedulerService {
     });
   }
 
+  protected async hostCandidates(
+    hostAffinity: HostAffinity | undefined,
+    scriptRam: number,
+    threads: number
+  ): Promise<Capacity[]> {
+    let capacity = await this.exploreCapacity();
+    // Only want hosts that have enough memory for at least one thread
+    capacity = capacity.filter((c) => c.freeMem >= scriptRam);
+    // Shuffle!
+    capacity = arrayShuffle(capacity);
+    // Prefer those hosts that have enough memory for all threads, and prefer the ones with the least memory between those
+    capacity = capacity.sort((a, b) => {
+      const aHasEnough = a.freeMem >= scriptRam * threads;
+      const bHasEnough = b.freeMem >= scriptRam * threads;
+      if (aHasEnough && !bHasEnough) {
+        return -1;
+      }
+      if (!aHasEnough && bHasEnough) {
+        return 1;
+      }
+      return a.freeMem - b.freeMem;
+    });
+    // Apply host affinity
+    capacity = this.applyHostAffinity(capacity, hostAffinity);
+    return capacity;
+  }
+
   async start(request: SchedulerRequest$Start): Promise<void> {
     const { spec, finishNotificationPort } = request;
     const { script, args, threads } = spec;
@@ -211,25 +476,11 @@ export class SchedulerService {
         scriptRam
       )})`
     );
-    let capacity = await this.exploreCapacity();
-    // Only want hosts that have enough memory for at least one thread
-    capacity = capacity.filter((c) => c.freeMem >= scriptRam);
-    // Shuffle!
-    capacity = arrayShuffle(capacity);
-    // Prefer those hosts that have enough memory for all threads, and prefer the ones with the least memory between those
-    capacity = capacity.sort((a, b) => {
-      const aHasEnough = a.freeMem >= scriptRam * threads;
-      const bHasEnough = b.freeMem >= scriptRam * threads;
-      if (aHasEnough && !bHasEnough) {
-        return -1;
-      }
-      if (!aHasEnough && bHasEnough) {
-        return 1;
-      }
-      return a.freeMem - b.freeMem;
-    });
-    // Apply host affinity
-    capacity = this.applyHostAffinity(capacity, spec.hostAffinity);
+    const capacity = await this.hostCandidates(
+      spec.hostAffinity,
+      scriptRam,
+      threads
+    );
 
     for (const { hostname, freeMem, cores } of capacity) {
       if (jobThreads(job) >= threads) {

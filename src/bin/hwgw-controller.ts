@@ -35,7 +35,7 @@ export async function main(ns: NS): Promise<void> {
   while (shouldWeaken() || (await shouldGrow())) {
     const { jobId, threads } = await schedulerClient.start(
       {
-        script: "/dist/bin/hwgw-batch.js",
+        script: "/bin/hwgw-batch.js",
         args: [host, "--initial"],
         threads: 1,
         hostAffinity: { _type: "mustRunOn", host: "home" },
@@ -56,7 +56,7 @@ export async function main(ns: NS): Promise<void> {
     ns.print("Starting batch");
     await schedulerClient.start(
       {
-        script: "/dist/bin/hwgw-batch.js",
+        script: "/bin/hwgw-batch.js",
         args: [host],
         threads: 1,
         hostAffinity: { _type: "mustRunOn", host: "home" },
@@ -81,17 +81,17 @@ export async function main(ns: NS): Promise<void> {
       ) {
         countByKind.batch += jobThreads(job);
       } else if (
-        job.spec.script.endsWith("/dist/bin/payloads/hack.js") &&
+        job.spec.script.endsWith("/bin/payloads/hack.js") &&
         job.spec.args[0] === host
       ) {
         countByKind.hack += jobThreads(job);
       } else if (
-        job.spec.script.endsWith("/dist/bin/payloads/weaken.js") &&
+        job.spec.script.endsWith("/bin/payloads/weaken.js") &&
         job.spec.args[0] === host
       ) {
         countByKind.weaken += jobThreads(job);
       } else if (
-        job.spec.script.endsWith("/dist/bin/payloads/grow.js") &&
+        job.spec.script.endsWith("/bin/payloads/grow.js") &&
         job.spec.args[0] === host
       ) {
         countByKind.grow += jobThreads(job);

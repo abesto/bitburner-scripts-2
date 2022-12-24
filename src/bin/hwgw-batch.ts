@@ -211,7 +211,7 @@ export async function main(ns: NS): Promise<void> {
     const responsePort = await portRegistryClient.reservePort();
     const schedulerClient = new SchedulerClient(ns, responsePort);
     const { jobId, threads } = await schedulerClient.start({
-      script: `/dist/bin/payloads/${kind}.js`,
+      script: `/bin/payloads/${kind}.js`,
       threads: wantThreads,
       args: [host],
     });

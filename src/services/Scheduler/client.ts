@@ -23,6 +23,12 @@ import {
   toSchedulerResponse,
   SchedulerResponse$Capacity,
   capacityRequest,
+  SchedulerResponse$Reload,
+  reloadRequest,
+  SchedulerResponse$ServiceStatus,
+  serviceStatusRequest,
+  startServiceRequest,
+  SchedulerResponse$StartService,
 } from "/services/Scheduler/types";
 import { PortRegistryClient } from "../PortRegistry/client";
 
@@ -142,6 +148,51 @@ export class SchedulerClient extends NoResponseSchedulerClient {
       throw new Error("Invalid response");
     }
     if (refinement("killJob")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async reload(): Promise<SchedulerResponse$Reload> {
+    const request = reloadRequest(this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("reload")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async serviceStatus(name: string): Promise<SchedulerResponse$ServiceStatus> {
+    const request = serviceStatusRequest(name, this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("serviceStatus")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async startService(name: string): Promise<SchedulerResponse$StartService> {
+    const request = startServiceRequest(name, this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("startService")(response)) {
       return response;
     } else {
       throw new Error(`Invalid response: ${JSON.stringify(response)}`);
