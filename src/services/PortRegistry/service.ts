@@ -80,7 +80,7 @@ export class PortRegistryService {
       if (listenPort.empty()) {
         this.freeLeakedPorts();
         this.populateFreePorts();
-        await listenPort.nextWrite();
+        await Promise.any([this.ns.asleep(5000), listenPort.nextWrite()]);
         continue;
       }
 
