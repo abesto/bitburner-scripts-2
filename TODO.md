@@ -22,7 +22,6 @@
   * monitor / alert on job finish notification latency?
   * extend `CrashWatcher` to alert if the `Scheduler` dies
   * nice formatting for service status, a 'la systemd
-  * keep `enabled` services alive
   * `reload`: restart services whose spec changed
   * tiny `CrashWatcherWatcher` service for redundancy
 * `share`
@@ -37,6 +36,7 @@
   * add safety check to `hwgw-controller`: if money goes significantly below threshold, kill everything and grow it back
   * add safety check to `hwgw-controller`: if security goes too high, kill everything and shrink it back
   * `hwgw-controller`: kill all processes against the target on startup
+  * factor in Hacking skill growth when starting new batches (skill up -> ETA down, might mess up ordering of finishing tasks)
   * add nice reporting
     * including: memory usage over time
 * `hwgw-orchestrator`: manage multiple `hwgw-controller`s and the `hwgw` config

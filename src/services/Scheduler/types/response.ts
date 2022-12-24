@@ -23,6 +23,8 @@ export type SchedulerResponse = ADT<{
   serviceStatus: SchedulerResponse$ServiceStatus;
   startService: SchedulerResponse$StartService;
   stopService: SchedulerResponse$StopService;
+  enableService: SchedulerResponse$EnableService;
+  disableService: SchedulerResponse$DisableService;
 }>;
 
 export function isSchedulerResponse(obj: unknown): obj is SchedulerResponse {
@@ -165,6 +167,32 @@ export function stopServiceResponse(
 ): SchedulerResponse {
   return {
     _type: "stopService",
+    payload,
+    ...SERVICE_TAG,
+  };
+}
+
+export type SchedulerResponse$EnableService = ServiceTag & {
+  payload: "ok" | "not-found" | "already-enabled";
+};
+export function enableServiceResponse(
+  payload: "ok" | "not-found" | "already-enabled"
+): SchedulerResponse {
+  return {
+    _type: "enableService",
+    payload,
+    ...SERVICE_TAG,
+  };
+}
+
+export type SchedulerResponse$DisableService = ServiceTag & {
+  payload: "ok" | "not-found" | "already-disabled";
+};
+export function disableServiceResponse(
+  payload: "ok" | "not-found" | "already-disabled"
+): SchedulerResponse {
+  return {
+    _type: "disableService",
     payload,
     ...SERVICE_TAG,
   };

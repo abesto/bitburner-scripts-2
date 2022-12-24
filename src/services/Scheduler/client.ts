@@ -31,6 +31,10 @@ import {
   SchedulerResponse$StartService,
   SchedulerResponse$StopService,
   stopServiceRequest,
+  enableServiceRequest,
+  SchedulerResponse$EnableService,
+  SchedulerResponse$DisableService,
+  disableServiceRequest,
 } from "/services/Scheduler/types";
 import { PortRegistryClient } from "../PortRegistry/client";
 
@@ -215,6 +219,38 @@ export class SchedulerClient extends NoResponseSchedulerClient {
       throw new Error("Invalid response");
     }
     if (refinement("stopService")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async enableService(name: string): Promise<SchedulerResponse$EnableService> {
+    const request = enableServiceRequest(name, this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("enableService")(response)) {
+      return response;
+    } else {
+      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
+    }
+  }
+
+  async disableService(
+    name: string
+  ): Promise<SchedulerResponse$DisableService> {
+    const request = disableServiceRequest(name, this.responsePortNumber);
+    await this.schedulerPort.write(request);
+    const response = await this.responsePort.read();
+    // TODO this part should be factored out, but the typing is tricky.
+    if (response === null) {
+      throw new Error("Invalid response");
+    }
+    if (refinement("disableService")(response)) {
       return response;
     } else {
       throw new Error(`Invalid response: ${JSON.stringify(response)}`);

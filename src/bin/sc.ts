@@ -44,6 +44,8 @@ export async function main(ns: NS): Promise<void> {
     "start-service": startService,
     "stop-service": stopService,
     "restart-service": restartService,
+    "enable-service": enableService,
+    "disable-service": disableService,
   };
 
   const impl = commandImpls[command];
@@ -275,6 +277,30 @@ export async function main(ns: NS): Promise<void> {
     await startService();
   }
 
+  async function enableService() {
+    const name = posArgs[1] as string;
+    if (name === undefined) {
+      ns.tprint("ERROR Missing service name");
+      return;
+    }
+    await withSchedulerClient(ns, async (client) => {
+      const status = await client.enableService(name);
+      ns.tprint(`Enabling ${name}: ${status.payload}`);
+    });
+  }
+
+  async function disableService() {
+    const name = posArgs[1] as string;
+    if (name === undefined) {
+      ns.tprint("ERROR Missing service name");
+      return;
+    }
+    await withSchedulerClient(ns, async (client) => {
+      const status = await client.disableService(name);
+      ns.tprint(`Disabling ${name}: ${status.payload}`);
+    });
+  }
+
   function serviceStateToString(state: ServiceState): string {
     return (
       serviceStatusToString(state.status) +
@@ -316,6 +342,8 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     "start-service",
     "stop-service",
     "restart-service",
+    "enable-service",
+    "disable-service",
   ];
   const cmd = args[0];
   if (cmd === undefined) {
@@ -330,6 +358,8 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
       "stop-service",
       "restart-service",
       "service-status",
+      "enable-service",
+      "disable-service",
     ].includes(cmd)
   ) {
     return Object.keys(JSON.parse(serviceSpecs.default));

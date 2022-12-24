@@ -38,6 +38,8 @@ import {
   ServiceStatus,
   startServiceResponseOk,
   stopServiceResponse,
+  enableServiceResponse,
+  disableServiceResponse,
 } from "./types";
 import { autonuke } from "/autonuke";
 import { DB, db, dbLock } from "/database";
@@ -121,7 +123,21 @@ export class SchedulerService {
               _type: "crashed",
               crashedAt: Date.now(),
             };
-            this.ns.tprint(`ERROR Service ${name} crashed`);
+            if (service.enabled) {
+              if ((await this.doStartService(service.spec, memdb)) === null) {
+                this.ns.tprint(
+                  `ERROR Service ${name} crashed, restarting failed`
+                );
+              } else {
+                this.ns.tprint(
+                  `WARN Service ${name} crashed, restart successful`
+                );
+              }
+            } else {
+              this.ns.tprint(
+                `ERROR Service ${name} crashed. It's disabled, not restarting.`
+              );
+            }
           }
         }
       }
@@ -216,13 +232,47 @@ export class SchedulerService {
   }
 
   async enableService(request: SchedulerRequest$EnableService): Promise<void> {
-    this.ns.tprint("ERROR enableService not implemented");
+    await dbLock(this.ns, "enableService", async (memdb) => {
+      const service = memdb.scheduler.services[request.serviceName];
+      const port = new ClientPort<SchedulerResponse>(
+        this.ns,
+        request.responsePort
+      );
+      if (service === undefined) {
+        await port.write(enableServiceResponse("not-found"));
+        return;
+      }
+      if (service.enabled) {
+        await port.write(enableServiceResponse("already-enabled"));
+        return;
+      }
+      service.enabled = true;
+      await port.write(enableServiceResponse("ok"));
+      return memdb;
+    });
   }
 
   async disableService(
     request: SchedulerRequest$DisableService
   ): Promise<void> {
-    this.ns.tprint("ERROR disableService not implemented");
+    await dbLock(this.ns, "disableService", async (memdb) => {
+      const service = memdb.scheduler.services[request.serviceName];
+      const port = new ClientPort<SchedulerResponse>(
+        this.ns,
+        request.responsePort
+      );
+      if (service === undefined) {
+        await port.write(disableServiceResponse("not-found"));
+        return;
+      }
+      if (!service.enabled) {
+        await port.write(disableServiceResponse("already-disabled"));
+        return;
+      }
+      service.enabled = false;
+      await port.write(disableServiceResponse("ok"));
+      return memdb;
+    });
   }
 
   async serviceStatus(request: SchedulerRequest$ServiceStatus): Promise<void> {
