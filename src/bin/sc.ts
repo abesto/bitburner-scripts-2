@@ -3,6 +3,7 @@ import { AutocompleteData, NS } from '@ns';
 
 import * as serviceSpecs from '/bin/services/specs.json.txt';
 import { Fmt } from '/fmt';
+import { Log } from '/log';
 import { NoResponseSchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
 import { jobThreads, ServiceState, ServiceStatus } from '/services/Scheduler/types';
 import { matchI } from 'ts-adt';
@@ -11,6 +12,7 @@ const SCHEDULER_SCRIPT = "/bin/services/Scheduler.js";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
+  const log = new Log(ns, "sc");
   const fmt = new Fmt(ns);
 
   const args = ns.flags([
@@ -46,39 +48,36 @@ export async function main(ns: NS): Promise<void> {
   if (impl) {
     await impl();
   } else {
-    ns.tprint(`ERROR Invalid command: ${command}`);
+    log.terror("Invalid command", { command });
   }
 
   async function start() {
     const threads = args.threads as number;
     if (threads <= 0) {
-      ns.tprint("ERROR Invalid or missing --threads");
+      log.terror("Invalid or missing --threads", { threads });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      ns.tprint(
-        JSON.stringify(
-          await client.start(
-            {
-              threads,
-              script: posArgs[1],
-              args: posArgs.slice(2),
-            },
-            args.stail as boolean,
-            null
-          )
-        )
+    await withSchedulerClient(ns, log, async (client) => {
+      const response = await client.start(
+        {
+          threads,
+          script: posArgs[1],
+          args: posArgs.slice(2),
+        },
+        args.stail as boolean,
+        null
       );
+      log.tinfo("Started job", response);
     });
   }
 
   async function run() {
     const threads = args.threads as number;
     if (threads <= 0) {
-      ns.tprint("ERROR Invalid or missing --threads");
+      log.terror("Invalid or missing --threads", { threads });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
+    const jobId = await withSchedulerClient(ns, log, async (client) => {
       const response = await client.start(
         {
           threads,
@@ -87,118 +86,121 @@ export async function main(ns: NS): Promise<void> {
         },
         args.stail as boolean
       );
-      ns.tprint(
-        `INFO Started job ${response.jobId} with ${response.threads} threads, waiting for it to finish...`
-      );
+      log.info("Started job", response);
       await client.waitForJobFinished(response.jobId);
+      return response.jobId;
     });
-    ns.tprint("INFO Job finished");
+    log.info("Job finished", { jobId });
   }
 
   async function status() {
-    const status = await withSchedulerClient(ns, async (client) => {
+    const status = await withSchedulerClient(ns, log, async (client) => {
       return await client.status();
     });
-    ns.tprint("INFO Scheduler status:");
     for (const job of status.jobs) {
-      ns.tprint(
-        `  [${job.id}] '${job.spec.script} ${job.spec.args.join(
-          " "
-        )}' threads: ${jobThreads(job)} / ${job.spec.threads}`
-      );
+      log.tinfo("Job", {
+        jobId: job.id,
+        script: job.spec.script,
+        args: job.spec.args,
+        threads: jobThreads(job),
+        requestedThreads: job.spec.threads,
+      });
       if (args.verbose as boolean) {
         for (const task of Object.values(job.tasks)) {
-          ns.tprint(
-            `      ${task.id} threads=${task.threads} ${task.hostname} PID ${task.pid}`
-          );
+          log.tinfo("  Task", {
+            taskId: task.id,
+            hostname: task.hostname,
+            threads: task.threads,
+          });
         }
       }
     }
   }
 
   async function exit() {
-    await new NoResponseSchedulerClient(ns).exit();
-    ns.tprint("INFO Exit request sent");
+    await new NoResponseSchedulerClient(ns, log).exit();
+    log.tinfo("Exit request sent");
   }
 
   async function killAll() {
-    await new NoResponseSchedulerClient(ns).killAll();
-    ns.tprint("INFO kill-all request sent");
+    await new NoResponseSchedulerClient(ns, log).killAll();
+    log.tinfo("Kill-all request sent");
   }
 
   async function killJob() {
     const jobId = posArgs[1];
     if (!jobId) {
-      ns.tprint("ERROR Missing job ID");
+      log.terror("Missing job ID", { jobId });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      ns.tprint((await client.killJob(jobId)).result);
+    await withSchedulerClient(ns, log, async (client) => {
+      const response = (await client.killJob(jobId)).result;
+      log.tinfo("Kill request", { jobId, response });
     });
   }
 
   async function capacity() {
-    const { capacity } = await withSchedulerClient(ns, async (client) => {
+    const { capacity } = await withSchedulerClient(ns, log, async (client) => {
       return await client.capacity();
     });
     capacity.sort((a, b) => a.freeMem - b.freeMem);
     const totalMem = capacity.reduce((acc, c) => acc + c.totalMem, 0);
     const freeMem = capacity.reduce((acc, c) => acc + c.freeMem, 0);
     const hosts = capacity.length;
-    ns.tprint(
-      `INFO Capacity: ${hosts} hosts, ${fmt.memory(freeMem)} / ${fmt.memory(
-        totalMem
-      )}`
-    );
-
     const smallestChunk = capacity.find((c) => c.freeMem > 0)?.freeMem;
-    if (smallestChunk) {
-      ns.tprint(`INFO Smallest chunk: ${fmt.memory(smallestChunk)}`);
-    }
-
     const largestChunk = capacity[capacity.length - 1]?.freeMem;
-    if (largestChunk) {
-      ns.tprint(`INFO Largest chunk: ${fmt.memory(largestChunk)}`);
-    }
+    log.tinfo("capacity", {
+      freeMem: fmt.memory(freeMem),
+      totalMem: fmt.memory(totalMem),
+      hosts,
+      smallestChunk: fmt.memory(smallestChunk || 0),
+      largestChunk: fmt.memory(largestChunk || 0),
+    });
   }
 
   async function reload() {
-    await withSchedulerClient(ns, async (client) => {
+    await withSchedulerClient(ns, log, async (client) => {
       const { discovered, removed, updated } = await client.reload();
-      ns.tprint(
-        `INFO Service specs reloaded. ${JSON.stringify({
-          discovered,
-          updated,
-          removed,
-        })}`
-      );
+      log.tinfo("Service specs reloaded", { discovered, updated, removed });
     });
   }
 
   async function services() {
-    const { services } = await withSchedulerClient(ns, async (client) => {
+    const { services } = await withSchedulerClient(ns, log, async (client) => {
       return await client.status();
     });
     for (const service of services) {
-      ns.tprint(`  ${service.spec.name}: ${serviceStateToString(service)}`);
+      log.tinfo("Service", serviceStateFields(service));
     }
   }
 
   async function serviceStatus() {
     const name = posArgs[1] as string;
     if (name === undefined) {
-      ns.tprint("ERROR Missing service name");
+      log.terror("Missing service name", { name });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
+    await withSchedulerClient(ns, log, async (client) => {
       const status = await client.serviceStatus(name);
       matchI(status.payload)({
-        error: (e) => ns.tprint(`ERROR ${e}`),
+        error: (e) =>
+          log.terror("Failed to get service status", { reason: e.kind }),
         ok: ({ state, logs }) => {
-          ns.tprint(`INFO Service state: ${serviceStateToString(state)}`);
-          ns.tprint("INFO Last logs:");
-          for (const log of logs.slice(-10)) {
-            ns.tprint(`  ${log}`);
+          log.tinfo("Service status", serviceStateFields(state));
+          if (logs.length === 0) {
+            log.twarn("No logs", { service: state.spec.name });
+            return;
+          }
+          if (!args.verbose) {
+            log.tinfo("Last logs follow");
+            for (const log of logs.slice(-10)) {
+              ns.tprintf(log);
+            }
+          } else {
+            log.tinfo("Logs follow");
+            for (const log of logs) {
+              ns.tprintf(log);
+            }
           }
         },
       });
@@ -208,9 +210,9 @@ export async function main(ns: NS): Promise<void> {
   async function startDaemon() {
     const pid = ns.exec(SCHEDULER_SCRIPT, ns.getHostname());
     if (pid === 0) {
-      ns.tprint("ERROR Failed to start scheduler daemon");
+      log.terror("Failed to start scheduler daemon");
     } else {
-      ns.tprint(`INFO Scheduler daemon started (PID ${pid})`);
+      log.tinfo("Scheduler daemon started", { pid });
       if (args.stail as boolean) {
         ns.tail(pid);
       }
@@ -228,31 +230,32 @@ export async function main(ns: NS): Promise<void> {
   async function startService() {
     const name = posArgs[1] as string;
     if (name === undefined) {
-      ns.tprint("ERROR Missing service name");
+      log.terror("Missing service name", { name });
       return;
     }
     try {
-      await withSchedulerClient(ns, async (client) => {
+      await withSchedulerClient(ns, log, async (client) => {
         const status = await client.startService(name);
         matchI(status.payload)({
-          error: (e) => ns.tprint(`ERROR ${e.kind}`),
+          error: (e) =>
+            log.terror("Failed to start service", { name, reason: e.kind }),
           ok: ({ status }) =>
-            ns.tprint(`INFO Service started: ${serviceStatusToString(status)}`),
+            log.tinfo("Service started", serviceStatusFields(status)),
         });
       });
     } catch (e) {
-      ns.tprint(`ERROR ${e}`);
-      ns.tprint(
+      log.terror("Failed to start service", { name, reason: e });
+      log.tinfo(
         "Possibly `PortRegistry` is not running, sending fire-and-forget service start request"
       );
-      await new NoResponseSchedulerClient(ns).startServiceNoResponse(name);
+      await new NoResponseSchedulerClient(ns, log).startServiceNoResponse(name);
     }
   }
 
   async function tailDaemon() {
     const process = ns.getRunningScript(SCHEDULER_SCRIPT, ns.getHostname());
     if (process === null) {
-      ns.tprint("ERROR Scheduler daemon not running");
+      log.terror("Scheduler daemon not running");
     } else {
       ns.tail(process.pid);
     }
@@ -261,12 +264,12 @@ export async function main(ns: NS): Promise<void> {
   async function stopService() {
     const name = posArgs[1] as string;
     if (name === undefined) {
-      ns.tprint("ERROR Missing service name");
+      log.terror("Missing service name", { name });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      const status = await client.stopService(name);
-      ns.tprint(`Stopping ${name}: ${status.payload}`);
+    await withSchedulerClient(ns, log, async (client) => {
+      const response = await client.stopService(name);
+      log.tinfo("stop-service", { name, response: response.payload });
     });
   }
 
@@ -278,46 +281,64 @@ export async function main(ns: NS): Promise<void> {
   async function enableService() {
     const name = posArgs[1] as string;
     if (name === undefined) {
-      ns.tprint("ERROR Missing service name");
+      log.terror("Missing service name", { name });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      const status = await client.enableService(name);
-      ns.tprint(`Enabling ${name}: ${status.payload}`);
+    await withSchedulerClient(ns, log, async (client) => {
+      const response = await client.enableService(name);
+      log.tinfo("enable-service", { name, response: response.payload });
     });
   }
 
   async function disableService() {
     const name = posArgs[1] as string;
     if (name === undefined) {
-      ns.tprint("ERROR Missing service name");
+      log.terror("Missing service name", { name });
       return;
     }
-    await withSchedulerClient(ns, async (client) => {
-      const status = await client.disableService(name);
-      ns.tprint(`Disabling ${name}: ${status.payload}`);
+    await withSchedulerClient(ns, log, async (client) => {
+      const response = await client.disableService(name);
+      log.tinfo("disable-service", { name, response: response.payload });
     });
   }
 
-  function serviceStateToString(state: ServiceState): string {
-    return (
-      serviceStatusToString(state.status) +
-      " " +
-      (state.enabled ? "(enabled)" : "(disabled)")
-    );
+  function serviceStateFields(state: ServiceState): {
+    [key: string]: unknown;
+  } {
+    return {
+      name: state.spec.name,
+      ...serviceStatusFields(state.status),
+      enabled: state.enabled,
+    };
   }
 
-  function serviceStatusToString(status: ServiceStatus): string {
+  function serviceStatusFields(status: ServiceStatus): {
+    [key: string]: unknown;
+  } {
     return matchI(status)({
-      new: () => "New",
-      running: ({ pid, hostname, startedAt }) =>
-        `Running on ${hostname} (PID ${pid}) since ${fmt.timestamp(startedAt)}`,
-      stopped: ({ stoppedAt }) => `Stopped at ${fmt.timestamp(stoppedAt)}`,
-      crashed: ({ pid, hostname, startedAt, crashedAt }) => {
-        return `Crashed on ${hostname} (PID ${pid}) at ${fmt.timestamp(
-          crashedAt
-        )} after ${fmt.time(crashedAt - startedAt)}`;
-      },
+      new: () => ({ state: "new" }),
+      running: ({ pid, hostname, startedAt }) => ({
+        state: "running",
+        pid,
+        hostname,
+        startedAt: fmt.timestamp(startedAt),
+        uptime: fmt.time(Date.now() - startedAt),
+      }),
+      stopped: ({ pid, hostname, startedAt, stoppedAt }) => ({
+        state: "stopped",
+        pid,
+        hostname,
+        startedAt: fmt.timestamp(startedAt),
+        stoppedAt: fmt.timestamp(stoppedAt),
+      }),
+      crashed: ({ pid, hostname, startedAt, crashedAt }) => ({
+        state: "crashed",
+        pid,
+        hostname,
+        startedAt: fmt.timestamp(startedAt),
+        crashedAt: fmt.timestamp(crashedAt),
+        uptime: fmt.time(crashedAt - startedAt),
+      }),
     });
   }
 }

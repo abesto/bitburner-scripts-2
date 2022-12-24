@@ -1,5 +1,7 @@
 import { NS } from '@ns';
 
+import chalk from 'chalk';
+
 const FORMATS = {
   float: "0.000",
   money: "$0.000a",
@@ -103,4 +105,42 @@ export class Fmt {
   percent(x: number): string {
     return `${Math.round(x * 100)}%`;
   }
+}
+
+export function highlightValue(value: unknown): string {
+  if (typeof value === "string") {
+    return chalk.green(value);
+  } else if (typeof value === "number" || typeof value === "boolean") {
+    return value.toString();
+  } else if (typeof value === "undefined" || value === null) {
+    return chalk.black(value);
+  } else {
+    return highlightJSON(value);
+  }
+}
+
+export function highlightJSON(value: unknown): string {
+  if (typeof value === "string") {
+    return chalk.green(`"${value.replaceAll('"', '\\"')}"`);
+  } else if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "undefined" ||
+    value === null
+  ) {
+    return highlightValue(value);
+  } else if (typeof value === "object") {
+    if (Array.isArray(value)) {
+      const parts = value.map((value) => highlightJSON(value));
+      return "[" + parts.join(",") + "]";
+    }
+    const parts = Object.entries(value).map(([key, value]) => {
+      return `${chalk.cyan(
+        '"' + key.replaceAll('"', '\\"') + '"'
+      )}:${highlightJSON(value)}`;
+    });
+
+    return "{" + parts.join(",") + "}";
+  }
+  throw new Error("unreachable");
 }

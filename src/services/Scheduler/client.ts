@@ -1,6 +1,7 @@
 /* eslint-disable no-constant-condition */
 import { NS } from '@ns';
 
+import { Log } from '/log';
 import { PORTS } from '/ports';
 import { ClientPort, ServerPort } from '/services/common';
 import {
@@ -19,8 +20,8 @@ import { PortRegistryClient } from '../PortRegistry/client';
 export class NoResponseSchedulerClient {
   protected readonly schedulerPort: ClientPort<SchedulerRequest>;
 
-  constructor(protected readonly ns: NS) {
-    this.schedulerPort = new ClientPort(ns, PORTS[SCHEDULER]);
+  constructor(protected readonly ns: NS, protected readonly log: Log) {
+    this.schedulerPort = new ClientPort(ns, log, PORTS[SCHEDULER]);
   }
 
   async taskFinished(
@@ -49,10 +50,11 @@ export class NoResponseSchedulerClient {
 export class SchedulerClient extends NoResponseSchedulerClient {
   private readonly responsePort: ServerPort<SchedulerResponse>;
 
-  constructor(ns: NS, readonly responsePortNumber: number) {
-    super(ns);
+  constructor(ns: NS, log: Log, readonly responsePortNumber: number) {
+    super(ns, log);
     this.responsePort = new ServerPort(
       ns,
+      log,
       responsePortNumber,
       toSchedulerResponse
     );
@@ -83,7 +85,7 @@ export class SchedulerClient extends NoResponseSchedulerClient {
   }
 
   async waitForJobFinished(jobId: JobId): Promise<void> {
-    const response = await this.responsePort.read();
+    const response = await this.responsePort.read(null);
     if (response === null) {
       throw new Error("Invalid response");
     }
@@ -238,11 +240,12 @@ export class SchedulerClient extends NoResponseSchedulerClient {
 
 export async function withSchedulerClient<T>(
   ns: NS,
+  log: Log,
   fn: (client: SchedulerClient) => Promise<T>
 ): Promise<T> {
   const portRegistryClient = new PortRegistryClient(ns);
   const port = await portRegistryClient.reservePort();
-  const client = new SchedulerClient(ns, port);
+  const client = new SchedulerClient(ns, log, port);
   const retval = await fn(client);
   await portRegistryClient.releasePort(port);
   return retval;

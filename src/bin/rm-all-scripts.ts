@@ -1,6 +1,9 @@
 import { NS } from '@ns';
 
+import { Log } from '/log';
+
 export async function main(ns: NS): Promise<void> {
+  const log = new Log(ns, "rm-all-scripts");
   const hostname = ns.getHostname();
   const me = ns.getScriptName();
   if (
@@ -11,9 +14,9 @@ export async function main(ns: NS): Promise<void> {
     for (const file of ns.ls(hostname)) {
       if (file.endsWith(".js") && file !== me) {
         if (ns.rm(file)) {
-          ns.tprint(`SUCCESS Deleted ${file}`);
+          log.tinfo("Deleted", { file });
         } else {
-          ns.tprint(`ERROR Failed to delete ${file}`);
+          log.terror("Failed to delete", { file });
         }
       }
     }

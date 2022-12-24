@@ -4,6 +4,7 @@ import { autonuke } from '/autonuke';
 import { DB, db, dbLock } from '/database';
 import { discoverServers } from '/discoverServers';
 import { Fmt } from '/fmt';
+import { Log } from '/log';
 import { PORTS } from '/ports';
 import arrayShuffle from 'array-shuffle';
 import deepEqual from 'deep-equal';
@@ -24,12 +25,14 @@ import {
 
 export class SchedulerService {
   private readonly fmt: Fmt;
+  private readonly log: Log;
 
   constructor(private readonly ns: NS) {
     if (this.ns.getHostname() !== "home") {
       throw new Error("SchedulerService must be run on home");
     }
     this.fmt = new Fmt(ns);
+    this.log = new Log(ns, "Scheduler");
   }
 
   async listen(): Promise<void> {
@@ -38,20 +41,21 @@ export class SchedulerService {
 
     const listenPort = new ServerPort(
       this.ns,
+      this.log,
       PORTS[SCHEDULER],
       toSchedulerRequest
     );
-    this.ns.print(`SchedulerService listening on port ${PORTS[SCHEDULER]}`);
+    this.log.info("Listening", {
+      port: listenPort.portNumber,
+    });
 
     let exit = false;
     while (!exit) {
-      const request = await listenPort.read();
+      const request = await listenPort.read(null);
       if (request === null) {
         continue;
       }
-      this.ns.print(
-        `SchedulerService received request: ${JSON.stringify(request)}`
-      );
+      this.log.info("Request", { request });
       await matchI(request)({
         status: (request) => this.status(request),
         capacity: (request) => this.capacity(request),
@@ -74,7 +78,7 @@ export class SchedulerService {
       });
     }
 
-    this.ns.print("SchedulerService exiting");
+    this.log.info("Exiting");
   }
 
   generateJobId(): string {
@@ -101,17 +105,18 @@ export class SchedulerService {
             };
             if (service.enabled) {
               if ((await this.doStartService(service.spec, memdb)) === null) {
-                this.ns.tprint(
-                  `ERROR Service ${name} crashed, restarting failed`
-                );
+                this.log.terror("Service crashed, restart failed", {
+                  service: name,
+                });
               } else {
-                this.ns.tprint(
-                  `WARN Service ${name} crashed, restart successful`
-                );
+                this.log.twarn("Service crashed, restart successful", {
+                  service: name,
+                });
               }
             } else {
-              this.ns.tprint(
-                `ERROR Service ${name} crashed. It's disabled, not restarting.`
+              this.log.terror(
+                "Service crashed, not restarting because it's disabled",
+                { service: name }
               );
             }
           }
@@ -127,6 +132,7 @@ export class SchedulerService {
 
       const port = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         request.responsePort
       );
       if (service === undefined) {
@@ -159,24 +165,27 @@ export class SchedulerService {
     );
     const hostname = capacity[0]?.hostname;
     if (hostname === undefined) {
-      this.ns.print(`ERROR failed to find host for ${spec.name}`);
+      this.log.error("Failed to find host for service", { service: spec.name });
       return null;
     }
 
     if (hostname !== "home") {
       if (!this.ns.scp(script, hostname)) {
-        this.ns.print(
-          `ERROR failed to copy ${script} to ${hostname} for ${spec.name}`
-        );
+        this.log.error("Failed to copy service to host", {
+          script,
+          hostname,
+          service: spec.name,
+        });
         return null;
       }
     }
 
     const pid = this.ns.exec(script, hostname, 1);
     if (pid === 0) {
-      this.ns.print(
-        `ERROR failed to start service ${spec.name} on ${hostname}`
-      );
+      this.log.error("Failed to start service", {
+        service: spec.name,
+        hostname,
+      });
       return null;
     }
     const status: ServiceStatus = {
@@ -186,7 +195,7 @@ export class SchedulerService {
       hostname,
     };
     memdb.scheduler.services[spec.name].status = status;
-    this.ns.print(`SUCCESS Started service ${spec.name} on ${hostname}`);
+    this.log.info("Started service", { service: spec.name, hostname, pid });
     return status;
   }
 
@@ -195,6 +204,7 @@ export class SchedulerService {
       const service = memdb.scheduler.services[request.serviceName];
       const port = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         request.responsePort
       );
       if (service === undefined) {
@@ -212,6 +222,7 @@ export class SchedulerService {
       const service = memdb.scheduler.services[request.serviceName];
       const port = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         request.responsePort
       );
       if (service === undefined) {
@@ -235,6 +246,7 @@ export class SchedulerService {
       const service = memdb.scheduler.services[request.serviceName];
       const port = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         request.responsePort
       );
       if (service === undefined) {
@@ -256,6 +268,7 @@ export class SchedulerService {
     const service = memdb.scheduler.services[request.serviceName];
     await new ClientPort<SchedulerResponse>(
       this.ns,
+      this.log,
       request.responsePort
     ).write(
       service === undefined
@@ -300,6 +313,7 @@ export class SchedulerService {
     const response = await this.doReload();
     await new ClientPort<SchedulerResponse>(
       this.ns,
+      this.log,
       request.responsePort
     ).write(response);
   }
@@ -309,7 +323,7 @@ export class SchedulerService {
     const removed: string[] = [];
     const updated: string[] = [];
     await dbLock(this.ns, "reload", async (memdb) => {
-      this.ns.print("Reloading services");
+      this.log.info("Reloading services");
       const raw: {
         [name: string]: {
           hostAffinity?: HostAffinity;
@@ -321,7 +335,7 @@ export class SchedulerService {
         if (raw[name] === undefined) {
           removed.push(name);
           await this.doStopService(name, memdb);
-          this.ns.print(`Removed service ${name}`);
+          this.log.info("Removed service", { service: name });
         }
       }
 
@@ -329,7 +343,7 @@ export class SchedulerService {
         const newSpec: ServiceSpec = { name, hostAffinity: spec.hostAffinity };
         if (memdb.scheduler.services[name] === undefined) {
           discovered.push(name);
-          this.ns.print(`Discovered service ${name}`);
+          this.log.info("Discovered service", { service: name });
           memdb.scheduler.services[name] = {
             spec: newSpec,
             enabled: spec.enableWhenDiscovered !== false,
@@ -341,7 +355,7 @@ export class SchedulerService {
         } else {
           if (!deepEqual(memdb.scheduler.services[name].spec, newSpec)) {
             updated.push(name);
-            this.ns.print(`Updated service ${name}`);
+            this.log.info("Updated service", { service: name });
             memdb.scheduler.services[name].spec = newSpec;
             await this.doStopService(name, memdb);
             await this.doStartService(newSpec, memdb);
@@ -391,7 +405,11 @@ export class SchedulerService {
 
   async capacity(request: SchedulerRequest$Capacity): Promise<void> {
     const [client, capacity] = await Promise.all([
-      new ClientPort<SchedulerResponse>(this.ns, request.responsePort),
+      new ClientPort<SchedulerResponse>(
+        this.ns,
+        this.log,
+        request.responsePort
+      ),
       this.exploreCapacity(),
     ]);
     await client.write(capacityResponse(capacity));
@@ -404,6 +422,7 @@ export class SchedulerService {
     const services = memdb.scheduler.services;
     await new ClientPort<SchedulerResponse>(
       this.ns,
+      this.log,
       request.responsePort
     ).write(statusResponse(Object.values(jobs), Object.values(services)));
   }
@@ -419,6 +438,7 @@ export class SchedulerService {
     const result = await this.doKillJob(request.jobId);
     const client = new ClientPort<SchedulerResponse>(
       this.ns,
+      this.log,
       request.responsePort
     );
     await client.write(killJobResponse(result));
@@ -426,25 +446,33 @@ export class SchedulerService {
 
   private async doKillJob(jobId: JobId): Promise<"ok" | "not-found"> {
     let retval: "ok" | "not-found" = "ok";
+    const log = this.log.scope("doKillJob");
     await dbLock(this.ns, "doKillJob", async (memdb) => {
       const job = memdb.scheduler.jobs[jobId];
       if (job === undefined) {
-        this.ns.tprint(`WARN killJob: Could not find job ${jobId}`);
+        log.terror("Could not find job", { jobId });
         retval = "not-found";
         return;
       }
       if (job.id !== jobId) {
-        this.ns.tprint(`WARN killJob: Job ID mismatch: ${job.id} !== ${jobId}`);
+        log.terror("Job ID mismatch", { jobId, onObject: job.id });
       }
 
       for (const task of Object.values(job.tasks)) {
         this.ns.kill(task.pid);
-        this.ns.print(
-          `[job=${job.id}][task=${task.id}] ${task.hostname}:${task.pid} Killed as requested`
-        );
+        log.info("Killed task", {
+          job: job.id,
+          task: task.id,
+          hostname: task.hostname,
+          pid: task.pid,
+        });
       }
       delete memdb.scheduler.jobs[jobId];
-      this.ns.print(`[job=${job.id}] Killed as requested`);
+      log.info("Killed job", {
+        jobId,
+        script: job.spec.script,
+        args: job.spec.args,
+      });
       return memdb;
     });
     return retval;
@@ -452,44 +480,50 @@ export class SchedulerService {
 
   async taskFinished(request: SchedulerRequest$TaskFinished): Promise<void> {
     const { jobId, taskId, crash } = request;
+    const log = this.log.scope("taskFinished");
     await dbLock(this.ns, "finished", async (memdb) => {
       const job = memdb.scheduler.jobs[jobId];
       if (job === undefined) {
         if (!crash) {
-          this.ns.tprint(`WARN taskFinished: Could not find job ${jobId}`);
+          log.warn("Could not find job", { jobId });
         }
         return;
       }
       if (job.id !== jobId) {
-        this.ns.tprint(
-          `ERROR taskFinished: Job ID mismatch: ${job.id} !== ${jobId}`
-        );
+        log.terror("Job ID mismatch", { jobId, onObject: job.id });
         return;
       }
 
       const task = job.tasks[taskId];
       if (task === undefined) {
         if (!crash) {
-          this.ns.tprint(`WARN taskFinished: Could not find task ${taskId}`);
+          log.twarn("Could not find task", { taskId });
         }
         return;
       }
       if (task.id !== taskId) {
-        this.ns.tprint(
-          `ERROR taskFinished: Task ID mismatch: ${task.id} !== ${taskId}`
-        );
+        log.terror("Task ID mismatch", { taskId, onObject: task.id });
         return;
       }
 
-      this.ns.print(
-        `INFO [job=${job.id}][task=${task.id}] ${task.hostname} finished '${job.spec.script} ${job.spec.args}' with ${task.threads} (PID ${task.pid}})`
-      );
+      log.info("Task finished", {
+        job: job.id,
+        task: task.id,
+        hostname: task.hostname,
+        pid: task.pid,
+        script: job.spec.script,
+        args: job.spec.args,
+        threads: task.threads,
+      });
       delete job.tasks[taskId];
 
       if (Object.keys(job.tasks).length === 0) {
-        this.ns.print(
-          `SUCCESS [job=${job.id}] Finished '${job.spec.script} ${job.spec.args}' with ${job.spec.threads}`
-        );
+        log.info("Job finished", {
+          job: job.id,
+          script: job.spec.script,
+          args: job.spec.args,
+          threads: job.spec.threads,
+        });
         delete memdb.scheduler.jobs[jobId];
 
         const { finishNotificationPort } = job;
@@ -499,6 +533,7 @@ export class SchedulerService {
         ) {
           const clientPort = new ClientPort<SchedulerResponse>(
             this.ns,
+            this.log,
             finishNotificationPort
           );
           await clientPort.write(jobFinishedNotification(job.id));
@@ -539,7 +574,7 @@ export class SchedulerService {
     const { spec, finishNotificationPort } = request;
     const { script, args, threads } = spec;
     if (!this.ns.fileExists(spec.script, "home")) {
-      this.ns.tprint(`ERROR Could not find ${script}`);
+      this.log.terror("Could not find script", { script });
       return;
     }
 
@@ -550,13 +585,13 @@ export class SchedulerService {
       tasks: {},
     };
     const scriptRam = this.ns.getScriptRam(script);
-    this.ns.print(
-      `INFO [job=${
-        job.id
-      }] Starting ${script} with args ${args} and threads ${threads} (RAM: ${this.fmt.memory(
-        scriptRam
-      )})`
-    );
+    this.log.info("Starting job", {
+      job: job.id,
+      script,
+      args,
+      threads,
+      scriptRam: this.fmt.memory(scriptRam),
+    });
     const capacity = await this.hostCandidates(
       spec.hostAffinity,
       scriptRam,
@@ -572,9 +607,7 @@ export class SchedulerService {
         continue;
       }
       if (!this.ns.scp(script, hostname)) {
-        this.ns.tprint(
-          `WARN [job=${job.id}] Could not copy ${script} to ${hostname}`
-        );
+        this.log.twarn("Could not copy script to host", { script, hostname });
         continue;
       }
       const threadsThisHost = Math.min(
@@ -590,24 +623,29 @@ export class SchedulerService {
         ...argsThisHost
       );
       if (pid === 0) {
-        this.ns.tprint(
-          `WARN [job=${
-            job.id
-          }] Could not start ${script} on ${hostname} (tried ${threadsThisHost} threads). Memory: ${this.fmt.memory(
-            freeMem
-          )}. Script mem: ${this.fmt.memory(
-            scriptRam
-          )}. Available threads: ${availableThreads}.`
-        );
+        this.log.twarn("Failed to start task", {
+          job: job.id,
+          task: taskId,
+          hostname,
+          script,
+          args,
+          threads: threadsThisHost,
+          scriptRam: this.fmt.memory(scriptRam),
+          availableThreads,
+        });
         continue;
       }
-      this.ns.print(
-        `INFO [job=${
-          job.id
-        }] Started ${script} on ${hostname} (PID: ${pid}, threads: ${threadsThisHost}, cores: ${cores}), remaining: ${
-          threads - jobThreads(job)
-        }`
-      );
+      this.log.info("Started task", {
+        job: job.id,
+        task: taskId,
+        hostname,
+        script,
+        args,
+        pid,
+        threads: threadsThisHost,
+        cores,
+        remaining: threads - jobThreads(job),
+      });
 
       job.tasks[taskId] = {
         id: taskId,
@@ -627,16 +665,26 @@ export class SchedulerService {
     }
 
     if (scheduled < threads) {
-      this.ns.print(
-        `WARN [job=${job.id}] Could not schedule ${threads} threads, scheduled ${scheduled}`
-      );
+      this.log.warn("Couldn't schedule all threads", {
+        job: job.id,
+        script,
+        args,
+        wanted: threads,
+        scheduled,
+      });
     } else {
-      this.ns.print(`SUCCESS [job=${job.id}] Scheduled ${scheduled} threads`);
+      this.log.info("Job scheduled", {
+        job: job.id,
+        script,
+        args,
+        threads: scheduled,
+      });
     }
 
     if (request.responsePort !== null) {
       const responsePort = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         request.responsePort
       );
       await responsePort.write(startResponse(job.id, scheduled));
@@ -645,6 +693,7 @@ export class SchedulerService {
     if (scheduled === 0 && finishNotificationPort !== null) {
       const clientPort = new ClientPort<SchedulerResponse>(
         this.ns,
+        this.log,
         finishNotificationPort
       );
       await clientPort.write(jobFinishedNotification(job.id));

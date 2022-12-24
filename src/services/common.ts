@@ -1,10 +1,13 @@
 import { NetscriptPort, NS } from '@ns';
 
+import { Log } from '/log';
+
 export class ClientPort<T> {
   private readonly port: NetscriptPort | null;
 
   constructor(
     private readonly ns: NS,
+    private readonly log: Log,
     private readonly portNumber: number | null
   ) {
     if (portNumber === null) {
@@ -29,9 +32,10 @@ export class ClientPort<T> {
       backoffExp += 1;
       old = this.port.write(old);
       if (backoffExp > 10) {
-        this.ns.tprint(
-          `ERROR Backoff number ${backoffExp} to write to port ${this.portNumber}`
-        );
+        this.log.terror("Failed to write to port", {
+          port: this.portNumber,
+          retries: backoffExp,
+        });
       }
     }
     await this.ns.sleep(0);
@@ -43,15 +47,20 @@ export class ServerPort<T> {
 
   constructor(
     private readonly ns: NS,
-    private readonly portNumber: number,
+    private readonly log: Log,
+    readonly portNumber: number,
     private readonly parse: (message: unknown) => T | null
   ) {
     this.port = ns.getPortHandle(portNumber);
   }
 
-  async read(): Promise<T | null> {
+  async read(timeout: number | null = 5000): Promise<T | null> {
     if (this.port.empty()) {
-      if (await Promise.any([this.port.nextWrite(), this.ns.asleep(5000)])) {
+      const promise =
+        timeout === null
+          ? this.port.nextWrite()
+          : Promise.any([this.port.nextWrite(), this.ns.asleep(timeout)]);
+      if (await promise) {
         throw new Error(`Timeout reading from port ${this.portNumber}`);
       }
     }
@@ -61,11 +70,11 @@ export class ServerPort<T> {
       const json = JSON.parse(data.toString());
       const parsed = this.parse(json);
       if (parsed === null) {
-        this.ns.tprint(`ERROR Wrong message type: ${data}`);
+        this.log.terror("Failed to parse message", { data });
       }
       return parsed;
     } catch (e) {
-      this.ns.tprint(`ERROR Failed to parse message: ${data}`);
+      this.log.terror("Failed to parse message", { data, e });
       return null;
     }
   }

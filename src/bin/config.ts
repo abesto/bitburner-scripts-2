@@ -1,11 +1,16 @@
 import { AutocompleteData, NS } from '@ns';
 
 import { db, dbLock, DEFAULT_DB } from '/database';
+import { highlightValue } from '/fmt';
+import { Log } from '/log';
 
 export async function main(ns: NS): Promise<void> {
+  const log = new Log(ns, "config");
+
   const command = ns.args[0] as string;
   if (command === "get") {
     const key = ns.args[1] as string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let obj = (await db(ns)).config as any;
     if (key) {
       const path = key.split(".");
@@ -16,16 +21,14 @@ export async function main(ns: NS): Promise<void> {
         }
       }
     }
-    let output = JSON.stringify(obj, null);
-    if (output.length > 100) {
-      output = JSON.stringify(obj, null, 2);
-    }
-    ns.tprint(output);
+
+    ns.tprintf(highlightValue(obj));
   } else if (command === "set") {
     const key = ns.args[1] as string;
     const value = ns.args[2] as string;
     if (!key || !value) {
-      throw new Error("Usage: run config.js set <key> <value>");
+      log.terror("Usage: run config.js set <key> <value>");
+      return;
     }
 
     await dbLock(ns, "set", async (memdb) => {
@@ -40,29 +43,26 @@ export async function main(ns: NS): Promise<void> {
       }
 
       if (obj === undefined) {
-        throw new Error(`Could not find parent of ${key}`);
+        log.terror("Parent not found", { key });
+        return;
       }
 
       const lastPart = path[path.length - 1];
       const oldValue = obj[lastPart];
       if (typeof oldValue === "object") {
-        ns.tprint(
-          `ERROR ${key} is not a leaf node: ${JSON.stringify(oldValue)}`
-        );
+        log.terror("Not a leaf", { key, oldValue });
         return;
       }
       if (typeof oldValue !== typeof value) {
-        ns.tprint(
-          `ERROR ${key} is ${typeof oldValue} but ${value} is ${typeof value}`
-        );
+        log.terror("Type mismatch", { key, oldValue, value });
         return;
       }
       obj[lastPart] = value;
-      ns.tprint(`Set ${key} to ${value}`);
+      log.tinfo("Saved", { key, oldValue, value });
       return memdb;
     });
   } else {
-    throw new Error("Usage: run config.js <get|set>");
+    log.terror("Usage: run config.js set <key> <value>");
   }
 }
 
@@ -73,6 +73,7 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     const shape = DEFAULT_DB.config;
     const parts = args[1].split(".");
     const matched: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let obj = shape as any;
     for (const part of parts) {
       if (obj[part] === undefined) {

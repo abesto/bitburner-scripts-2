@@ -1,18 +1,11 @@
 # TODOs
 
-* `config` / `config`
-  * syntax highlighting on `config.get`
 * database service (with a lock queue)
   * client: read the db from disk if we're on `home` (but always lock/write through the service)
   * client: caching reader for config (with configurable TTL)
 * pid lookup occasionally fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
 * logging lib
-  * formatting, colors
-  * levels
-  * named (hierarchical?) loggers
-  * configured via `database.config`
-  * pull in some existing lib maybe?
-  * persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)
+  * levels, filtering configured via `database.config`
 * `Scheduler`
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
@@ -51,3 +44,4 @@
 * `BuyWorkers`
   * make decisions without config
 * `Stats` service?
+* persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)

@@ -21,7 +21,7 @@ export async function main(ns: NS): Promise<void> {
   servers.sort((a, b) => Weight(ns, b) - Weight(ns, a));
 
   const fmt = new Fmt(ns);
-  for (const server of servers.slice(0, 10)) {
+  for (const server of servers.slice(0, 20)) {
     const maxMoney = ns.getServerMaxMoney(server);
     const requiredHackingLevel = ns.getServerRequiredHackingLevel(server);
     ns.tprint(

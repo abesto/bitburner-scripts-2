@@ -27,6 +27,7 @@
   "dependencies": {
     "array-shuffle": "^3.0.0",
     "asciichart": "^1.5.25",
+    "chalk": "^5.2.0",
     "deep-equal": "^2.1.0",
     "deepmerge-ts": "^4.2.2",
     "esbuild": "0.16.10",

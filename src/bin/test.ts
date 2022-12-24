@@ -1,42 +1,76 @@
 import { NS } from '@ns';
 
-import * as asciichart from 'asciichart';
+import { Log } from '/log';
 
 export async function main(ns: NS): Promise<void> {
-  ns.clearLog();
-  const arr1 = new Array(120);
-  arr1[0] = Math.round(Math.random() * 15);
-  for (let i = 1; i < arr1.length; i++)
-    arr1[i] =
-      arr1[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+  const log = new Log(ns, "test").scope("test2").scope("whoo");
 
-  const arr2 = new Array(120);
-  arr2[0] = Math.round(Math.random() * 15);
-  for (let i = 1; i < arr2.length; i++)
-    arr2[i] =
-      arr2[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+  log.debug("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: [12, "whoo"] },
+  });
 
-  const arr3 = new Array(120);
-  arr3[0] = Math.round(Math.random() * 15);
-  for (let i = 1; i < arr3.length; i++)
-    arr3[i] =
-      arr3[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+  log.info("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
+  log.warn("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
+  log.error("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
 
-  const arr4 = new Array(120);
-  arr4[0] = Math.round(Math.random() * 15);
-  for (let i = 1; i < arr4.length; i++)
-    arr4[i] =
-      arr4[i - 1] + Math.round(Math.random() * (Math.random() > 0.5 ? 2 : -2));
+  log.tdebug("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: [12, "whoo"] },
+  });
+  log.tinfo("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
+  log.twarn("whee", {
+    foo: "bar",
 
-  const config: asciichart.PlotConfig = {
-    colors: [
-      asciichart.blue,
-      asciichart.red,
-      asciichart.lightgray,
-      asciichart.magenta,
-    ],
-    height: 10,
-  };
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
 
-  ns.print(asciichart.plot([arr1, arr2, arr3, arr4], config));
+  log.terror("whee", {
+    foo: "bar",
+    baz: 42,
+    qux: true,
+    quux: null,
+    corge: undefined,
+    grault: { garply: "waldo", fred: 123 },
+  });
 }

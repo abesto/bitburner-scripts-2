@@ -3,6 +3,7 @@ import { AutocompleteData, NS } from '@ns';
 import { autonuke } from '/autonuke';
 import { db } from '/database';
 import { Fmt } from '/fmt';
+import { Log } from '/log';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
 import { jobThreads } from '/services/Scheduler/types';
@@ -12,12 +13,13 @@ export async function main(ns: NS): Promise<void> {
   const posArgs = args._ as string[];
   const host = posArgs[0];
 
+  const log = new Log(ns, "hwgw-controller");
+
   if (!host) {
-    ns.tprint("ERROR No host specified");
+    log.terror("Usage: run hwgw-controller.js <host>", { args });
     return;
   }
 
-  ns.disableLog("ALL");
   const fmt = new Fmt(ns);
   const spacing = async () => (await db(ns)).config.hwgw.spacing;
 
@@ -25,10 +27,10 @@ export async function main(ns: NS): Promise<void> {
 
   const portRegistryClient = new PortRegistryClient(ns);
   const schedulerResponsePort = await portRegistryClient.reservePort();
-  const schedulerClient = new SchedulerClient(ns, schedulerResponsePort);
+  const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);
 
   // eslint-disable-next-line no-constant-condition
-  ns.print("Initial preparation: weaken, grow, weaken");
+  log.info("Initial preparation: weaken, grow, weaken");
   while (shouldWeaken() || (await shouldGrow())) {
     const { jobId, threads } = await schedulerClient.start(
       {
@@ -40,18 +42,17 @@ export async function main(ns: NS): Promise<void> {
       true
     );
     if (threads === 0) {
-      ns.print("Failed to start initial batch, sleeping then trying again");
+      log.info("Failed to start initial batch, sleeping then trying again");
       await ns.sleep(1000);
     }
-    ns.print(`Batch started with job id ${jobId}`);
+    log.info("Batch started", { jobId });
     await schedulerClient.waitForJobFinished(jobId);
   }
 
-  ns.print("Starting batched hacking");
+  log.info("Starting batched hacking");
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    ns.print("Starting batch");
-    await schedulerClient.start(
+    const { jobId, threads } = await schedulerClient.start(
       {
         script: "/bin/hwgw-batch.js",
         args: [host],
@@ -61,6 +62,11 @@ export async function main(ns: NS): Promise<void> {
       false,
       null
     );
+    if (threads > 0) {
+      log.info("Batch started", { jobId });
+    } else {
+      log.error("Failed to start batch", { jobId });
+    }
     await report();
     await ns.sleep((await spacing()) * 5);
   }
@@ -68,6 +74,7 @@ export async function main(ns: NS): Promise<void> {
   async function report() {
     const { jobs } = await withSchedulerClient(
       ns,
+      log,
       async (schedulerClient) => await schedulerClient.status()
     );
     const countByKind = { batch: 0, hack: 0, weaken: 0, grow: 0 };
@@ -95,9 +102,7 @@ export async function main(ns: NS): Promise<void> {
       }
     }
 
-    ns.print(
-      `Batches: ${countByKind.batch} Hacks: ${countByKind.hack} Weaken: ${countByKind.weaken} Grow: ${countByKind.grow}`
-    );
+    log.info("Threads", countByKind);
   }
 
   function shouldWeaken(): boolean {
@@ -105,9 +110,7 @@ export async function main(ns: NS): Promise<void> {
     const currentSecurity = ns.getServerSecurityLevel(host);
 
     if (currentSecurity > minSecurity) {
-      ns.print(
-        `Security ${currentSecurity} > ${minSecurity} -> needs weakening ${host}`
-      );
+      log.info("Security needs weakening", { currentSecurity, minSecurity });
       return true;
     }
     return false;
@@ -119,11 +122,10 @@ export async function main(ns: NS): Promise<void> {
     const threshold = (await db(ns)).config.hwgw.moneyThreshold * moneyCapacity;
 
     if (moneyAvailable < threshold) {
-      ns.print(
-        `Money ${fmt.money(moneyAvailable)} < ${fmt.money(
-          threshold
-        )} -> needs growing ${host}`
-      );
+      log.info("Money needs growing", {
+        moneyAvailable: fmt.money(moneyAvailable),
+        threshold: fmt.money(threshold),
+      });
       return true;
     }
     return false;

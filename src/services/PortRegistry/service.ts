@@ -1,11 +1,13 @@
 import { NetscriptPort, NS } from '@ns';
 
-import { freePorts, portRegistry } from '/ports';
+import { Log } from '/log';
+import { freePorts, portRegistry, PORTS } from '/ports';
 import { matchI } from 'ts-adt';
-import { PortRegistryRequest, statusResponse, toPortRegistryRequest } from './types';
+import { PortRegistryRequest, SERVICE_ID, statusResponse, toPortRegistryRequest } from './types';
 
 export class PortRegistryService {
   private readonly ns: NS;
+  private readonly log: Log;
 
   // Ports taken by running processes
   private readonly reserved: Map<number, { hostname: string; pid: number }> =
@@ -22,6 +24,7 @@ export class PortRegistryService {
 
   constructor(ns: NS) {
     this.ns = ns;
+    this.log = new Log(ns, "PortRegistry");
   }
 
   private populateFreePorts(): void {
@@ -29,13 +32,13 @@ export class PortRegistryService {
     while (!outputPort.full()) {
       const reused = this.free.shift();
       if (reused === undefined) {
-        this.ns.print(`Allocating port ${this.freeHigh}`);
-        outputPort.write(this.freeHigh++);
+        this.log.info("Allocating port", { port: this.freeHigh });
         this.ns.clearPort(this.freeHigh - 1);
+        outputPort.write(this.freeHigh++);
       } else {
-        this.ns.print(`Reusing port ${reused}`);
-        outputPort.write(reused);
+        this.log.info("Reusing port", { port: reused });
         this.ns.clearPort(reused);
+        outputPort.write(reused);
       }
     }
   }
@@ -43,7 +46,8 @@ export class PortRegistryService {
   private freeLeakedPorts(): void {
     for (const [port, { hostname, pid }] of this.reserved) {
       if (this.ns.ps(hostname).find((p) => p.pid === pid) === undefined) {
-        this.ns.print(`Releasing leaked port ${port} for ${hostname}:${pid}`);
+        this.log.warn("Releasing leaked port", { port, hostname, pid });
+        this.ns.clearPort(port);
         this.free.push(port);
         this.reserved.delete(port);
       }
@@ -52,24 +56,23 @@ export class PortRegistryService {
 
   private readRequest(port: NetscriptPort): PortRegistryRequest | null {
     const rawMessage = port.read().toString();
-    this.ns.print(`Received message: ${rawMessage}`);
+    this.log.debug("Received message", { rawMessage });
     try {
+      const json = JSON.parse(rawMessage);
       const parsed = toPortRegistryRequest(JSON.parse(rawMessage));
       if (parsed === null) {
-        this.ns.tprint(
-          `ERROR Failed to parse message as PortRegistryRequest: ${rawMessage}`
-        );
+        this.log.terror("Failed to parse message", { json });
       }
       return parsed;
     } catch (e) {
-      this.ns.tprint(`ERROR Failed to parse message as JSON: ${rawMessage}`);
+      this.log.terror("Failed to parse message as JSON", { rawMessage });
       return null;
     }
   }
 
   public async listen(): Promise<void> {
     const listenPort = portRegistry(this.ns);
-    this.ns.print("PortRegistryService listening");
+    this.log.info("Listening", { port: PORTS[SERVICE_ID] });
 
     let exit = false;
     while (!exit) {
@@ -87,19 +90,24 @@ export class PortRegistryService {
 
       matchI(message)({
         exit: () => {
-          this.ns.print("PortRegistryService exiting");
+          this.log.info("Exiting");
           exit = true;
         },
 
         reserve: ({ port, hostname, pid }) => {
           const existingOwner = this.reserved.get(port);
           if (existingOwner !== undefined) {
-            this.ns.tprint(
-              `ERROR Tried to reserve port ${port} for ${hostname}:${pid} but it is already reserved by ${existingOwner.hostname}:${existingOwner.pid}. Killing offending process.`
+            this.log.terror(
+              "Port already reserved, killing offending process",
+              {
+                port,
+                owner: `${existingOwner.hostname}:${existingOwner.pid}`,
+                offender: `${hostname}:${pid}`,
+              }
             );
             this.ns.kill(pid);
           } else {
-            this.ns.print(`Reserving port ${port} for ${hostname}:${pid}`);
+            this.log.info("Reserving port", { port, hostname, pid });
             this.reserved.set(port, { hostname, pid });
           }
         },
@@ -107,17 +115,18 @@ export class PortRegistryService {
         release: ({ port, hostname, pid }) => {
           const owner = this.reserved.get(port);
           if (owner === undefined) {
-            this.ns.tprint(
-              `ERROR Tried to release port ${port} but it was not reserved`
-            );
+            this.log.terror("Tried to release unseserved port", { port });
           } else if (owner.hostname !== hostname || owner.pid !== pid) {
-            this.ns.tprint(
-              `ERROR Release mismatch: ${port} was reserved by ${owner.hostname}:${owner.pid}, not ${hostname}:${pid}`
+            this.log.terror(
+              "Tried to release port reserved by another process",
+              {
+                port,
+                owner: `${owner.hostname}:${owner.pid}`,
+                caller: `${hostname}:${pid}`,
+              }
             );
           } else {
-            this.ns.print(
-              `Releasing port ${port} from ${owner.hostname}:${owner.pid}`
-            );
+            this.log.info("Releasing port", { port, hostname, pid });
             this.reserved.delete(port);
             this.free.push(port);
           }
@@ -135,12 +144,12 @@ export class PortRegistryService {
             this.free,
             this.freeHigh
           );
-          this.ns.print(`Sending status response: ${JSON.stringify(response)}`);
+          this.log.debug("Sending status response", { response });
           this.ns.writePort(responsePort, JSON.stringify(response));
         },
       });
     }
 
-    this.ns.print("PortRegistryService listen finished");
+    this.log.info("`listen` finished");
   }
 }

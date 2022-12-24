@@ -2,12 +2,13 @@ import { NS } from '@ns';
 
 import { db } from '/database';
 import { Fmt } from '/fmt';
-import { silentTimeout } from '/promise';
+import { Log } from '/log';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
-  ns.disableLog("ALL");
+  const log = new Log(ns, "hwgw-batch");
+
   const args = ns.flags([
     ["job", ""],
     ["task", -1],
@@ -19,17 +20,17 @@ export async function main(ns: NS): Promise<void> {
   const initial = args["initial"] as boolean;
 
   if (!host || !jobId || taskId < 0) {
-    throw new Error(
-      `Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial]\nGot args: ${JSON.stringify(
-        args
-      )}`
+    log.terror(
+      "Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial]",
+      { args }
     );
+    return;
   }
 
   const portRegistryClient = new PortRegistryClient(ns);
 
   async function finished() {
-    const schedulerClient = new NoResponseSchedulerClient(ns);
+    const schedulerClient = new NoResponseSchedulerClient(ns, log);
     await schedulerClient.taskFinished(jobId, taskId);
     if (initial) {
       ns.closeTail();
@@ -39,7 +40,7 @@ export async function main(ns: NS): Promise<void> {
   try {
     await db(ns);
   } catch (e) {
-    ns.tprint(`ERROR: failed to get DB ${e}`);
+    log.terror("Failed to get DB", { e });
     await finished();
     return;
   }
@@ -51,9 +52,9 @@ export async function main(ns: NS): Promise<void> {
   const moneyThreshold = moneyMax * (await db(ns)).config.hwgw.moneyThreshold;
   const moneySteal = moneyMax - moneyThreshold;
 
-  const hackThreads = Math.floor(moneySteal / moneyStolenPerThread);
-  const moneyAfterHack = moneyMax - moneyStolenPerThread * hackThreads;
-  const hackSecurityGrowth = ns.hackAnalyzeSecurity(hackThreads);
+  const wantHackThreads = Math.floor(moneySteal / moneyStolenPerThread);
+  const moneyAfterHack = moneyMax - moneyStolenPerThread * wantHackThreads;
+  const hackSecurityGrowth = ns.hackAnalyzeSecurity(wantHackThreads);
   const hackWeakenThreads = Math.ceil(
     (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth) / 0.05
   );
@@ -61,33 +62,31 @@ export async function main(ns: NS): Promise<void> {
   const growMultiplier = initial
     ? moneyMax / ns.getServerMoneyAvailable(host)
     : 1 + moneySteal / moneyAfterHack;
-  const growThreads = Math.ceil(ns.growthAnalyze(host, growMultiplier));
-  const growSecurityGrowth = ns.growthAnalyzeSecurity(growThreads);
-  const growWeakenThreads = Math.ceil(growSecurityGrowth / 0.05);
+  const wantGrowThreads = Math.ceil(ns.growthAnalyze(host, growMultiplier));
+  const growSecurityGrowth = ns.growthAnalyzeSecurity(wantGrowThreads);
+  const wantGrowWeakenThreads = Math.ceil(growSecurityGrowth / 0.05);
 
   const weakenLength = ns.getWeakenTime(host);
   const growLength = ns.getGrowTime(host);
   const hackLength = ns.getHackTime(host);
 
   const fmt = new Fmt(ns);
-  ns.print(
-    fmt.keyValue(
-      ["jobId", jobId],
-      ["taskId", taskId.toString()],
-      ["host", host],
-      ["moneyMax", fmt.money(moneyMax)],
-      ["moneyThreshold", fmt.money(moneyThreshold)],
-      ["moneySteal", fmt.money(moneySteal)],
-      ["hackThreads", hackThreads.toString()],
-      ["moneyAfterHack", fmt.money(moneyAfterHack)],
-      ["hackSecurityGrowth", hackSecurityGrowth.toString()],
-      ["hackWeakenThreads", hackWeakenThreads.toString()],
-      ["growMultiplier", fmt.percent(growMultiplier)],
-      ["growThreads", growThreads.toString()],
-      ["growSecurityGrowth", growSecurityGrowth.toString()],
-      ["growWeakenThreads", growWeakenThreads.toString()]
-    )
-  );
+  log.info("startup", {
+    jobId,
+    taskId,
+    host,
+    moneyMax: fmt.money(moneyMax),
+    moneyThreshold: fmt.money(moneyThreshold),
+    moneySteal: fmt.money(moneySteal),
+    wantHackThreads,
+    moneyAfterHack: fmt.money(moneyAfterHack),
+    hackSecurityGrowth,
+    hackWeakenThreads,
+    growMultiplier: fmt.percent(growMultiplier),
+    wantGrowThreads,
+    growSecurityGrowth,
+    wantGrowWeakenThreads,
+  });
 
   const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
     "weaken",
@@ -105,39 +104,41 @@ export async function main(ns: NS): Promise<void> {
   const growWeakenEnd = growEnd + spacing;
   const growWeakenStart = growWeakenEnd - weakenLength;
 
-  ns.print(
-    `Sleeping for ${fmt.time(
-      growWeakenStart - Date.now()
-    )} until grow-weaken start`
-  );
+  log.info("Sleeping until grow-weaken start", {
+    length: fmt.time(growWeakenStart - Date.now()),
+  });
   await ns.sleep(growWeakenStart - Date.now());
   const {
     jobId: growWeakenJobId,
     threads: scheduledGrowWeakenThreads,
     client: growWeakenClient,
-  } = await schedule("weaken", host, growWeakenThreads, weakenLength);
-  if (scheduledGrowWeakenThreads !== growWeakenThreads) {
-    ns.tprint(
-      `ERROR Scheduled ${scheduledGrowWeakenThreads} grow-weaken threads, wanted ${growWeakenThreads}`
+  } = await schedule("weaken", host, wantGrowWeakenThreads, weakenLength);
+  if (scheduledGrowWeakenThreads !== wantGrowWeakenThreads) {
+    log.terror(
+      "Scheduled grow-weaken threads does not match requested grow-weaken threads",
+      { scheduledGrowWeakenThreads, wantGrowWeakenThreads }
     );
     await finished();
     return;
   }
 
-  ns.print(`Sleeping for ${fmt.time(growStart - Date.now())} until grow start`);
+  log.info("Sleeping until grow start", {
+    length: fmt.time(growStart - Date.now()),
+  });
   await ns.sleep(growStart - Date.now());
   const {
     jobId: growJobId,
-    threads: growThreadsScheduled,
+    threads: scheduledGrowThreads,
     client: growClient,
-  } = await schedule("grow", host, growThreads, growLength);
+  } = await schedule("grow", host, wantGrowThreads, growLength);
   if (
-    growThreadsScheduled !== growThreads &&
-    ((initial && growThreadsScheduled === 0) || !initial)
+    scheduledGrowThreads !== wantGrowThreads &&
+    ((initial && scheduledGrowThreads === 0) || !initial)
   ) {
-    ns.tprint(
-      `ERROR Scheduled ${growThreadsScheduled} grow threads, wanted ${growThreads}`
-    );
+    log.terror("Scheduled grow threads does not match requested grow threads", {
+      scheduledGrowThreads,
+      wantGrowThreads,
+    });
     // TODO kill growWeaken batch
     await finished();
     return;
@@ -145,29 +146,32 @@ export async function main(ns: NS): Promise<void> {
 
   let hackJobId, hackClient;
   if (initial) {
-    ns.print("Skipping hack");
+    log.info("Skipping hack", { reason: "--initial" });
   } else {
-    ns.print(
-      `Sleeping for ${fmt.time(hackStart - Date.now())} until hack start`
-    );
+    log.info("Sleeping until hack start", {
+      length: fmt.time(hackStart - Date.now()),
+    });
     await ns.sleep(hackStart - Date.now());
     const {
       jobId: _hackJobId,
-      threads: hackThreadsScheduled,
+      threads: scheduledHackThreads,
       client: _hackClient,
-    } = await schedule("hack", host, hackThreads, hackLength);
+    } = await schedule("hack", host, wantHackThreads, hackLength);
     hackJobId = _hackJobId;
     hackClient = _hackClient;
-    if (hackThreadsScheduled !== hackThreads) {
-      ns.print(
-        `ERROR Scheduled ${hackThreadsScheduled} hack threads, wanted ${hackThreads}`
+    if (scheduledHackThreads !== wantHackThreads) {
+      log.terror(
+        "Scheduled hack threads does not match requested hack threads",
+        { scheduledHackThreads, wantHackThreads }
       );
       // TODO kill all batches
     }
   }
 
   const fullTimeout = growWeakenEnd - Date.now() + spacing * 5;
-  ns.print(`Waiting for everything to finish up, ETA ${fmt.time(fullTimeout)}`);
+  log.info("Waiting for everything to finish up", {
+    ETA: fmt.time(fullTimeout),
+  });
   if (!initial && hackJobId !== undefined && hackClient !== undefined) {
     await logDone(hackJobId, "hack", hackClient);
   }
@@ -177,9 +181,9 @@ export async function main(ns: NS): Promise<void> {
   await logDone(growJobId, "grow", growClient);
   await logDone(growWeakenJobId, "grow-weaken", growWeakenClient);
 
-  ns.print("All done, reporting");
+  log.debug("All done, reporting");
   await finished();
-  ns.print("All done");
+  log.info("All done");
 
   async function logDone(
     jobId: string,
@@ -189,10 +193,10 @@ export async function main(ns: NS): Promise<void> {
     try {
       await schedulerClient.waitForJobFinished(jobId);
     } catch (e) {
-      ns.print(`ERROR waiting for ${kind} ${jobId} to finish: ${e}`);
+      log.error("Error waiting for job to finish", { kind, jobId, e });
     }
     await portRegistryClient.releasePort(schedulerClient.responsePortNumber);
-    ns.print(`Done ${kind} ${jobId}`);
+    log.info("Job finished", { kind, jobId });
   }
 
   async function schedule(
@@ -201,21 +205,15 @@ export async function main(ns: NS): Promise<void> {
     wantThreads: number,
     eta: number
   ): Promise<{ jobId: string; threads: number; client: SchedulerClient }> {
-    ns.print(
-      `Starting ${kind} against ${host} with ${wantThreads} threads ETA ${fmt.time(
-        eta
-      )}`
-    );
+    log.info("Starting job", { kind, wantThreads, eta: fmt.time(eta) });
     const responsePort = await portRegistryClient.reservePort();
-    const schedulerClient = new SchedulerClient(ns, responsePort);
+    const schedulerClient = new SchedulerClient(ns, log, responsePort);
     const { jobId, threads } = await schedulerClient.start({
       script: `/bin/payloads/${kind}.js`,
       threads: wantThreads,
       args: [host],
     });
-    ns.print(
-      `Started ${kind} jobId ${jobId} threads ${threads}/${wantThreads}`
-    );
+    log.info("Started job", { kind, jobId, threads, wantThreads });
     return { jobId, threads, client: schedulerClient };
   }
 }
