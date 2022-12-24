@@ -30,7 +30,7 @@ export class PortRegistryService {
   private populateFreePorts(): void {
     const outputPort = freePorts(this.ns);
     while (!outputPort.full()) {
-      const reused = this.free.shift();
+      const reused = this.free.splice(1000, 1)[0];
       if (reused === undefined) {
         this.log.info("Allocating port", { port: this.freeHigh });
         this.ns.clearPort(this.freeHigh - 1);
@@ -71,6 +71,7 @@ export class PortRegistryService {
   }
 
   public async listen(): Promise<void> {
+    freePorts(this.ns).clear(); // TODO remove this once we have a safe restart mechanism
     const listenPort = portRegistry(this.ns);
     this.log.info("Listening", { port: PORTS[SERVICE_ID] });
 

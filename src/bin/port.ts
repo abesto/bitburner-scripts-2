@@ -22,5 +22,11 @@ export async function main(ns: NS): Promise<void> {
     ns.tprint(port.peek());
   } else if (command === "full") {
     ns.tprint(port.full());
+  } else if (command === "consume") {
+    let count = ns.args[2] as number;
+    while (count > 0) {
+      ns.tprint(port.read());
+      count--;
+    }
   }
 }

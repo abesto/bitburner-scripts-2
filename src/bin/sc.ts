@@ -6,6 +6,7 @@ import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { NoResponseSchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
 import { jobThreads, ServiceState, ServiceStatus } from '/services/Scheduler/types';
+import chalk from 'chalk';
 import { matchI } from 'ts-adt';
 
 const SCHEDULER_SCRIPT = "/bin/services/Scheduler.js";
@@ -318,21 +319,21 @@ export async function main(ns: NS): Promise<void> {
     return matchI(status)({
       new: () => ({ state: "new" }),
       running: ({ pid, hostname, startedAt }) => ({
-        state: "running",
+        state: chalk.green("running"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),
         uptime: fmt.time(Date.now() - startedAt),
       }),
       stopped: ({ pid, hostname, startedAt, stoppedAt }) => ({
-        state: "stopped",
+        state: chalk.black("stopped"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),
         stoppedAt: fmt.timestamp(stoppedAt),
       }),
       crashed: ({ pid, hostname, startedAt, crashedAt }) => ({
-        state: "crashed",
+        state: chalk.red("crashed"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),
