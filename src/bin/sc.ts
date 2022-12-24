@@ -2,11 +2,11 @@
 import { AutocompleteData, NS } from '@ns';
 
 import * as serviceSpecs from '/bin/services/specs.json.txt';
+import * as colors from '/colors';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { NoResponseSchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
 import { jobThreads, ServiceState, ServiceStatus } from '/services/Scheduler/types';
-import chalk from 'chalk';
 import { matchI } from 'ts-adt';
 
 const SCHEDULER_SCRIPT = "/bin/services/Scheduler.js";
@@ -319,21 +319,21 @@ export async function main(ns: NS): Promise<void> {
     return matchI(status)({
       new: () => ({ state: "new" }),
       running: ({ pid, hostname, startedAt }) => ({
-        state: chalk.green("running"),
+        state: colors.green("running"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),
         uptime: fmt.time(Date.now() - startedAt),
       }),
       stopped: ({ pid, hostname, startedAt, stoppedAt }) => ({
-        state: chalk.black("stopped"),
+        state: colors.black("stopped"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),
         stoppedAt: fmt.timestamp(stoppedAt),
       }),
       crashed: ({ pid, hostname, startedAt, crashedAt }) => ({
-        state: chalk.red("crashed"),
+        state: colors.red("crashed"),
         pid,
         hostname,
         startedAt: fmt.timestamp(startedAt),

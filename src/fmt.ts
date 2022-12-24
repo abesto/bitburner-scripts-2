@@ -1,6 +1,6 @@
 import { NS } from '@ns';
 
-import chalk from 'chalk';
+import * as colors from '/colors';
 
 const FORMATS = {
   float: "0.000",
@@ -109,11 +109,11 @@ export class Fmt {
 
 export function highlightValue(value: unknown): string {
   if (typeof value === "string") {
-    return chalk.green(value);
+    return colors.green(value);
   } else if (typeof value === "number" || typeof value === "boolean") {
     return value.toString();
   } else if (typeof value === "undefined" || value === null) {
-    return chalk.black(value);
+    return colors.black(`${value}`);
   } else {
     return highlightJSON(value);
   }
@@ -121,7 +121,7 @@ export function highlightValue(value: unknown): string {
 
 export function highlightJSON(value: unknown): string {
   if (typeof value === "string") {
-    return chalk.green(`"${value.replaceAll('"', '\\"')}"`);
+    return colors.green(`"${value.replaceAll('"', '\\"')}"`);
   } else if (
     typeof value === "number" ||
     typeof value === "boolean" ||
@@ -135,7 +135,7 @@ export function highlightJSON(value: unknown): string {
       return "[" + parts.join(",") + "]";
     }
     const parts = Object.entries(value).map(([key, value]) => {
-      return `${chalk.cyan(
+      return `${colors.cyan(
         '"' + key.replaceAll('"', '\\"') + '"'
       )}:${highlightJSON(value)}`;
     });

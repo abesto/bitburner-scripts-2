@@ -3,19 +3,22 @@ import { AutocompleteData, NS } from '@ns';
 import { autonuke } from '/autonuke';
 import { db } from '/database';
 import { Fmt } from '/fmt';
-import { SupervisorCtl } from '/supervisorctl';
-import { SupervisorEvents } from '/supervisorEvent';
+import { Log } from '/log';
+import { PortRegistryClient } from '/services/PortRegistry/client';
+import { SchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
 
-  const supervisorctl = new SupervisorCtl(ns);
-  const supervisorEvents = new SupervisorEvents(ns);
+  const log = new Log(ns, "simple-hack-distributed");
+  const portRegistry = new PortRegistryClient(ns);
+  const schedulerResponsePort = await portRegistry.reservePort();
+  const scheduler = new SchedulerClient(ns, log, schedulerResponsePort);
 
   if (!host) {
-    ns.tprint("ERROR No host specified");
+    log.terror("No host specified");
     return;
   }
 
@@ -46,21 +49,20 @@ export async function main(ns: NS): Promise<void> {
     wantThreads: number,
     eta: number
   ): Promise<void> {
-    const requestId = await supervisorctl.start(
-      `/bin/payloads/${kind}.js`,
-      [host],
-      wantThreads
-    );
-    const { batchId, threads } = await supervisorEvents.waitForBatchStarted(
-      requestId
-    );
-    ns.print(
-      `Starting ${kind} against ${host} with ${threads}/${wantThreads} threads ETA ${fmt.time(
-        eta
-      )}`
-    );
-    await supervisorEvents.waitForBatchDone(batchId);
-    ns.print(`Finished ${kind} against ${host}`);
+    const { jobId, threads } = await scheduler.start({
+      script: `/bin/payloads/${kind}.js`,
+      args: [host],
+      threads: wantThreads,
+    });
+    log.info("Batch started", {
+      kind,
+      host,
+      threads,
+      jobId,
+      eta: fmt.time(eta),
+    });
+    await scheduler.waitForJobFinished(jobId);
+    log.info("Batch finished", { kind, host, threads, jobId });
   }
 
   async function shouldWeaken(): Promise<boolean> {
@@ -70,9 +72,11 @@ export async function main(ns: NS): Promise<void> {
       (await db(ns)).config.simpleHack.securityThreshold + minSecurity;
 
     if (currentSecurity > threshold) {
-      ns.print(
-        `Security ${currentSecurity} > ${threshold} -> needs weakening ${host}`
-      );
+      log.info("Security needs weakening", {
+        host,
+        currentSecurity,
+        threshold,
+      });
       return true;
     }
     return false;
@@ -85,11 +89,11 @@ export async function main(ns: NS): Promise<void> {
       (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
 
     if (moneyAvailable < threshold) {
-      ns.print(
-        `Money ${fmt.money(moneyAvailable)} < ${fmt.money(
-          threshold
-        )} -> needs growing ${host}`
-      );
+      log.info("Money needs growing", {
+        host,
+        moneyAvailable,
+        threshold,
+      });
       return true;
     }
     return false;

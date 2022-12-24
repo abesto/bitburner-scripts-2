@@ -1,6 +1,6 @@
 import { NS } from '@ns';
 
-import chalk from 'chalk';
+import * as colors from '/colors';
 import { highlightValue } from './fmt';
 
 export enum LogLevel {
@@ -28,32 +28,32 @@ export class Log {
       .getMilliseconds()
       .toString()
       .padStart(3, "0")}]`;
-    return chalk.black(str);
+    return colors.black(str);
   }
 
   levelField(level: LogLevel): string {
     switch (level) {
       case LogLevel.DEBUG:
-        return chalk.black("debug");
+        return colors.black("debug");
       case LogLevel.INFO:
-        return chalk.green(" info");
+        return colors.green(" info");
       case LogLevel.WARN:
-        return chalk.yellow(" warn");
+        return colors.yellow(" warn");
       case LogLevel.ERROR:
-        return chalk.red("error");
+        return colors.red("error");
     }
   }
 
   keyvalueField(keyvalue: { [key: string]: unknown }): string {
     const parts = [];
     for (const [key, value] of Object.entries(keyvalue)) {
-      parts.push(`${chalk.cyan(key)}=${highlightValue(value)}`);
+      parts.push(`${colors.cyan(key)}=${highlightValue(value)}`);
     }
     return parts.join(" ");
   }
 
   nameField(): string {
-    return chalk.gray("[" + this.name.padStart(10, " ") + "]");
+    return "[" + this.name.padStart(10, " ") + "]";
   }
 
   format(
@@ -63,7 +63,7 @@ export class Log {
   ): string {
     return `${this.timestampField()} ${this.levelField(
       level
-    )} ${this.nameField()} ${chalk.white(message)} ${this.keyvalueField(
+    )} ${this.nameField()} ${colors.white(message)} ${this.keyvalueField(
       keyvalue
     )}`;
   }

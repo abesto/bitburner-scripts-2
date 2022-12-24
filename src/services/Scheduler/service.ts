@@ -7,7 +7,6 @@ import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { PORTS } from '/ports';
 import arrayShuffle from 'array-shuffle';
-import deepEqual from 'deep-equal';
 import { matchI } from 'ts-adt';
 import { ClientPort, ServerPort } from '../common';
 import {
@@ -353,7 +352,10 @@ export class SchedulerService {
             await this.doStartService({ name, ...spec }, memdb);
           }
         } else {
-          if (!deepEqual(memdb.scheduler.services[name].spec, newSpec)) {
+          if (
+            JSON.stringify(memdb.scheduler.services[name].spec) !==
+            JSON.stringify(newSpec)
+          ) {
             updated.push(name);
             this.log.info("Updated service", { service: name });
             memdb.scheduler.services[name].spec = newSpec;
