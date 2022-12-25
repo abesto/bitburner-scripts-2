@@ -85,6 +85,12 @@ export class SchedulerClient extends BaseClient<Request, Response> {
     });
   }
 
+  tailTask(jobId: JobId, taskId: TaskId = 0): Promise<Response<"tailTask">> {
+    return this.sendReceive(Request.tailTask({ jobId, taskId, ...this.rp() }), {
+      tailTask: id,
+    });
+  }
+
   reload(): Promise<Response<"reload">> {
     return this.sendReceive(Request.reload({ ...this.rp() }), {
       reload: id,

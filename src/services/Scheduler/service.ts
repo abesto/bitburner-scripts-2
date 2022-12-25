@@ -76,6 +76,7 @@ export class SchedulerService {
         start: (request) => this.start(request),
         killAll: () => this.killAll(),
         killJob: (request) => this.killJob(request),
+        tailTask: (request) => this.tailTask(request),
 
         taskFinished: (request) => this.taskFinished(request),
 
@@ -96,6 +97,30 @@ export class SchedulerService {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
+  async tailTask(request: Request<"tailTask">): Promise<void> {
+    const memdb = await db(this.ns, this.log, true);
+    const port = new ClientPort<Response>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+
+    const job = memdb.scheduler.jobs[request.jobId];
+    if (job === undefined) {
+      await port.write(Response.tailTask("job-not-found"));
+      return;
+    }
+
+    const task = job.tasks[request.taskId];
+    if (task === undefined) {
+      await port.write(Response.tailTask("task-not-found"));
+      return;
+    }
+
+    this.ns.tail(task.pid, task.hostname);
+    await port.write(Response.tailTask("ok"));
+  }
+
   async reviewServices(): Promise<void> {
     const memdb = await this.db.lock();
     const services = memdb.scheduler.services;
@@ -111,9 +136,11 @@ export class SchedulerService {
           process.filename !== this.serviceScript(name) ||
           process.server !== service.status.hostname
         ) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { type, ...status } = service.status;
           service.status = ServiceStatus.crashed({
-            ...service.status,
             crashedAt: Date.now(),
+            ...status,
           });
           save = true;
           if (service.enabled) {
@@ -418,8 +445,11 @@ export class SchedulerService {
           service.status.hostname
         )
       ) {
+        const old = service.status;
         service.status = ServiceStatus.stopped({
-          ...service.status,
+          pid: old.pid,
+          hostname: old.hostname,
+          startedAt: old.startedAt,
           stoppedAt: Date.now(),
         });
         return "ok";

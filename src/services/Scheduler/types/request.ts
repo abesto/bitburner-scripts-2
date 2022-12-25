@@ -18,6 +18,7 @@ export const SchedulerRequest = variantModule(
     }>(),
     killAll: fields<Record<string, never>>(),
     killJob: fields<{ jobId: JobId; responsePort: number }>(),
+    tailTask: fields<{ jobId: JobId; taskId: number; responsePort: number }>(),
 
     // Report task results
     taskFinished: fields<{ jobId: JobId; taskId: TaskId; crash: boolean }>(),

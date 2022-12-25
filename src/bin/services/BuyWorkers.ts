@@ -9,17 +9,14 @@ export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
 
   const config = async () => (await db(ns, log)).config.autobuyServers;
-  const reserveMoney = async () =>
-    fmt.parseMoney((await config()).reserveMoney);
-  const buyAt = async () => fmt.parseMoney((await config()).buyAt);
-  const interval = async () => (await config()).intervalMs;
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    if (ns.getPlayer().money >= (await buyAt())) {
-      await purchaseWorkers();
+    const thisConfig = await config();
+    if (ns.getPlayer().money >= fmt.parseMoney(thisConfig.buyAt)) {
+      await purchaseWorkers(fmt.parseMoney(thisConfig.reserveMoney));
     }
-    await ns.sleep(await interval());
+    await ns.sleep(thisConfig.intervalMs);
   }
 
   async function deleteWeakestWorker(keep: number): Promise<string | null> {
@@ -54,9 +51,11 @@ export async function main(ns: NS): Promise<void> {
     purchased: string[];
   }
 
-  async function biggestAffordableServer(): Promise<number> {
+  async function biggestAffordableServer(
+    reserveMoney: number
+  ): Promise<number> {
     let ram = 8;
-    const money = ns.getPlayer().money - (await reserveMoney());
+    const money = ns.getPlayer().money - reserveMoney;
     if (ns.getPurchasedServerCost(ram) > money) {
       return 0;
     }
@@ -66,12 +65,14 @@ export async function main(ns: NS): Promise<void> {
     return ram;
   }
 
-  async function purchaseWorkers(): Promise<PurchaseResult> {
+  async function purchaseWorkers(
+    reserveMoney: number
+  ): Promise<PurchaseResult> {
     const result: PurchaseResult = { deleted: [], purchased: [] };
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const ram = await biggestAffordableServer();
+      const ram = await biggestAffordableServer(reserveMoney);
       if (ram === 0) {
         break;
       }

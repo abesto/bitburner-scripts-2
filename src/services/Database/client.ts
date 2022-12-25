@@ -7,6 +7,7 @@ import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
 
+import { withClient } from '../client_factory';
 import { BaseClient } from '../common/BaseClient';
 import { PortRegistryClient } from '../PortRegistry/client';
 import {
@@ -103,12 +104,14 @@ export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
 
   let contents;
   if (forceLocal || ns.getHostname() === "home") {
-    contents = JSON.parse(ns.read("/db.json"));
+    contents = JSON.parse(ns.read(DB_PATH));
   } else {
-    const portRegistryClient = new PortRegistryClient(ns, log);
-    const responsePort = await portRegistryClient.reservePort();
-    const databaseClient = new DatabaseClient(ns, log, responsePort);
-    contents = await databaseClient.read();
+    contents = await withClient(
+      DatabaseClient,
+      ns,
+      log,
+      async (client) => await client.read()
+    );
   }
   return deepmerge(DEFAULT_DB, contents);
 }

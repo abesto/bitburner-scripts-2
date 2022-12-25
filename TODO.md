@@ -9,8 +9,6 @@
   * levels, filtering configured via `database.config`
 * `Scheduler`
   * add `status <job-id>`
-  * add `tail <job-id>` (taskid=0)
-  * add `tail <job-id>:<task-id>`
   * add `drain <host>` for use when buying new servers
   * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?

@@ -13,6 +13,7 @@ export const SchedulerResponse = variantModule(
 
     start: fields<{ jobId: JobId; threads: number }>(),
     killJob: fields<{ result: "ok" | "not-found" }>(),
+    tailTask: payload<"ok" | "job-not-found" | "task-not-found">(),
 
     jobFinished: fields<{ jobId: JobId }>(),
 

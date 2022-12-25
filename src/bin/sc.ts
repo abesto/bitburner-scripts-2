@@ -42,6 +42,7 @@ export async function main(ns: NS): Promise<void> {
     run,
     "kill-all": killAll,
     "kill-job": killJob,
+    "tail-task": tailTask,
     reload,
     services,
     "service-status": serviceStatus,
@@ -149,6 +150,19 @@ export async function main(ns: NS): Promise<void> {
     await withClient(SchedulerClient, ns, log, async (client) => {
       const response = (await client.killJob(jobId)).result;
       log.tinfo("Kill request", { jobId, response });
+    });
+  }
+
+  async function tailTask() {
+    const jobId = posArgs[1];
+    const taskId = parseInt(posArgs[2] || "0");
+    if (!jobId) {
+      log.terror("Missing job ID", { jobId });
+      return;
+    }
+    await withClient(SchedulerClient, ns, log, async (client) => {
+      const response = await client.tailTask(jobId, taskId);
+      log.tinfo("Tail task", { jobId, taskId, response });
     });
   }
 
@@ -387,6 +401,7 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     "run",
     "kill-all",
     "kill-job",
+    "tail-task",
     "reload",
     "services",
     "service-status",
