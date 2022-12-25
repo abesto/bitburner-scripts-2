@@ -1,11 +1,13 @@
 import { NS } from '@ns';
 
 import { Fmt } from '/fmt';
+import { Log } from '/log';
 import { withSchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([["mem", 0]]);
   const fmt = new Fmt(ns);
+  const log = new Log(ns, "share");
 
   const targetMemory = args.mem as number;
   if (targetMemory <= 0) {
@@ -20,7 +22,7 @@ export async function main(ns: NS): Promise<void> {
     )} RAM, for a total of ${fmt.memory(targetThreads * scriptMem)} RAM`
   );
 
-  await withSchedulerClient(ns, async (schedulerClient) => {
+  await withSchedulerClient(ns, log, async (schedulerClient) => {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const { jobId, threads } = await schedulerClient.start({

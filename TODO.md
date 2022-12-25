@@ -33,7 +33,6 @@
   * add nice reporting
     * including: memory usage over time
 * `hwgw-orchestrator`: manage multiple `hwgw-controller`s and the `hwgw` config
-* `hwgw-simulator`: for given parameters, how much capacity do we need for hwgw against a host?
 * capacity management - reserve ram for full hwgw batch
 * `PortRegistry`
   * implement safe restart (transfer internal state)
