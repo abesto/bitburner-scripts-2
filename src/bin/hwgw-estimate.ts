@@ -1,6 +1,5 @@
 import { AutocompleteData, NS } from '@ns';
 
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import HwgwEstimator from '/HwgwEstimator';
 import { Log } from '/log';
@@ -33,6 +32,6 @@ export async function main(ns: NS): Promise<void> {
   log.tinfo("Stable hwgw", { ...stable, peakRam: fmt.memory(stable.peakRam) });
 }
 
-export function autocomplete(data: AutocompleteData, args: string[]): string[] {
+export function autocomplete(data: AutocompleteData): string[] {
   return data.servers;
 }

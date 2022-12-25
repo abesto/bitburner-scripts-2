@@ -11,11 +11,11 @@ export async function main(ns: NS): Promise<void> {
   const args = ns.flags([["money-threshold", 0]]);
   const moneyThresholdConfig = args["money-threshold"] as number;
 
-  const hackingLevelThreshold = ns.getPlayer().skills.hacking / 3;
   const servers = discoverServers(ns);
 
   // simple
   /*
+  const hackingLevelThreshold = ns.getPlayer().skills.hacking / 3;
   servers = servers.filter(
     (server) => ns.getServerRequiredHackingLevel(server) < hackingLevelThreshold
   );
@@ -30,10 +30,10 @@ export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
   for (const server of servers.slice(0, 20)) {
     const maxMoney = ns.getServerMaxMoney(server);
-    const requiredHackingLevel = ns.getServerRequiredHackingLevel(server);
     if (maxMoney === 0) {
       continue;
     }
+    const requiredHackingLevel = ns.getServerRequiredHackingLevel(server);
 
     const estimate = await estimator.stable(server, moneyThresholdConfig);
     log.tinfo(server, {

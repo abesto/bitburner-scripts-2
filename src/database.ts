@@ -1,10 +1,4 @@
-import { NS } from '@ns';
-
-import { deepmerge } from 'deepmerge-ts';
-import { Log } from './log';
-import { DatabaseClient } from './services/Database/client';
 import { LockData } from './services/Database/types';
-import { PortRegistryClient } from './services/PortRegistry/client';
 import { Job, ServiceState } from './services/Scheduler/types';
 
 export type DB = {
@@ -77,43 +71,3 @@ export const DEFAULT_DB: DB = {
   },
   meta: { lockQueue: [], currentLock: null },
 };
-
-export async function dbLock(
-  ns: NS,
-  log: Log,
-  fn: (db: DB) => Promise<DB | undefined>
-): Promise<void> {
-  const portRegistryClient = new PortRegistryClient(ns, log);
-  const responsePort = await portRegistryClient.reservePort();
-  const databaseClient = new DatabaseClient(ns, log, responsePort);
-  const memdb = await databaseClient.lock();
-
-  let newDb;
-  try {
-    newDb = await fn(memdb);
-  } finally {
-    if (newDb !== undefined) {
-      await databaseClient.writeAndUnlock(newDb);
-    } else {
-      await databaseClient.unlock();
-    }
-    await portRegistryClient.releasePort(responsePort);
-  }
-}
-
-export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
-  if (!ns.fileExists(DB_PATH)) {
-    ns.write(DB_PATH, "{}", "w");
-  }
-
-  let contents;
-  if (forceLocal || ns.getHostname() === "home") {
-    contents = JSON.parse(ns.read("/db.json"));
-  } else {
-    const portRegistryClient = new PortRegistryClient(ns, log);
-    const responsePort = await portRegistryClient.reservePort();
-    const databaseClient = new DatabaseClient(ns, log, responsePort);
-    contents = await databaseClient.read();
-  }
-  return deepmerge(DEFAULT_DB, contents);
-}

@@ -1,6 +1,7 @@
 import { NS } from '@ns';
 
 import * as colors from '/colors';
+
 import { highlightValue } from './fmt';
 
 export enum LogLevel {

@@ -1,9 +1,10 @@
 // Start up low-level services in the right order, with some manual plumbing
 import { NS } from '@ns';
 
-import { dbLock } from '/database';
 import { Log } from '/log';
 import { freePorts, PORTS } from '/ports';
+import { dbLock } from '/services/Database/client';
+import { ServiceStatus } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "boot");
@@ -50,12 +51,11 @@ export async function main(ns: NS): Promise<void> {
   const spec = JSON.parse(ns.read("/bin/services/specs.json.txt"));
   await dbLock(ns, log, async (memdb) => {
     memdb.scheduler.services.PortRegistry = {
-      status: {
-        _type: "running",
+      status: ServiceStatus.running({
         pid: portRegistryPid,
         hostname: "home",
         startedAt: Date.now(),
-      },
+      }),
       enabled: spec.PortRegistry.enableWhenDiscovered !== false,
       spec: {
         name: "PortRegistry",
@@ -64,12 +64,11 @@ export async function main(ns: NS): Promise<void> {
     };
 
     memdb.scheduler.services.Database = {
-      status: {
-        _type: "running",
+      status: ServiceStatus.running({
         pid: dbPid,
         hostname: "home",
         startedAt: Date.now(),
-      },
+      }),
       enabled: spec.Database.enableWhenDiscovered !== false,
       spec: {
         name: "Database",

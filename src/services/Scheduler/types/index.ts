@@ -1,7 +1,4 @@
-import { ADT } from 'ts-adt';
-
-export * from "./request";
-export * from "./response";
+import { fields, TypeNames, variantModule, VariantOf } from 'variant';
 
 export type JobId = string;
 export type TaskId = number;
@@ -39,32 +36,37 @@ export type Task = {
   threads: number;
 };
 
-export type HostAffinity = ADT<{
-  mustRunOn: { host: string };
-  preferToRunOn: { host: string };
-}>;
+export const HostAffinity = variantModule({
+  mustRunOn: fields<{ host: string }>(),
+  preferToRunOn: fields<{ host: string }>(),
+});
+export type HostAffinity<T extends TypeNames<typeof HostAffinity> = undefined> =
+  VariantOf<typeof HostAffinity, T>;
 
 export type ServiceSpec = {
   name: string; // script is /bin/services/${name}.js
   hostAffinity?: HostAffinity;
 };
 
-export type ServiceStatus = ADT<{
-  new: { _type: "new" };
-  running: { pid: number; hostname: string; startedAt: number };
-  stopped: {
+export const ServiceStatus = variantModule({
+  new: {},
+  running: fields<{ pid: number; hostname: string; startedAt: number }>(),
+  stopped: fields<{
     pid: number;
     hostname: string;
     startedAt: number;
     stoppedAt: number;
-  };
-  crashed: {
+  }>(),
+  crashed: fields<{
     pid: number;
     hostname: string;
     startedAt: number;
     crashedAt: number;
-  };
-}>;
+  }>(),
+});
+export type ServiceStatus<
+  T extends TypeNames<typeof ServiceStatus> = undefined
+> = VariantOf<typeof ServiceStatus, T>;
 
 export type ServiceState = {
   spec: ServiceSpec;

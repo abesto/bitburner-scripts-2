@@ -12,7 +12,7 @@ export async function main(ns: NS): Promise<void> {
     return ns.stock.getForecast(symbol);
   }
 
-  function findBest(print: (msg: string) => void): string | null {
+  function findBest(): string | null {
     let target = null;
 
     for (const symbol of ns.stock.getSymbols()) {
@@ -36,7 +36,7 @@ export async function main(ns: NS): Promise<void> {
 
     let n = 0;
     while (spent < money && n++ < 100) {
-      const target = findBest(print);
+      const target = findBest();
       if (target === null) {
         print(
           "We already bought all the good stuff, top some up if you want manually"
@@ -100,7 +100,7 @@ export async function main(ns: NS): Promise<void> {
 
     while (true) {
       for (const symbol of ns.stock.getSymbols()) {
-        const [stonks, avgPrice, ..._] = ns.stock.getPosition(symbol);
+        const [stonks, avgPrice] = ns.stock.getPosition(symbol);
         //ns.print(`${symbol}: ${stonks} @ ${fmt.money(avgPrice)}`);
         if (stonks === 0) {
           continue;

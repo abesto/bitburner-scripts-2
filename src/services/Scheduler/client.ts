@@ -1,252 +1,138 @@
-/* eslint-disable no-constant-condition */
-import { NS } from '@ns';
-
-import { Log } from '/log';
 import { PORTS } from '/ports';
-import { ClientPort, ServerPort } from '/services/common';
-import {
-    capacityRequest, disableServiceRequest, enableServiceRequest, exitRequest, JobId, JobSpec,
-    killAllRequest, killJobRequest, reloadRequest, SchedulerRequest, SchedulerResponse,
-    SchedulerResponse$Capacity, SchedulerResponse$DisableService, SchedulerResponse$EnableService,
-    SchedulerResponse$KillJob, SchedulerResponse$Reload, SchedulerResponse$ServiceStatus,
-    SchedulerResponse$Start, SchedulerResponse$StartService, SchedulerResponse$Status,
-    SchedulerResponse$StopService, SERVICE_ID as SCHEDULER, serviceStatusRequest, startRequest,
-    startServiceRequest, statusRequest, stopServiceRequest, taskFinishedRequest, TaskId,
-    toSchedulerResponse
-} from '/services/Scheduler/types';
-import { refinement } from 'ts-adt';
-import { PortRegistryClient } from '../PortRegistry/client';
+import { JobId, JobSpec, SERVICE_ID as SCHEDULER, TaskId } from '/services/Scheduler/types';
 
-export class NoResponseSchedulerClient {
-  protected readonly schedulerPort: ClientPort<SchedulerRequest>;
+import { BaseClient } from '../common/BaseClient';
+import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
+import { id } from '../common/Result';
+import { SchedulerRequest as Request } from './types/request';
+import { SchedulerResponse as Response, toSchedulerResponse } from './types/response';
 
-  constructor(protected readonly ns: NS, protected readonly log: Log) {
-    this.schedulerPort = new ClientPort(ns, log, PORTS[SCHEDULER]);
+export class NoResponseSchedulerClient extends BaseNoResponseClient<Request> {
+  requestPortNumber(): number {
+    return PORTS[SCHEDULER];
   }
 
-  async taskFinished(
-    jobId: JobId,
-    taskId: TaskId,
-    crash = false
-  ): Promise<void> {
-    const request = taskFinishedRequest(jobId, taskId, crash);
-    await this.schedulerPort.write(request);
+  taskFinished(jobId: JobId, taskId: TaskId, crash = false): Promise<void> {
+    return this.send(Request.taskFinished({ jobId, taskId, crash }));
   }
 
-  async exit(): Promise<void> {
-    await this.schedulerPort.write(exitRequest());
+  exit(): Promise<void> {
+    return this.send(Request.exit({}));
   }
 
-  async killAll(): Promise<void> {
-    await this.schedulerPort.write(killAllRequest());
+  killAll(): Promise<void> {
+    return this.send(Request.killAll({}));
   }
 
-  async startServiceNoResponse(name: string): Promise<void> {
-    const request = startServiceRequest(name, null);
-    await this.schedulerPort.write(request);
+  startServiceNoResponse(serviceName: string): Promise<void> {
+    return this.send(Request.startService({ serviceName, responsePort: null }));
   }
 }
 
-export class SchedulerClient extends NoResponseSchedulerClient {
-  private readonly responsePort: ServerPort<SchedulerResponse>;
-
-  constructor(ns: NS, log: Log, readonly responsePortNumber: number) {
-    super(ns, log);
-    this.responsePort = new ServerPort(
-      ns,
-      log,
-      responsePortNumber,
-      toSchedulerResponse
-    );
+export class SchedulerClient extends BaseClient<Request, Response> {
+  requestPortNumber(): number {
+    return PORTS[SCHEDULER];
   }
 
-  async start(
+  parseResponse(response: unknown): Response | null {
+    return toSchedulerResponse(response);
+  }
+
+  start(
     spec: JobSpec,
     tail = false,
-    finishNotificationPort: undefined | null | number = undefined
-  ): Promise<SchedulerResponse$Start> {
-    const request = startRequest(
-      spec,
-      tail,
-      this.responsePortNumber,
-      finishNotificationPort
+    finishNotificationPort: undefined | null = null
+  ): Promise<Response<"start">> {
+    return this.sendReceive(
+      Request.start({
+        spec,
+        tail,
+        finishNotificationPort,
+        ...this.rp(),
+      }),
+      {
+        start: id,
+      }
     );
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("start")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
   }
 
   async waitForJobFinished(jobId: JobId): Promise<void> {
     const response = await this.responsePort.read(null);
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("jobFinished")(response)) {
-      if (response.jobId === jobId) {
-        return;
-      } else {
-        throw new Error(`Unexpected jobId: ${response.jobId}`);
+    await this.handleResponse(response, {
+      jobFinished: (data) => {
+        if (data.jobId !== jobId) {
+          throw new Error(`Unexpected jobId: ${data.jobId}`);
+        }
+      },
+    });
+  }
+
+  status(): Promise<Response<"status">> {
+    return this.sendReceive(Request.status(this.rp()), {
+      status: id,
+    });
+  }
+
+  capacity(): Promise<Response<"capacity">> {
+    return this.sendReceive(Request.capacity(this.rp()), {
+      capacity: id,
+    });
+  }
+
+  killJob(jobId: JobId): Promise<Response<"killJob">> {
+    return this.sendReceive(Request.killJob({ jobId, ...this.rp() }), {
+      killJob: id,
+    });
+  }
+
+  reload(): Promise<Response<"reload">> {
+    return this.sendReceive(Request.reload({ ...this.rp() }), {
+      reload: id,
+    });
+  }
+
+  async serviceStatus(serviceName: string): Promise<Response<"serviceStatus">> {
+    return this.sendReceive(
+      Request.serviceStatus({ serviceName, ...this.rp() }),
+      {
+        serviceStatus: id,
       }
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+    );
   }
 
-  async status(): Promise<SchedulerResponse$Status> {
-    const request = statusRequest(this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("status")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+  startService(serviceName: string): Promise<Response<"startService">> {
+    return this.sendReceive(
+      Request.startService({ serviceName, ...this.rp() }),
+      {
+        startService: id,
+      }
+    );
   }
 
-  async capacity(): Promise<SchedulerResponse$Capacity> {
-    const request = capacityRequest(this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("capacity")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+  stopService(serviceName: string): Promise<Response<"stopService">> {
+    return this.sendReceive(
+      Request.stopService({ serviceName, ...this.rp() }),
+      {
+        stopService: id,
+      }
+    );
   }
 
-  async killJob(jobId: JobId): Promise<SchedulerResponse$KillJob> {
-    const request = killJobRequest(jobId, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("killJob")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+  enableService(serviceName: string): Promise<Response<"enableService">> {
+    return this.sendReceive(
+      Request.enableService({ serviceName, ...this.rp() }),
+      {
+        enableService: id,
+      }
+    );
   }
 
-  async reload(): Promise<SchedulerResponse$Reload> {
-    const request = reloadRequest(this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("reload")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+  disableService(serviceName: string): Promise<Response<"disableService">> {
+    return this.sendReceive(
+      Request.disableService({ serviceName, ...this.rp() }),
+      {
+        disableService: id,
+      }
+    );
   }
-
-  async serviceStatus(name: string): Promise<SchedulerResponse$ServiceStatus> {
-    const request = serviceStatusRequest(name, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("serviceStatus")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
-  }
-
-  async startService(name: string): Promise<SchedulerResponse$StartService> {
-    const request = startServiceRequest(name, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("startService")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
-  }
-
-  async stopService(name: string): Promise<SchedulerResponse$StopService> {
-    const request = stopServiceRequest(name, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("stopService")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
-  }
-
-  async enableService(name: string): Promise<SchedulerResponse$EnableService> {
-    const request = enableServiceRequest(name, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("enableService")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
-  }
-
-  async disableService(
-    name: string
-  ): Promise<SchedulerResponse$DisableService> {
-    const request = disableServiceRequest(name, this.responsePortNumber);
-    await this.schedulerPort.write(request);
-    const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("disableService")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
-  }
-}
-
-export async function withSchedulerClient<T>(
-  ns: NS,
-  log: Log,
-  fn: (client: SchedulerClient) => Promise<T>
-): Promise<T> {
-  const portRegistryClient = new PortRegistryClient(ns, log);
-  const port = await portRegistryClient.reservePort();
-  const client = new SchedulerClient(ns, log, port);
-  const retval = await fn(client);
-  await portRegistryClient.releasePort(port);
-  return retval;
 }

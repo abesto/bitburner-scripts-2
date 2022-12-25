@@ -1,11 +1,15 @@
 import { NS } from '@ns';
 
-import { DB, db, DB_PATH } from '/database';
+import { match } from 'variant';
+
+import { DB, DB_PATH } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { PORTS } from '/ports';
-import { match } from 'variant';
-import { ClientPort, ServerPort } from '../common';
+
+import { ClientPort } from '../common/ClientPort';
+import { ServerPort } from '../common/ServerPort';
+import { db } from './client';
 import {
     DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
     toDatabaseRequest

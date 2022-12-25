@@ -4,6 +4,14 @@
         {
             "regex": "^@ns$",
             "orderLevel": 0
+        },
+        {
+            "regex": "^/.*$",
+            "orderLevel": 90
+        },
+        {
+            "regex": "^\\..*$",
+            "orderLevel": 100
         }
     ]
 }

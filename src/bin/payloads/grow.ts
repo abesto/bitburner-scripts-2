@@ -23,7 +23,7 @@ export async function main(ns: NS): Promise<void> {
     await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
     return;
   }
-  const mult = await ns.grow(host);
+  await ns.grow(host);
   // TODO report mult
   await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
 }

@@ -33,7 +33,7 @@ export const DatabaseResponse = variantModule(
   })
 );
 
-// -- Boilerplate below --
+/* -- Boilerplate below -- */
 
 export type DatabaseRequest<
   T extends TypeNames<typeof DatabaseRequest> = undefined

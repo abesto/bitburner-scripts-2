@@ -2,7 +2,9 @@
 import { NS } from '@ns';
 
 import { Log } from '/log';
+import { withClient } from '/services/client_factory';
 import { PortRegistryClient } from '/services/PortRegistry/client';
+import { PortRegistryStatusClient } from '/services/PortRegistry/client_ext';
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "portc");
@@ -14,7 +16,12 @@ export async function main(ns: NS): Promise<void> {
   const client = new PortRegistryClient(ns, log);
 
   if (command === "status") {
-    const status = await client.status();
+    const status = await withClient(
+      PortRegistryStatusClient,
+      ns,
+      log,
+      (client) => client.status()
+    );
     log.tinfo("PortRegistry status", {
       freeHigh: status.freeHigh,
       reusable: status.free,

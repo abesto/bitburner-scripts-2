@@ -1,9 +1,11 @@
 import { NS } from '@ns';
 
+import { match } from 'variant';
+
 import { Log } from '/log';
 import { freePorts, PORTS } from '/ports';
-import { match } from 'variant';
-import { ServerPort } from '../common';
+
+import { ServerPort } from '../common/ServerPort';
 import {
     PortRegistryRequest, PortRegistryResponse, SERVICE_ID, toPortRegistryRequest
 } from './types';

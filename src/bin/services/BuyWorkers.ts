@@ -1,8 +1,8 @@
 import { NS } from '@ns';
 
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
+import { db } from '/services/Database/client';
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "BuyWorkers");

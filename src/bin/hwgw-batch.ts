@@ -1,8 +1,8 @@
 import { NS } from '@ns';
 
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
+import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
 
@@ -189,7 +189,7 @@ export async function main(ns: NS): Promise<void> {
     } catch (e) {
       log.error("Error waiting for job to finish", { kind, jobId, e });
     }
-    await portRegistryClient.releasePort(schedulerClient.responsePortNumber);
+    await schedulerClient.release();
     log.info("Job finished", { kind, jobId });
   }
 

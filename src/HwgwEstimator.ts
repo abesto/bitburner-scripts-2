@@ -1,7 +1,8 @@
 import { NS } from '@ns';
 
-import { db } from '/database';
 import { Log } from '/log';
+
+import { db } from './services/Database/client';
 
 export default class HwgwEstimator {
   private readonly log: Log;
@@ -155,7 +156,7 @@ export default class HwgwEstimator {
       batchMax = 0,
       threadsMax = 0;
     events.sort((a, b) => a[0] - b[0]);
-    for (const [time, fn] of events) {
+    for (const [, fn] of events) {
       fn();
       hackMax = Math.max(hackMax, hack);
       growMax = Math.max(growMax, grow);

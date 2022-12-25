@@ -1,8 +1,9 @@
 import { AutocompleteData, NS } from '@ns';
 
-import { db, dbLock, DEFAULT_DB } from '/database';
+import { DEFAULT_DB } from '/database';
 import { highlightValue } from '/fmt';
 import { Log } from '/log';
+import { db, dbLock } from '/services/Database/client';
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "config");

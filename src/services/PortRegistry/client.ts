@@ -3,15 +3,17 @@ import { NS } from '@ns';
 import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
-import { BaseClient, BaseNoResponseClient, ServerPort, withClient } from '../common';
-import {
-    PortRegistryRequest as Request, PortRegistryResponse as Response, SERVICE_ID,
-    toPortRegistryResponse
-} from './types';
+
+import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
+import { ServerPort } from '../common/ServerPort';
+import { PortRegistryRequest as Request, SERVICE_ID } from './types';
 
 export class PortRegistryClient extends BaseNoResponseClient<Request> {
   private readonly freePortsPort: ServerPort<number>;
-  requestPortNumber = () => PORTS[SERVICE_ID];
+
+  requestPortNumber(): number {
+    return PORTS[SERVICE_ID];
+  }
 
   constructor(ns: NS, log: Log) {
     super(ns, log);
@@ -49,27 +51,5 @@ export class PortRegistryClient extends BaseNoResponseClient<Request> {
         pid: getProcessInfo(this.ns).pid,
       })
     );
-  }
-
-  public status(): Promise<Response<"status">> {
-    return withClient(
-      _PortRegistryStatusClient,
-      this.ns,
-      this.log,
-      async (client) => {
-        return await client.status();
-      }
-    );
-  }
-}
-
-class _PortRegistryStatusClient extends BaseClient<Request, Response> {
-  requestPortNumber = () => PORTS[SERVICE_ID];
-  parseResponse = toPortRegistryResponse;
-
-  async status(): Promise<Response<"status">> {
-    return this.sendReceive(Request.status(this.rp()), {
-      status: (x) => x,
-    });
   }
 }

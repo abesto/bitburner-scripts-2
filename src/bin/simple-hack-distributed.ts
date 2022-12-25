@@ -1,9 +1,9 @@
 import { AutocompleteData, NS } from '@ns';
 
 import { autonuke } from '/autonuke';
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
+import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient } from '/services/Scheduler/client';
 

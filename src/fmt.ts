@@ -57,7 +57,7 @@ export class Fmt {
       fields.map(([key, value]) => `${key}=${value}`),
     ]);
 
-    const maxColumnLengths: number[] = strRows.reduce((acc, [_, fields]) => {
+    const maxColumnLengths: number[] = strRows.reduce((acc, [, fields]) => {
       fields.forEach((field, i) => {
         acc[i] = Math.max(acc[i] || 0, field.length);
       });
@@ -65,7 +65,7 @@ export class Fmt {
     }, [] as number[]);
 
     const maxPrefixLength = rows.reduce(
-      (acc, [prefix, _]) => Math.max(acc, prefix.length),
+      (acc, [prefix]) => Math.max(acc, prefix.length),
       0
     );
 

@@ -1,7 +1,14 @@
-import { DB } from '/database';
+import { NS } from '@ns';
+
+import { deepmerge } from 'deepmerge-ts';
+
+import { DB, DB_PATH, DEFAULT_DB } from '/database';
+import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
-import { BaseClient } from '../common';
+
+import { BaseClient } from '../common/BaseClient';
+import { PortRegistryClient } from '../PortRegistry/client';
 import {
     DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, toDatabaseResponse, UnlockResult
 } from './types';
@@ -10,8 +17,13 @@ export class DatabaseClient extends BaseClient<
   DatabaseRequest,
   DatabaseResponse
 > {
-  parseResponse = toDatabaseResponse;
-  requestPortNumber = () => PORTS[SERVICE_ID];
+  requestPortNumber(): number {
+    return PORTS[SERVICE_ID];
+  }
+
+  parseResponse(response: unknown): DatabaseResponse | null {
+    return toDatabaseResponse(response);
+  }
 
   read(): Promise<DB> {
     return this.sendReceive(DatabaseRequest.read(this.rp()), {
@@ -59,4 +71,44 @@ export class DatabaseClient extends BaseClient<
       }
     );
   }
+}
+
+export async function dbLock(
+  ns: NS,
+  log: Log,
+  fn: (db: DB) => Promise<DB | undefined>
+): Promise<void> {
+  const portRegistryClient = new PortRegistryClient(ns, log);
+  const responsePort = await portRegistryClient.reservePort();
+  const databaseClient = new DatabaseClient(ns, log, responsePort);
+  const memdb = await databaseClient.lock();
+
+  let newDb;
+  try {
+    newDb = await fn(memdb);
+  } finally {
+    if (newDb !== undefined) {
+      await databaseClient.writeAndUnlock(newDb);
+    } else {
+      await databaseClient.unlock();
+    }
+    await portRegistryClient.releasePort(responsePort);
+  }
+}
+
+export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
+  if (!ns.fileExists(DB_PATH)) {
+    ns.write(DB_PATH, "{}", "w");
+  }
+
+  let contents;
+  if (forceLocal || ns.getHostname() === "home") {
+    contents = JSON.parse(ns.read("/db.json"));
+  } else {
+    const portRegistryClient = new PortRegistryClient(ns, log);
+    const responsePort = await portRegistryClient.reservePort();
+    const databaseClient = new DatabaseClient(ns, log, responsePort);
+    contents = await databaseClient.read();
+  }
+  return deepmerge(DEFAULT_DB, contents);
 }

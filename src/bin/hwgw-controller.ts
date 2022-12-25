@@ -1,12 +1,13 @@
 import { AutocompleteData, NS } from '@ns';
 
 import { autonuke } from '/autonuke';
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
+import { withClient } from '/services/client_factory';
+import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
-import { SchedulerClient, withSchedulerClient } from '/services/Scheduler/client';
-import { jobThreads } from '/services/Scheduler/types';
+import { SchedulerClient } from '/services/Scheduler/client';
+import { HostAffinity, jobThreads } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);
@@ -37,7 +38,7 @@ export async function main(ns: NS): Promise<void> {
         script: "/bin/hwgw-batch.js",
         args: [host, "--initial"],
         threads: 1,
-        hostAffinity: { _type: "preferToRunOn", host: "home" },
+        hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
       true
     );
@@ -57,7 +58,7 @@ export async function main(ns: NS): Promise<void> {
         script: "/bin/hwgw-batch.js",
         args: [host],
         threads: 1,
-        hostAffinity: { _type: "preferToRunOn", host: "home" },
+        hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
       false,
       null
@@ -72,7 +73,8 @@ export async function main(ns: NS): Promise<void> {
   }
 
   async function report() {
-    const { jobs } = await withSchedulerClient(
+    const { jobs } = await withClient(
+      SchedulerClient,
       ns,
       log,
       async (schedulerClient) => await schedulerClient.status()
