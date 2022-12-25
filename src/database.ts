@@ -6,6 +6,9 @@ export type DB = {
     database: {
       debugLocks: boolean;
     };
+    share: {
+      percentage: number;
+    };
     simpleHack: {
       // Defines how much money a server should have before we hack it
       moneyThreshold: number;
@@ -47,6 +50,9 @@ export const DEFAULT_DB: DB = {
   config: {
     database: {
       debugLocks: false,
+    },
+    share: {
+      percentage: 0.75,
     },
     simpleHack: {
       moneyThreshold: 0.75,

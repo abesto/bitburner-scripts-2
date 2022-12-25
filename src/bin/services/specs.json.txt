@@ -9,7 +9,13 @@
   "Database": {
     "enableWhenDiscovered": true,
     "hostAffinity": {
-      "_type": "mustRunOn",
+      "type": "mustRunOn",
+      "host": "home"
+    }
+  },
+  "Share": {
+    "hostAffinity": {
+      "type": "mustRunOn",
       "host": "home"
     }
   }

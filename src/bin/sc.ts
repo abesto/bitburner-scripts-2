@@ -95,11 +95,11 @@ export async function main(ns: NS): Promise<void> {
         },
         args.stail as boolean
       );
-      log.info("Started job", response);
+      log.tinfo("Started job", response);
       await client.waitForJobFinished(response.jobId);
       return response.jobId;
     });
-    log.info("Job finished", { jobId });
+    log.tinfo("Job finished", { jobId });
   }
 
   async function status() {

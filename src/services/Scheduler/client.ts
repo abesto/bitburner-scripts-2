@@ -41,8 +41,11 @@ export class SchedulerClient extends BaseClient<Request, Response> {
   start(
     spec: JobSpec,
     tail = false,
-    finishNotificationPort: undefined | null = null
+    finishNotificationPort: number | undefined | null = undefined
   ): Promise<Response<"start">> {
+    if (finishNotificationPort === undefined) {
+      finishNotificationPort = this.responsePort.portNumber;
+    }
     return this.sendReceive(
       Request.start({
         spec,
