@@ -1,14 +1,14 @@
-import { NS } from '/../NetscriptDefinitions';
+import { NS } from '@ns';
+
 import { DB, db, DB_PATH } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { PORTS } from '/ports';
-import { matchI } from 'ts-adt';
+import { match } from 'variant';
 import { ClientPort, ServerPort } from '../common';
 import {
-    DatabaseRequest, DatabaseRequest$Lock, DatabaseRequest$Unlock, DatabaseRequest$WriteAndUnlock,
-    DatabaseResponse, LockData, lockResponse, readResponse, SERVICE_ID as DATABASE,
-    toDatabaseRequest, unlockResponseError, unlockResponseOk
+    DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
+    toDatabaseRequest
 } from './types';
 
 function arrayEquals(a: unknown[], b: unknown[]): boolean {
@@ -36,7 +36,7 @@ export class DatabaseService {
   }
 
   async listen(): Promise<void> {
-    const listenPort = new ServerPort<DatabaseRequest>(
+    const listenPort = new ServerPort<Request>(
       this.ns,
       this.log,
       PORTS[DATABASE],
@@ -58,7 +58,7 @@ export class DatabaseService {
         continue;
       }
 
-      await matchI(request)({
+      await match(request, {
         read: (request) => this.read(request),
         lock: (request) => this.lock(request),
         unlock: (request) => this.unlock(request),
@@ -101,9 +101,11 @@ export class DatabaseService {
     this.ns.write(DB_PATH, JSON.stringify(db, null, 2), "w");
   }
 
-  async read(request: { responsePort: number }): Promise<void> {
-    const response = readResponse(JSON.stringify(await this.loadFromDisk()));
-    const client = new ClientPort<DatabaseResponse>(
+  async read(request: Request<"read">): Promise<void> {
+    const response = Response.read({
+      content: JSON.stringify(await this.loadFromDisk()),
+    });
+    const client = new ClientPort<Response>(
       this.ns,
       this.log,
       request.responsePort
@@ -111,18 +113,20 @@ export class DatabaseService {
     await client.write(response);
   }
 
-  async lock(request: DatabaseRequest$Lock): Promise<void> {
+  async lock(request: Request<"lock">): Promise<void> {
     const memdb = await this.loadFromDisk();
 
     if (memdb.meta.currentLock === null) {
       memdb.meta.currentLock = request.lockData;
       await this.saveToDisk(memdb);
-      const client = new ClientPort<DatabaseResponse>(
+      const client = new ClientPort<Response>(
         this.ns,
         this.log,
         request.lockData.responsePort
       );
-      const response = lockResponse(JSON.stringify(memdb));
+      const response = Response.lock({
+        content: JSON.stringify(memdb),
+      });
       await client.write(response);
     } else {
       memdb.meta.lockQueue.push(request.lockData);
@@ -131,21 +135,23 @@ export class DatabaseService {
 
   private async doNextLock(memdb: DB, nextLock: LockData): Promise<void> {
     memdb.meta.currentLock = nextLock;
-    const newClient = new ClientPort<DatabaseResponse>(
+    const newClient = new ClientPort<Response>(
       this.ns,
       this.log,
       nextLock.responsePort
     );
-    return await newClient.write(lockResponse(JSON.stringify(memdb)));
+    return await newClient.write(
+      Response.lock({ content: JSON.stringify(memdb) })
+    );
   }
 
   async unlock(
-    request: DatabaseRequest$Unlock,
+    request: Request<"unlock">,
     newDb: DB | null = null
   ): Promise<void> {
     const memdb = newDb || (await this.loadFromDisk());
 
-    const client = new ClientPort<DatabaseResponse>(
+    const client = new ClientPort<Response>(
       this.ns,
       this.log,
       request.lockData.responsePort
@@ -155,7 +161,7 @@ export class DatabaseService {
         "Unlock request received but no lock is held",
         request.lockData
       );
-      return await client.write(unlockResponseError("not-locked"));
+      return await client.write(Response.unlock({ result: "not-locked" }));
     }
 
     if (
@@ -172,11 +178,11 @@ export class DatabaseService {
           owner: memdb.meta.currentLock,
         }
       );
-      return await client.write(unlockResponseError("locked-by-other"));
+      return await client.write(Response.unlock({ result: "locked-by-other" }));
     }
 
     memdb.meta.currentLock = null;
-    await client.write(unlockResponseOk());
+    await client.write(Response.unlock({ result: "ok" }));
 
     const nextLock = memdb.meta.lockQueue.shift();
     if (nextLock !== undefined) {
@@ -186,7 +192,7 @@ export class DatabaseService {
     await this.saveToDisk(memdb);
   }
 
-  async writeAndUnlock(request: DatabaseRequest$WriteAndUnlock): Promise<void> {
-    await this.unlock(request, JSON.parse(request.content));
+  async writeAndUnlock(request: Request<"writeAndUnlock">): Promise<void> {
+    await this.unlock(Request.unlock(request), JSON.parse(request.content));
   }
 }

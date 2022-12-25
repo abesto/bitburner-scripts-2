@@ -1,36 +1,30 @@
-import { ADT } from 'ts-adt';
+import { augmented, fields, isOfVariant, TypeNames, variantModule, VariantOf } from 'variant';
 
 export const SERVICE_ID = "Database";
 export type ServiceTag = { service: typeof SERVICE_ID };
 export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
 
-export type DatabaseRequest = ADT<{
-  read: DatabaseRequest$Read;
-  lock: DatabaseRequest$Lock;
-  unlock: DatabaseRequest$Unlock;
-  writeAndUnlock: DatabaseRequest$WriteAndUnlock;
-}>;
+export const DatabaseRequest = variantModule(
+  augmented(() => SERVICE_TAG, {
+    read: fields<{ responsePort: number }>(),
+    lock: fields<{ lockData: LockData }>(),
+    unlock: fields<{ lockData: LockData }>(),
+    writeAndUnlock: fields<{ lockData: LockData; content: string }>(),
+  })
+);
 
+export type DatabaseRequest<
+  T extends TypeNames<typeof DatabaseRequest> = undefined
+> = VariantOf<typeof DatabaseRequest, T>;
 export function isDatabaseRequest(x: unknown): x is DatabaseRequest {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    "service" in x &&
-    x.service === SERVICE_ID
-  );
+  return isOfVariant(x, DatabaseRequest) && x.service === SERVICE_ID;
 }
-
 export function toDatabaseRequest(x: unknown): DatabaseRequest | null {
   if (isDatabaseRequest(x)) {
     return x;
   } else {
     return null;
   }
-}
-
-export type DatabaseRequest$Read = ServiceTag & { responsePort: number };
-export function readRequest(responsePort: number): DatabaseRequest {
-  return { _type: "read", responsePort, ...SERVICE_TAG };
 }
 
 export type LockData = {
@@ -41,53 +35,24 @@ export type LockData = {
   responsePort: number;
 };
 
-export type DatabaseRequest$Lock = ServiceTag & {
-  lockData: LockData;
-};
-export function lockRequest(lockData: LockData): DatabaseRequest {
-  return {
-    _type: "lock",
-    lockData,
-    ...SERVICE_TAG,
-  };
-}
+export type UnlockResult = "ok" | "not-locked" | "locked-by-other";
 
-export type DatabaseRequest$Unlock = ServiceTag & {
-  lockData: LockData;
-};
-export function unlockRequest(lockData: LockData): DatabaseRequest {
-  return { _type: "unlock", lockData, ...SERVICE_TAG };
-}
-
-export type DatabaseRequest$WriteAndUnlock = ServiceTag & {
-  lockData: LockData;
-  content: string;
-};
-export function writeAndUnlockRequest(
-  content: string,
-  lockData: LockData
-): DatabaseRequest {
-  return {
-    _type: "writeAndUnlock",
-    content,
-    lockData,
-    ...SERVICE_TAG,
-  };
-}
-
-export type DatabaseResponse = ADT<{
-  read: DatabaseResponse$Read;
-  lock: DatabaseResponse$Lock;
-  unlock: DatabaseResponse$Unlock;
-}>;
+export const DatabaseResponse = variantModule(
+  augmented(() => SERVICE_TAG, {
+    read: fields<{ content: string }>(),
+    lock: fields<{ content: string }>(),
+    unlock: fields<{ result: UnlockResult }>(),
+    writeAndUnlock: fields<{
+      result: UnlockResult;
+    }>(),
+  })
+);
+export type DatabaseResponse<
+  T extends TypeNames<typeof DatabaseResponse> = undefined
+> = VariantOf<typeof DatabaseResponse, T>;
 
 export function isDatabaseResponse(x: unknown): x is DatabaseResponse {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    "service" in x &&
-    x.service === SERVICE_ID
-  );
+  return isOfVariant(x, DatabaseResponse) && x.service === SERVICE_ID;
 }
 
 export function toDatabaseResponse(x: unknown): DatabaseResponse | null {
@@ -96,30 +61,4 @@ export function toDatabaseResponse(x: unknown): DatabaseResponse | null {
   } else {
     return null;
   }
-}
-
-export type DatabaseResponse$Read = ServiceTag & { content: string };
-export function readResponse(content: string): DatabaseResponse {
-  return { _type: "read", content, ...SERVICE_TAG };
-}
-
-export type DatabaseResponse$Lock = ServiceTag & { content: string };
-export function lockResponse(content: string): DatabaseResponse {
-  return { _type: "lock", content, ...SERVICE_TAG };
-}
-
-export type UnlockResult = ADT<{
-  ok: { _type: "ok" };
-  error: { kind: "not-locked" | "locked-by-other" };
-}>;
-
-export type DatabaseResponse$Unlock = ServiceTag & { payload: UnlockResult };
-export function unlockResponse(payload: UnlockResult): DatabaseResponse {
-  return { _type: "unlock", payload, ...SERVICE_TAG };
-}
-export function unlockResponseOk(): DatabaseResponse {
-  return unlockResponse({ _type: "ok" });
-}
-export function unlockResponseError(kind: "not-locked" | "locked-by-other") {
-  return unlockResponse({ _type: "error", kind });
 }

@@ -4,11 +4,10 @@ import { DB } from '/database';
 import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
-import { refinement } from 'ts-adt';
+import { Handler, match, VariantsOfUnion } from 'variant';
 import { ClientPort, ServerPort } from '../common';
 import {
-    DatabaseRequest, DatabaseResponse, DatabaseResponse$Unlock, LockData, lockRequest, readRequest,
-    SERVICE_ID, toDatabaseResponse, unlockRequest, UnlockResult, writeAndUnlockRequest
+    DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, toDatabaseResponse, UnlockResult
 } from './types';
 
 export class DatabaseClient {
@@ -30,18 +29,14 @@ export class DatabaseClient {
   }
 
   async read(): Promise<DB> {
-    const request = readRequest(this.responsePortNumber);
+    const request = DatabaseRequest.read({
+      responsePort: this.responsePortNumber,
+    });
     await this.databasePort.write(request);
     const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("read")(response)) {
-      return JSON.parse(response.content) as DB;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+    return this.handleResponse(response, {
+      read: (response) => JSON.parse(response.content) as DB,
+    });
   }
 
   lockData(): LockData {
@@ -56,50 +51,45 @@ export class DatabaseClient {
   }
 
   async lock(): Promise<DB> {
-    const request = lockRequest(this.lockData());
+    const request = DatabaseRequest.lock({ lockData: this.lockData() });
     await this.databasePort.write(request);
     const response = await this.responsePort.read(null);
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
+    return this.handleResponse(response, {
+      lock: (response) => JSON.parse(response.content) as DB,
+    });
+  }
+
+  handleResponse<
+    Response extends { type: string },
+    Ret,
+    M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
+  >(result: Response | null, matcher: M): Ret {
+    if (result === null) {
       throw new Error("Invalid response");
     }
-    if (refinement("lock")(response)) {
-      return JSON.parse(response.content) as DB;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+    return match(result, matcher, () => {
+      throw new Error(`Invalid response: ${JSON.stringify(result)}`);
+    });
   }
 
   async unlock(): Promise<UnlockResult> {
-    const request = unlockRequest(this.lockData());
+    const request = DatabaseRequest.unlock({ lockData: this.lockData() });
     await this.databasePort.write(request);
     const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("unlock")(response)) {
-      return response.payload;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+    return this.handleResponse(response, {
+      unlock: (payload) => payload.result,
+    });
   }
 
   async writeAndUnlock(content: DB): Promise<UnlockResult> {
-    const request = writeAndUnlockRequest(
-      JSON.stringify(content),
-      this.lockData()
-    );
+    const request = DatabaseRequest.writeAndUnlock({
+      content: JSON.stringify(content),
+      lockData: this.lockData(),
+    });
     await this.databasePort.write(request);
     const response = await this.responsePort.read();
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("unlock")(response)) {
-      return response.payload;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+    return this.handleResponse(response, {
+      unlock: (payload) => payload.result,
+    });
   }
 }
