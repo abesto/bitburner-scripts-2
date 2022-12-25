@@ -38,11 +38,22 @@ export async function main(ns: NS): Promise<void> {
     }
   }
 
+  const fmt = new Fmt(ns);
   const memdb = await db(ns, log);
   const spacing = memdb.config.hwgw.spacing;
 
   const moneyMax = ns.getServerMaxMoney(host);
   const moneyStolenPerThread = ns.hackAnalyze(host) * moneyMax;
+  if (moneyStolenPerThread === 0) {
+    log.terror("moneyStolePerThread=0", {
+      host,
+      moneyMax,
+      currentMoney: fmt.money(ns.getServerMoneyAvailable(host)),
+      securityLevel: ns.getServerSecurityLevel(host),
+    });
+    await finished();
+    return;
+  }
   const moneyThreshold = moneyMax * memdb.config.hwgw.moneyThreshold;
   const moneySteal = moneyMax - moneyThreshold;
 
@@ -64,7 +75,28 @@ export async function main(ns: NS): Promise<void> {
   const growLength = ns.getGrowTime(host);
   const hackLength = ns.getHackTime(host);
 
-  const fmt = new Fmt(ns);
+  if (isNaN(moneyAfterHack)) {
+    log.terror("wtf", {
+      jobId,
+      taskId,
+      host,
+      moneyMax,
+      moneyStolenPerThread,
+      moneyThreshold,
+      moneySteal,
+      wantHackThreads,
+      moneyAfterHack,
+      hackSecurityGrowth,
+      hackWeakenThreads,
+      growMultiplier,
+      wantGrowThreads,
+      growSecurityGrowth,
+      wantGrowWeakenThreads,
+    });
+    await finished();
+    return;
+  }
+
   log.info("startup", {
     jobId,
     taskId,
@@ -110,7 +142,7 @@ export async function main(ns: NS): Promise<void> {
   if (scheduledGrowWeakenThreads !== wantGrowWeakenThreads) {
     log.terror(
       "Scheduled grow-weaken threads does not match requested grow-weaken threads",
-      { scheduledGrowWeakenThreads, wantGrowWeakenThreads }
+      { host, scheduledGrowWeakenThreads, wantGrowWeakenThreads }
     );
     await finished();
     return;
@@ -130,6 +162,7 @@ export async function main(ns: NS): Promise<void> {
     ((initial && scheduledGrowThreads === 0) || !initial)
   ) {
     log.terror("Scheduled grow threads does not match requested grow threads", {
+      host,
       scheduledGrowThreads,
       wantGrowThreads,
     });
@@ -156,7 +189,7 @@ export async function main(ns: NS): Promise<void> {
     if (scheduledHackThreads !== wantHackThreads) {
       log.terror(
         "Scheduled hack threads does not match requested hack threads",
-        { scheduledHackThreads, wantHackThreads }
+        { host, scheduledHackThreads, wantHackThreads }
       );
       // TODO kill all batches
     }

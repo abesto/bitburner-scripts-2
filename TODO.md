@@ -15,9 +15,6 @@
   * extend `CrashWatcher` to alert if the `Scheduler` dies
   * nice formatting for service status, a 'la systemd
   * tiny `CrashWatcherWatcher` service for redundancy
-* `share`
-  * turn into service
-  * automatically make decisions about used memory
 * `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
 * scheduler:
   * include core count in 1. scheduling decisions 2. thread count accounting

@@ -30,7 +30,7 @@ export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
   for (const server of servers.slice(0, 20)) {
     const maxMoney = ns.getServerMaxMoney(server);
-    if (maxMoney === 0) {
+    if (maxMoney === 0 || ns.hackAnalyze(server) === 0) {
       continue;
     }
     const requiredHackingLevel = ns.getServerRequiredHackingLevel(server);
