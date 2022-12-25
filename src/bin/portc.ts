@@ -16,7 +16,6 @@ export async function main(ns: NS): Promise<void> {
   if (command === "status") {
     const status = await client.status();
     log.tinfo("PortRegistry status", {
-      status: status.status,
       freeHigh: status.freeHigh,
       reusable: status.free,
     });

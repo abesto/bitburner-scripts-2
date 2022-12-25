@@ -3,19 +3,18 @@ import { NS } from '@ns';
 import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
-import { refinement } from 'ts-adt';
-import { ClientPort, ServerPort } from '../common';
+import { BaseClient, BaseNoResponseClient, ServerPort, withClient } from '../common';
 import {
-    PortRegistryRequest, PortRegistryResponse, PortRegistryResponse$Status, releaseRequest,
-    reserveRequest, SERVICE_ID as PORT_REGISTRY, statusRequest, toPortRegistryResponse
+    PortRegistryRequest as Request, PortRegistryResponse as Response, SERVICE_ID,
+    toPortRegistryResponse
 } from './types';
 
-export class PortRegistryClient {
-  private readonly portRegistryPort: ClientPort<PortRegistryRequest>;
+export class PortRegistryClient extends BaseNoResponseClient<Request> {
   private readonly freePortsPort: ServerPort<number>;
+  requestPortNumber = () => PORTS[SERVICE_ID];
 
-  constructor(private readonly ns: NS, private readonly log: Log) {
-    this.portRegistryPort = new ClientPort(ns, log, PORTS[PORT_REGISTRY]);
+  constructor(ns: NS, log: Log) {
+    super(ns, log);
     this.freePortsPort = new ServerPort(ns, log, PORTS.FreePorts, (data) => {
       if (typeof data === "number") {
         return data;
@@ -32,43 +31,45 @@ export class PortRegistryClient {
     }
 
     this.ns.clearPort(port);
-    await this.portRegistryPort.write(
-      reserveRequest(port, this.ns.getHostname(), getProcessInfo(this.ns).pid)
+    await this.send(
+      Request.reserve({
+        port,
+        hostname: this.ns.getHostname(),
+        pid: getProcessInfo(this.ns).pid,
+      })
     );
-    //this.ns.print(`[PortRegistryClient] Reserved port ${port}`);
     return port;
   }
 
   public async releasePort(port: number): Promise<void> {
-    const data = releaseRequest(
-      port,
-      this.ns.getHostname(),
-      getProcessInfo(this.ns).pid
+    await this.send(
+      Request.release({
+        port,
+        hostname: this.ns.getHostname(),
+        pid: getProcessInfo(this.ns).pid,
+      })
     );
-    await this.portRegistryPort.write(data);
-    //this.ns.print(`[PortRegistryClient] Released port ${port}: ${data}`);
   }
 
-  public async status(): Promise<PortRegistryResponse$Status> {
-    const responsePortNumber = await this.reservePort();
-    await this.portRegistryPort.write(statusRequest(responsePortNumber));
-
-    const responsePort = new ServerPort<PortRegistryResponse>(
+  public status(): Promise<Response<"status">> {
+    return withClient(
+      _PortRegistryStatusClient,
       this.ns,
       this.log,
-      responsePortNumber,
-      toPortRegistryResponse
+      async (client) => {
+        return await client.status();
+      }
     );
-    const response = await responsePort.read();
-    await this.releasePort(responsePortNumber);
-    // TODO this part should be factored out, but the typing is tricky.
-    if (response === null) {
-      throw new Error("Invalid response");
-    }
-    if (refinement("status")(response)) {
-      return response;
-    } else {
-      throw new Error(`Invalid response: ${JSON.stringify(response)}`);
-    }
+  }
+}
+
+class _PortRegistryStatusClient extends BaseClient<Request, Response> {
+  requestPortNumber = () => PORTS[SERVICE_ID];
+  parseResponse = toPortRegistryResponse;
+
+  async status(): Promise<Response<"status">> {
+    return this.sendReceive(Request.status(this.rp()), {
+      status: (x) => x,
+    });
   }
 }

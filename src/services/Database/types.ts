@@ -4,6 +4,14 @@ export const SERVICE_ID = "Database";
 export type ServiceTag = { service: typeof SERVICE_ID };
 export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
 
+export type LockData = {
+  hostname: string;
+  script: string;
+  args: (string | number | boolean)[];
+  pid: number;
+  responsePort: number;
+};
+
 export const DatabaseRequest = variantModule(
   augmented(() => SERVICE_TAG, {
     read: fields<{ responsePort: number }>(),
@@ -12,6 +20,20 @@ export const DatabaseRequest = variantModule(
     writeAndUnlock: fields<{ lockData: LockData; content: string }>(),
   })
 );
+
+export type UnlockResult = "ok" | "not-locked" | "locked-by-other";
+export const DatabaseResponse = variantModule(
+  augmented(() => SERVICE_TAG, {
+    read: fields<{ content: string }>(),
+    lock: fields<{ content: string }>(),
+    unlock: fields<{ result: UnlockResult }>(),
+    writeAndUnlock: fields<{
+      result: UnlockResult;
+    }>(),
+  })
+);
+
+// -- Boilerplate below --
 
 export type DatabaseRequest<
   T extends TypeNames<typeof DatabaseRequest> = undefined
@@ -27,26 +49,6 @@ export function toDatabaseRequest(x: unknown): DatabaseRequest | null {
   }
 }
 
-export type LockData = {
-  hostname: string;
-  script: string;
-  args: (string | number | boolean)[];
-  pid: number;
-  responsePort: number;
-};
-
-export type UnlockResult = "ok" | "not-locked" | "locked-by-other";
-
-export const DatabaseResponse = variantModule(
-  augmented(() => SERVICE_TAG, {
-    read: fields<{ content: string }>(),
-    lock: fields<{ content: string }>(),
-    unlock: fields<{ result: UnlockResult }>(),
-    writeAndUnlock: fields<{
-      result: UnlockResult;
-    }>(),
-  })
-);
 export type DatabaseResponse<
   T extends TypeNames<typeof DatabaseResponse> = undefined
 > = VariantOf<typeof DatabaseResponse, T>;

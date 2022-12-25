@@ -2,9 +2,11 @@ import { NS } from '@ns';
 
 import { Log } from '/log';
 import { freePorts, PORTS } from '/ports';
-import { matchI } from 'ts-adt';
+import { match } from 'variant';
 import { ServerPort } from '../common';
-import { PortRegistryRequest, SERVICE_ID, statusResponse, toPortRegistryRequest } from './types';
+import {
+    PortRegistryRequest, PortRegistryResponse, SERVICE_ID, toPortRegistryRequest
+} from './types';
 
 export class PortRegistryService {
   private readonly ns: NS;
@@ -82,7 +84,7 @@ export class PortRegistryService {
       }
       this.log.debug("Received message", { message });
 
-      matchI(message)({
+      match(message, {
         exit: () => {
           this.log.info("Exiting");
           exit = true;
@@ -127,17 +129,17 @@ export class PortRegistryService {
         },
 
         status: ({ responsePort }) => {
-          const response = statusResponse(
-            Array.from(this.reserved.entries()).map(
+          const response = PortRegistryResponse.status({
+            reserved: Array.from(this.reserved.entries()).map(
               ([port, { hostname, pid }]) => ({
                 port,
                 hostname,
                 pid,
               })
             ),
-            this.free,
-            this.freeHigh
-          );
+            free: this.free,
+            freeHigh: this.freeHigh,
+          });
           this.log.debug("Sending status response", { response });
           this.ns.writePort(responsePort, JSON.stringify(response));
         },

@@ -1,43 +1,37 @@
-import { ADT } from 'ts-adt';
+import { augmented, fields, isOfVariant, TypeNames, variantModule, VariantOf } from 'variant';
 
 export const SERVICE_ID = "PortRegistry";
 export type ServiceTag = { service: typeof SERVICE_ID };
 export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
 
-export type PortReqistryRequest$Exit = ServiceTag;
+export const PortRegistryRequest = variantModule(
+  augmented(() => SERVICE_TAG, {
+    exit: fields<Record<string, never>>(),
+    status: fields<{ responsePort: number }>(),
+    reserve: fields<{ port: number; hostname: string; pid: number }>(),
+    release: fields<{ port: number; hostname: string; pid: number }>(),
+  })
+);
 
-export type PortRegistryRequest$Status = ServiceTag & {
-  responsePort: number;
-};
+export const PortRegistryResponse = variantModule(
+  augmented(() => SERVICE_TAG, {
+    status: fields<{
+      reserved: { port: number; hostname: string; pid: number }[];
+      free: number[];
+      freeHigh: number;
+    }>(),
+  })
+);
 
-export type PortRegistryRequest$Reserve = ServiceTag & {
-  port: number;
-  hostname: string;
-  pid: number;
-};
+/* -- Boilerplate below -- */
 
-export type PortRegistryRequest$Release = ServiceTag & {
-  port: number;
-  hostname: string;
-  pid: number;
-};
-
-export type PortRegistryRequest = ADT<{
-  exit: PortReqistryRequest$Exit;
-  reserve: PortRegistryRequest$Reserve;
-  release: PortRegistryRequest$Release;
-  status: PortRegistryRequest$Status;
-}>;
+export type PortRegistryRequest<
+  T extends TypeNames<typeof PortRegistryRequest> = undefined
+> = VariantOf<typeof PortRegistryRequest, T>;
 
 export function isPortRegistryRequest(x: unknown): x is PortRegistryRequest {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    "service" in x &&
-    x.service === SERVICE_ID
-  );
+  return isOfVariant(x, PortRegistryRequest) && x.service === SERVICE_ID;
 }
-
 export function toPortRegistryRequest(x: unknown): PortRegistryRequest | null {
   if (isPortRegistryRequest(x)) {
     return x;
@@ -46,48 +40,12 @@ export function toPortRegistryRequest(x: unknown): PortRegistryRequest | null {
   }
 }
 
-export function exitRequest(): PortRegistryRequest {
-  return { _type: "exit", ...SERVICE_TAG };
-}
-
-export function reserveRequest(
-  port: number,
-  hostname: string,
-  pid: number
-): PortRegistryRequest {
-  return { _type: "reserve", port, hostname, pid, ...SERVICE_TAG };
-}
-
-export function releaseRequest(
-  port: number,
-  hostname: string,
-  pid: number
-): PortRegistryRequest {
-  return { _type: "release", port, hostname, pid, ...SERVICE_TAG };
-}
-
-export function statusRequest(responsePort: number): PortRegistryRequest {
-  return { _type: "status", responsePort, ...SERVICE_TAG };
-}
-
-export type PortRegistryResponse$Status = ServiceTag & {
-  status: "ok";
-  reserved: Array<{ port: number; hostname: string; pid: number }>;
-  free: Array<number>;
-  freeHigh: number;
-};
-
-export type PortRegistryResponse = ADT<{
-  status: PortRegistryResponse$Status;
-}>;
+export type PortRegistryResponse<
+  T extends TypeNames<typeof PortRegistryResponse> = undefined
+> = VariantOf<typeof PortRegistryResponse, T>;
 
 export function isPortRegistryResponse(x: unknown): x is PortRegistryResponse {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    "service" in x &&
-    x.service === SERVICE_ID
-  );
+  return isOfVariant(x, PortRegistryResponse) && x.service === SERVICE_ID;
 }
 
 export function toPortRegistryResponse(
@@ -98,19 +56,4 @@ export function toPortRegistryResponse(
   } else {
     return null;
   }
-}
-
-export function statusResponse(
-  reserved: Array<{ port: number; hostname: string; pid: number }>,
-  free: Array<number>,
-  freeHigh: number
-): PortRegistryResponse {
-  return {
-    _type: "status",
-    status: "ok",
-    reserved,
-    free,
-    freeHigh,
-    ...SERVICE_TAG,
-  };
 }
