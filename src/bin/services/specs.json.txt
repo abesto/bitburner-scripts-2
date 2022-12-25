@@ -5,7 +5,9 @@
   "CrashWatcher": {
     "enableWhenDiscovered": true
   },
-  "BuyWorkers": {
+  "BuyWorkers": {},
+  "Database": {
+    "enableWhenDiscovered": true,
     "hostAffinity": {
       "_type": "mustRunOn",
       "host": "home"

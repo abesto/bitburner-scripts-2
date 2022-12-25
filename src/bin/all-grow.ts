@@ -13,7 +13,7 @@ export async function main(ns: NS): Promise<void> {
   const host = ns.args[0] as string;
   const scriptmem = ns.getScriptRam(payload);
 
-  const portRegistryClient = new PortRegistryClient(ns);
+  const portRegistryClient = new PortRegistryClient(ns, log);
   const schedulerResponsePort = await portRegistryClient.reservePort();
   const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);
 

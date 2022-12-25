@@ -1,8 +1,9 @@
-import { NetscriptPort, NS } from '@ns';
+import { NS } from '@ns';
 
 import { Log } from '/log';
-import { freePorts, portRegistry, PORTS } from '/ports';
+import { freePorts, PORTS } from '/ports';
 import { matchI } from 'ts-adt';
+import { ServerPort } from '../common';
 import { PortRegistryRequest, SERVICE_ID, statusResponse, toPortRegistryRequest } from './types';
 
 export class PortRegistryService {
@@ -54,40 +55,32 @@ export class PortRegistryService {
     }
   }
 
-  private readRequest(port: NetscriptPort): PortRegistryRequest | null {
-    const rawMessage = port.read().toString();
-    this.log.debug("Received message", { rawMessage });
-    try {
-      const json = JSON.parse(rawMessage);
-      const parsed = toPortRegistryRequest(JSON.parse(rawMessage));
-      if (parsed === null) {
-        this.log.terror("Failed to parse message", { json });
-      }
-      return parsed;
-    } catch (e) {
-      this.log.terror("Failed to parse message as JSON", { rawMessage });
-      return null;
-    }
-  }
-
   public async listen(): Promise<void> {
+    const listenPort = new ServerPort<PortRegistryRequest>(
+      this.ns,
+      this.log,
+      PORTS[SERVICE_ID],
+      toPortRegistryRequest
+    );
+
     freePorts(this.ns).clear(); // TODO remove this once we have a safe restart mechanism
-    const listenPort = portRegistry(this.ns);
-    this.log.info("Listening", { port: PORTS[SERVICE_ID] });
+    listenPort.clear(); // TODO remove this once we have a safe restart mechanism
+    this.log.info("Listening", { port: listenPort.portNumber });
 
     let exit = false;
     while (!exit) {
+      this.populateFreePorts();
       if (listenPort.empty()) {
         this.freeLeakedPorts();
-        this.populateFreePorts();
         await Promise.any([this.ns.asleep(5000), listenPort.nextWrite()]);
         continue;
       }
 
-      const message = this.readRequest(listenPort);
+      const message = await listenPort.read();
       if (message === null) {
         continue;
       }
+      this.log.debug("Received message", { message });
 
       matchI(message)({
         exit: () => {
@@ -116,7 +109,7 @@ export class PortRegistryService {
         release: ({ port, hostname, pid }) => {
           const owner = this.reserved.get(port);
           if (owner === undefined) {
-            this.log.terror("Tried to release unseserved port", { port });
+            this.log.terror("Tried to release unreserved port", { port });
           } else if (owner.hostname !== hostname || owner.pid !== pid) {
             this.log.terror(
               "Tried to release port reserved by another process",

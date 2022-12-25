@@ -13,7 +13,7 @@ export async function main(ns: NS): Promise<void> {
   const host = posArgs[0];
 
   const log = new Log(ns, "simple-hack-distributed");
-  const portRegistry = new PortRegistryClient(ns);
+  const portRegistry = new PortRegistryClient(ns, log);
   const schedulerResponsePort = await portRegistry.reservePort();
   const scheduler = new SchedulerClient(ns, log, schedulerResponsePort);
 
@@ -33,11 +33,16 @@ export async function main(ns: NS): Promise<void> {
       await schedule(
         "weaken",
         host,
-        await weakenThreads(),
+        await calcMaxThreads("/bin/payloads/weaken.js"),
         ns.getWeakenTime(host)
       );
     } else if (await shouldGrow()) {
-      await schedule("grow", host, growThreads(), ns.getGrowTime(host));
+      await schedule(
+        "grow",
+        host,
+        await calcMaxThreads("/bin/payloads/grow.js"),
+        ns.getGrowTime(host)
+      );
     } else {
       await schedule("hack", host, await hackThreads(), ns.getHackTime(host));
     }
@@ -69,7 +74,7 @@ export async function main(ns: NS): Promise<void> {
     const minSecurity = ns.getServerMinSecurityLevel(host);
     const currentSecurity = ns.getServerSecurityLevel(host);
     const threshold =
-      (await db(ns)).config.simpleHack.securityThreshold + minSecurity;
+      (await db(ns, log)).config.simpleHack.securityThreshold + minSecurity;
 
     if (currentSecurity > threshold) {
       log.info("Security needs weakening", {
@@ -86,53 +91,24 @@ export async function main(ns: NS): Promise<void> {
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
     const threshold =
-      (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
+      (await db(ns, log)).config.simpleHack.moneyThreshold * moneyCapacity;
 
     if (moneyAvailable < threshold) {
       log.info("Money needs growing", {
         host,
-        moneyAvailable,
-        threshold,
+        moneyAvailable: fmt.money(moneyAvailable),
+        threshold: fmt.money(threshold),
       });
       return true;
     }
     return false;
   }
 
-  async function weakenThreads(): Promise<number> {
-    const minSecurity = ns.getServerMinSecurityLevel(host);
-    const currentSecurity = ns.getServerSecurityLevel(host);
-    const threshold =
-      (await db(ns)).config.simpleHack.securityThreshold + minSecurity;
-
-    if (currentSecurity <= threshold) {
-      return 0;
-    }
-
-    const WEAKEN_AMOUNT = 0.05; // Docs say so
-
-    // TODO account for cores
-    return Math.ceil((currentSecurity - threshold) / WEAKEN_AMOUNT);
-  }
-
-  function growThreads(): number {
-    const moneyAvailable = ns.getServerMoneyAvailable(host);
-    const moneyCapacity = ns.getServerMaxMoney(host);
-    const multiplier = moneyCapacity / moneyAvailable;
-
-    if (multiplier <= 1) {
-      return 0;
-    }
-
-    // TODO account for cores
-    return Math.ceil(ns.growthAnalyze(host, multiplier));
-  }
-
   async function hackThreads(): Promise<number> {
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
     const target =
-      (await db(ns)).config.simpleHack.moneyThreshold * moneyCapacity;
+      (await db(ns, log)).config.simpleHack.moneyThreshold * moneyCapacity;
     const amount = moneyAvailable - target;
 
     if (amount <= 0) {
@@ -143,21 +119,15 @@ export async function main(ns: NS): Promise<void> {
     return Math.ceil(ns.hackAnalyzeThreads(host, amount));
   }
 
-  /*
-  function calcMaxThreads(): number {
-    const maxRam = ns.getServerMaxRam(host);
+  async function calcMaxThreads(script: string): Promise<number> {
+    const { capacity } = await scheduler.capacity();
+    const maxRam = capacity.reduce((acc, cap) => acc + cap.freeMem, 0);
     const ramUsed = ns.getServerUsedRam(host);
     const ramAvailable = maxRam - ramUsed;
-    const scriptRam = ns.getScriptRam(ns.getScriptName());
+    const scriptRam = ns.getScriptRam(script);
     const maxThreads = Math.floor(ramAvailable / scriptRam);
-    ns.print(
-      `Free RAM: ${fmt.memory(ramAvailable)} / ${fmt.memory(
-        maxRam
-      )} scriptRam: ${fmt.memory(scriptRam)} -> max threads: ${maxThreads}`
-    );
-    return Math.floor(ramAvailable / scriptRam);
+    return maxThreads;
   }
-  */
 }
 
 export function autocomplete(data: AutocompleteData, args: string[]): string[] {

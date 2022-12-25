@@ -243,7 +243,7 @@ export async function withSchedulerClient<T>(
   log: Log,
   fn: (client: SchedulerClient) => Promise<T>
 ): Promise<T> {
-  const portRegistryClient = new PortRegistryClient(ns);
+  const portRegistryClient = new PortRegistryClient(ns, log);
   const port = await portRegistryClient.reservePort();
   const client = new SchedulerClient(ns, log, port);
   const retval = await fn(client);

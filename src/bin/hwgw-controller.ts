@@ -21,11 +21,11 @@ export async function main(ns: NS): Promise<void> {
   }
 
   const fmt = new Fmt(ns);
-  const spacing = async () => (await db(ns)).config.hwgw.spacing;
+  const spacing = async () => (await db(ns, log)).config.hwgw.spacing;
 
   autonuke(ns, host);
 
-  const portRegistryClient = new PortRegistryClient(ns);
+  const portRegistryClient = new PortRegistryClient(ns, log);
   const schedulerResponsePort = await portRegistryClient.reservePort();
   const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);
 
@@ -37,7 +37,7 @@ export async function main(ns: NS): Promise<void> {
         script: "/bin/hwgw-batch.js",
         args: [host, "--initial"],
         threads: 1,
-        hostAffinity: { _type: "mustRunOn", host: "home" },
+        hostAffinity: { _type: "preferToRunOn", host: "home" },
       },
       true
     );
@@ -57,7 +57,7 @@ export async function main(ns: NS): Promise<void> {
         script: "/bin/hwgw-batch.js",
         args: [host],
         threads: 1,
-        hostAffinity: { _type: "mustRunOn", host: "home" },
+        hostAffinity: { _type: "preferToRunOn", host: "home" },
       },
       false,
       null
@@ -119,7 +119,8 @@ export async function main(ns: NS): Promise<void> {
   async function shouldGrow(): Promise<boolean> {
     const moneyAvailable = ns.getServerMoneyAvailable(host);
     const moneyCapacity = ns.getServerMaxMoney(host);
-    const threshold = (await db(ns)).config.hwgw.moneyThreshold * moneyCapacity;
+    const threshold =
+      (await db(ns, log)).config.hwgw.moneyThreshold * moneyCapacity;
 
     if (moneyAvailable < threshold) {
       log.info("Money needs growing", {

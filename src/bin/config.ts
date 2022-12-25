@@ -11,7 +11,7 @@ export async function main(ns: NS): Promise<void> {
   if (command === "get") {
     const key = ns.args[1] as string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let obj = (await db(ns)).config as any;
+    let obj = (await db(ns, log)).config as any;
     if (key) {
       const path = key.split(".");
       for (const part of path) {
@@ -31,7 +31,7 @@ export async function main(ns: NS): Promise<void> {
       return;
     }
 
-    await dbLock(ns, "set", async (memdb) => {
+    await dbLock(ns, log, async (memdb) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let obj = memdb.config as any;
       const path = key.split(".");

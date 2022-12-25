@@ -1,15 +1,17 @@
 # TODOs
 
 * database service (with a lock queue)
-  * client: read the db from disk if we're on `home` (but always lock/write through the service)
-  * client: caching reader for config (with configurable TTL)
-* pid lookup occasionally fails because `getRunningScript()` is somehow null. centralize lookup to a single location and cache it.
+  * `db` CLI, supported by a `status` API call
+  * config cache class on top of `DatabaseClient` (with configurable TTL)
+  * compress the data put on the port with `lz-string`?
+  * turn into key-value database instead of a glorified file lock (Redis query syntax?)
 * logging lib
   * levels, filtering configured via `database.config`
 * `Scheduler`
   * add `status <job-id>`
   * add `tail <job-id>` (taskid=0)
   * add `tail <job-id>:<task-id>`
+  * add `drain <host>` for use when buying new servers
   * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?
   * extend `CrashWatcher` to alert if the `Scheduler` dies
@@ -43,5 +45,8 @@
   * add short option, do something fun there with hacking maybe?
 * `BuyWorkers`
   * make decisions without config
-* `Stats` service?
+* `Stats` service
+  * chart used/total capacity
+  * charts per hwgw controller
+  * charts for income per income source
 * persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)

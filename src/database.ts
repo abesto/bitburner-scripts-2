@@ -1,7 +1,10 @@
 import { NS } from '@ns';
 
 import { deepmerge } from 'deepmerge-ts';
-import { dbLockPort } from './ports';
+import { Log } from './log';
+import { DatabaseClient } from './services/Database/client';
+import { LockData } from './services/Database/types';
+import { PortRegistryClient } from './services/PortRegistry/client';
 import { Job, ServiceState } from './services/Scheduler/types';
 
 export type DB = {
@@ -29,6 +32,7 @@ export type DB = {
     };
   };
   scheduler: SchedulerDB;
+  meta: MetaDB;
 };
 
 export type SchedulerDB = {
@@ -38,7 +42,12 @@ export type SchedulerDB = {
   };
 };
 
-const DB_PATH = "/db.json.txt";
+export type MetaDB = {
+  lockQueue: LockData[];
+  currentLock: LockData | null;
+};
+
+export const DB_PATH = "/db.json.txt";
 
 export const DEFAULT_DB: DB = {
   config: {
@@ -66,83 +75,45 @@ export const DEFAULT_DB: DB = {
     jobs: {},
     services: {},
   },
-};
-
-type Lock = {
-  hostname: string;
-  pid: number;
-  status: "lock" | "unlock";
+  meta: { lockQueue: [], currentLock: null },
 };
 
 export async function dbLock(
   ns: NS,
-  what: string,
+  log: Log,
   fn: (db: DB) => Promise<DB | undefined>
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const pid = ns.getRunningScript()!.pid;
-  const port = dbLockPort(ns);
+  const portRegistryClient = new PortRegistryClient(ns, log);
+  const responsePort = await portRegistryClient.reservePort();
+  const databaseClient = new DatabaseClient(ns, log, responsePort);
+  const memdb = await databaseClient.lock();
 
-  while (!port.empty()) {
-    const { hostname, pid: owner } = JSON.parse(port.peek() as string) as Lock;
-    if (ns.ps(hostname).find((p) => p.pid === owner) === undefined) {
-      ns.print(`Found stale lock: ${hostname}/${owner}`);
-      port.clear();
-    } else {
-      ns.print(`Waiting for db lock: ${pid}/${what}`);
-      await port.nextWrite();
-    }
-  }
-  port.write(
-    JSON.stringify({ hostname: ns.getHostname(), pid, status: "lock" })
-  );
-  if ((await db(ns)).config.database.debugLocks) {
-    ns.print(`Got db lock: ${pid}/${what}`);
-  }
-
-  let retval;
+  let newDb;
   try {
-    const newDb = await fn(await db(ns));
-    if (newDb !== undefined) {
-      saveDb(ns, newDb);
-    }
+    newDb = await fn(memdb);
   } finally {
-    port.write(
-      JSON.stringify({ hostname: ns.getHostname(), pid, status: "unlock" })
-    );
-    port.clear();
-    if ((await db(ns)).config.database.debugLocks) {
-      ns.print(`Released db lock: ${pid}/${what}`);
+    if (newDb !== undefined) {
+      await databaseClient.writeAndUnlock(newDb);
+    } else {
+      await databaseClient.unlock();
     }
+    await portRegistryClient.releasePort(responsePort);
   }
-
-  return retval;
 }
 
-export async function db(ns: NS): Promise<DB> {
-  const hostname = ns.getHostname();
-  if (hostname !== "home" && ns.fileExists(DB_PATH, "home")) {
-    await ns.sleep(0);
-    if (!ns.scp(DB_PATH, hostname, "home")) {
-      throw new Error(`Failed to scp DB to ${hostname}`);
-    }
-    await ns.sleep(0);
-  }
-
+export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
   if (!ns.fileExists(DB_PATH)) {
     ns.write(DB_PATH, "{}", "w");
   }
 
-  const contents = JSON.parse(ns.read("/db.json"));
-  return deepmerge(DEFAULT_DB, contents);
-}
-
-function saveDb(ns: NS, db: DB): void {
-  ns.write(DB_PATH, JSON.stringify(db, null, 4), "w");
-
-  if (ns.getHostname() !== "home") {
-    if (!ns.scp(DB_PATH, "home")) {
-      throw new Error("Failed to scp DB to home");
-    }
+  let contents;
+  if (forceLocal || ns.getHostname() === "home") {
+    contents = JSON.parse(ns.read("/db.json"));
+  } else {
+    const portRegistryClient = new PortRegistryClient(ns, log);
+    const responsePort = await portRegistryClient.reservePort();
+    const databaseClient = new DatabaseClient(ns, log, responsePort);
+    contents = await databaseClient.read();
   }
+  return deepmerge(DEFAULT_DB, contents);
 }

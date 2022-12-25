@@ -1,5 +1,6 @@
 import { NetscriptPort, NS, PortData } from '@ns';
 
+import { SERVICE_ID as DATABASE } from './services/Database/types';
 import { SERVICE_ID as PORT_REGISTRY } from './services/PortRegistry/types';
 import { SERVICE_ID as SCHEDULER } from './services/Scheduler/types';
 
@@ -7,18 +8,11 @@ export const PORTS = {
   [SCHEDULER]: 1,
   [PORT_REGISTRY]: 4,
   FreePorts: 5,
+  [DATABASE]: 6,
 };
 
 export function supervisorControl(ns: NS): NetscriptPort {
   return ns.getPortHandle(PORTS[SCHEDULER]);
-}
-
-export function supervisorEvents(ns: NS): NetscriptPort {
-  return ns.getPortHandle(2);
-}
-
-export function dbLockPort(ns: NS): NetscriptPort {
-  return ns.getPortHandle(3);
 }
 
 export function portRegistry(ns: NS): NetscriptPort {

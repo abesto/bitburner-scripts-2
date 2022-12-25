@@ -1,7 +1,7 @@
 import { NS } from '@ns';
 
 import { autonuke } from '/autonuke';
-import { DB, db, dbLock } from '/database';
+import { DB, db } from '/database';
 import { discoverServers } from '/discoverServers';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
@@ -9,6 +9,8 @@ import { PORTS } from '/ports';
 import arrayShuffle from 'array-shuffle';
 import { matchI } from 'ts-adt';
 import { ClientPort, ServerPort } from '../common';
+import { DatabaseClient } from '../Database/client';
+import { PortRegistryClient } from '../PortRegistry/client';
 import {
     Capacity, capacityResponse, disableServiceResponse, enableServiceResponse, HostAffinity, Job,
     jobFinishedNotification, JobId, jobThreads, killJobResponse, reloadResponse,
@@ -24,19 +26,31 @@ import {
 
 export class SchedulerService {
   private readonly fmt: Fmt;
-  private readonly log: Log;
 
-  constructor(private readonly ns: NS) {
+  constructor(
+    private readonly ns: NS,
+    private readonly log: Log,
+    private readonly portRegistry: PortRegistryClient,
+    private readonly dbResponsePort: number,
+    private readonly db: DatabaseClient
+  ) {
     if (this.ns.getHostname() !== "home") {
       throw new Error("SchedulerService must be run on home");
     }
     this.fmt = new Fmt(ns);
-    this.log = new Log(ns, "Scheduler");
+  }
+
+  static async new(ns: NS): Promise<SchedulerService> {
+    const log = new Log(ns, "Scheduler");
+    const portRegistry = new PortRegistryClient(ns, log);
+    const dbResponsePort = await portRegistry.reservePort();
+    const db = new DatabaseClient(ns, log, dbResponsePort);
+    return new SchedulerService(ns, log, portRegistry, dbResponsePort, db);
   }
 
   async listen(): Promise<void> {
-    await this.doReload();
     await this.reviewServices();
+    await this.doReload();
 
     const listenPort = new ServerPort(
       this.ns,
@@ -77,6 +91,7 @@ export class SchedulerService {
       });
     }
 
+    await this.portRegistry.releasePort(this.dbResponsePort);
     this.log.info("Exiting");
   }
 
@@ -85,71 +100,84 @@ export class SchedulerService {
   }
 
   async reviewServices(): Promise<void> {
-    await dbLock(this.ns, "reviewServices", async (memdb) => {
-      const services = memdb.scheduler.services;
-      for (const name of Object.keys(services)) {
-        const service = services[name];
-        if (service.status._type === "running") {
-          const pid = service.status.pid;
-          const process = this.ns.getRunningScript(pid);
-          if (
-            process === null ||
-            process.filename !== this.serviceScript(name) ||
-            process.server !== service.status.hostname
-          ) {
-            service.status = {
-              ...service.status,
-              _type: "crashed",
-              crashedAt: Date.now(),
-            };
-            if (service.enabled) {
-              if ((await this.doStartService(service.spec, memdb)) === null) {
-                this.log.terror("Service crashed, restart failed", {
-                  service: name,
-                });
-              } else {
-                this.log.twarn("Service crashed, restart successful", {
-                  service: name,
-                });
-              }
+    const memdb = await this.db.lock();
+    const services = memdb.scheduler.services;
+    let save = false;
+
+    for (const name of Object.keys(services)) {
+      const service = services[name];
+      if (service.status._type === "running") {
+        const pid = service.status.pid;
+        const process = this.ns.getRunningScript(pid);
+        if (
+          process === null ||
+          process.filename !== this.serviceScript(name) ||
+          process.server !== service.status.hostname
+        ) {
+          service.status = {
+            ...service.status,
+            _type: "crashed",
+            crashedAt: Date.now(),
+          };
+          save = true;
+          if (service.enabled) {
+            if ((await this.doStartService(service.spec, memdb)) === null) {
+              this.log.terror("Service crashed, restart failed", {
+                service: name,
+              });
             } else {
-              this.log.terror(
-                "Service crashed, not restarting because it's disabled",
-                { service: name }
-              );
+              this.log.twarn("Service crashed, restart successful", {
+                service: name,
+              });
             }
+          } else {
+            this.log.terror(
+              "Service crashed, not restarting because it's disabled",
+              { service: name }
+            );
           }
         }
       }
-      return memdb;
-    });
+    }
+
+    if (save) {
+      await this.db.writeAndUnlock(memdb);
+    } else {
+      await this.db.unlock();
+    }
   }
 
   async startService(request: SchedulerRequest$StartService): Promise<void> {
-    await dbLock(this.ns, "doStartService", async (memdb) => {
-      const service = memdb.scheduler.services[request.serviceName];
+    const memdb = await this.db.lock();
+    const service = memdb.scheduler.services[request.serviceName];
 
-      const port = new ClientPort<SchedulerResponse>(
-        this.ns,
-        this.log,
-        request.responsePort
-      );
-      if (service === undefined) {
-        await port.write(startServiceResponseNotFound());
-        return;
-      }
-      if (service.status._type === "running") {
-        await port.write(startServiceResponseAlreadyRunning());
-        return;
-      }
-      const status = await this.doStartService(service.spec, memdb);
-      if (status === null) {
-        await port.write(startServiceResponseFailedToStart());
-        return;
-      }
-      await port.write(startServiceResponseOk(status));
-      return memdb;
-    });
+    const port = new ClientPort<SchedulerResponse>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+
+    if (service === undefined) {
+      await port.write(startServiceResponseNotFound());
+      await this.db.unlock();
+      return;
+    }
+
+    if (service.status._type === "running") {
+      await port.write(startServiceResponseAlreadyRunning());
+      await this.db.unlock();
+      return;
+    }
+
+    const status = await this.doStartService(service.spec, memdb);
+    if (status === null) {
+      await port.write(startServiceResponseFailedToStart());
+      await this.db.unlock();
+      return;
+    }
+
+    await port.write(startServiceResponseOk(status));
+    await this.db.writeAndUnlock(memdb);
   }
 
   protected async doStartService(
@@ -199,71 +227,73 @@ export class SchedulerService {
   }
 
   async stopService(request: SchedulerRequest$StopService): Promise<void> {
-    await dbLock(this.ns, "stopService", async (memdb) => {
-      const service = memdb.scheduler.services[request.serviceName];
-      const port = new ClientPort<SchedulerResponse>(
-        this.ns,
-        this.log,
-        request.responsePort
-      );
-      if (service === undefined) {
-        await port.write(stopServiceResponse("not-found"));
-        return;
-      }
-      const stopResult = await this.doStopService(service.spec.name, memdb);
-      await port.write(stopServiceResponse(stopResult));
-      return memdb;
-    });
+    const memdb = await this.db.lock();
+    const service = memdb.scheduler.services[request.serviceName];
+    const port = new ClientPort<SchedulerResponse>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+    if (service === undefined) {
+      await this.db.unlock();
+      await port.write(stopServiceResponse("not-found"));
+      return;
+    }
+    const stopResult = await this.doStopService(service.spec.name, memdb);
+    await port.write(stopServiceResponse(stopResult));
+    await this.db.writeAndUnlock(memdb);
   }
 
   async enableService(request: SchedulerRequest$EnableService): Promise<void> {
-    await dbLock(this.ns, "enableService", async (memdb) => {
-      const service = memdb.scheduler.services[request.serviceName];
-      const port = new ClientPort<SchedulerResponse>(
-        this.ns,
-        this.log,
-        request.responsePort
-      );
-      if (service === undefined) {
-        await port.write(enableServiceResponse("not-found"));
-        return;
-      }
-      if (service.enabled) {
-        await port.write(enableServiceResponse("already-enabled"));
-        return;
-      }
-      service.enabled = true;
-      await port.write(enableServiceResponse("ok"));
-      return memdb;
-    });
+    const memdb = await this.db.lock();
+    const service = memdb.scheduler.services[request.serviceName];
+    const port = new ClientPort<SchedulerResponse>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+    if (service === undefined) {
+      await this.db.unlock();
+      await port.write(enableServiceResponse("not-found"));
+      return;
+    }
+    if (service.enabled) {
+      await this.db.unlock();
+      await port.write(enableServiceResponse("already-enabled"));
+      return;
+    }
+    service.enabled = true;
+    await port.write(enableServiceResponse("ok"));
+    await this.db.writeAndUnlock(memdb);
   }
 
   async disableService(
     request: SchedulerRequest$DisableService
   ): Promise<void> {
-    await dbLock(this.ns, "disableService", async (memdb) => {
-      const service = memdb.scheduler.services[request.serviceName];
-      const port = new ClientPort<SchedulerResponse>(
-        this.ns,
-        this.log,
-        request.responsePort
-      );
-      if (service === undefined) {
-        await port.write(disableServiceResponse("not-found"));
-        return;
-      }
-      if (!service.enabled) {
-        await port.write(disableServiceResponse("already-disabled"));
-        return;
-      }
-      service.enabled = false;
-      await port.write(disableServiceResponse("ok"));
-      return memdb;
-    });
+    const memdb = await this.db.lock();
+    const service = memdb.scheduler.services[request.serviceName];
+    const port = new ClientPort<SchedulerResponse>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+    if (service === undefined) {
+      await this.db.unlock();
+      await port.write(disableServiceResponse("not-found"));
+      return;
+    }
+    if (!service.enabled) {
+      await this.db.unlock();
+      await port.write(disableServiceResponse("already-disabled"));
+      return;
+    }
+    service.enabled = false;
+    await port.write(disableServiceResponse("ok"));
+    await this.db.writeAndUnlock(memdb);
   }
 
   async serviceStatus(request: SchedulerRequest$ServiceStatus): Promise<void> {
-    const memdb = await db(this.ns);
+    const memdb = await db(this.ns, this.log, true);
     const service = memdb.scheduler.services[request.serviceName];
     await new ClientPort<SchedulerResponse>(
       this.ns,
@@ -280,7 +310,7 @@ export class SchedulerService {
   }
 
   async serviceLogs(name: string): Promise<string[]> {
-    const memdb = await db(this.ns);
+    const memdb = await db(this.ns, this.log, true);
     const service = memdb.scheduler.services[name];
     if (service === undefined) {
       return [];
@@ -321,55 +351,55 @@ export class SchedulerService {
     const discovered: string[] = [];
     const removed: string[] = [];
     const updated: string[] = [];
-    await dbLock(this.ns, "reload", async (memdb) => {
-      this.log.info("Reloading services");
-      const raw: {
-        [name: string]: {
-          hostAffinity?: HostAffinity;
-          enableWhenDiscovered?: boolean;
+    const memdb = await this.db.lock();
+    this.log.info("Reloading services");
+    const raw: {
+      [name: string]: {
+        hostAffinity?: HostAffinity;
+        enableWhenDiscovered?: boolean;
+      };
+    } = JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
+
+    for (const name of Object.keys(memdb.scheduler.services)) {
+      if (raw[name] === undefined) {
+        removed.push(name);
+        await this.doStopService(name, memdb);
+        this.log.info("Removed service", { service: name });
+      }
+    }
+
+    for (const [name, spec] of Object.entries(raw)) {
+      const newSpec: ServiceSpec = { name, hostAffinity: spec.hostAffinity };
+      if (memdb.scheduler.services[name] === undefined) {
+        discovered.push(name);
+        this.log.info("Discovered service", { service: name });
+        memdb.scheduler.services[name] = {
+          spec: newSpec,
+          enabled: spec.enableWhenDiscovered !== false,
+          status: { _type: "new" },
         };
-      } = JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
-
-      for (const name of Object.keys(memdb.scheduler.services)) {
-        if (raw[name] === undefined) {
-          removed.push(name);
+        if (spec.enableWhenDiscovered !== false) {
+          await this.doStartService({ name, ...spec }, memdb);
+        }
+      } else {
+        if (
+          JSON.stringify(memdb.scheduler.services[name].spec) !==
+          JSON.stringify(newSpec)
+        ) {
+          updated.push(name);
+          this.log.info("Updated service", { service: name });
+          memdb.scheduler.services[name].spec = newSpec;
           await this.doStopService(name, memdb);
-          this.log.info("Removed service", { service: name });
+          await this.doStartService(newSpec, memdb);
         }
       }
+    }
 
-      for (const [name, spec] of Object.entries(raw)) {
-        const newSpec: ServiceSpec = { name, hostAffinity: spec.hostAffinity };
-        if (memdb.scheduler.services[name] === undefined) {
-          discovered.push(name);
-          this.log.info("Discovered service", { service: name });
-          memdb.scheduler.services[name] = {
-            spec: newSpec,
-            enabled: spec.enableWhenDiscovered !== false,
-            status: { _type: "new" },
-          };
-          if (spec.enableWhenDiscovered !== false) {
-            await this.doStartService({ name, ...spec }, memdb);
-          }
-        } else {
-          if (
-            JSON.stringify(memdb.scheduler.services[name].spec) !==
-            JSON.stringify(newSpec)
-          ) {
-            updated.push(name);
-            this.log.info("Updated service", { service: name });
-            memdb.scheduler.services[name].spec = newSpec;
-            await this.doStopService(name, memdb);
-            await this.doStartService(newSpec, memdb);
-          }
-        }
-      }
-
-      if (discovered.length > 0 || removed.length > 0 || updated.length > 0) {
-        return memdb;
-      }
-      return;
-    });
+    if (discovered.length > 0 || removed.length > 0 || updated.length > 0) {
+      await this.db.writeAndUnlock(memdb);
+    } else {
+      await this.db.unlock();
+    }
     return reloadResponse({ discovered, removed, updated });
   }
 
@@ -419,7 +449,7 @@ export class SchedulerService {
 
   async status(request: SchedulerRequest$Status): Promise<void> {
     await this.reviewServices();
-    const memdb = await db(this.ns);
+    const memdb = await db(this.ns, this.log, true);
     const jobs = memdb.scheduler.jobs;
     const services = memdb.scheduler.services;
     await new ClientPort<SchedulerResponse>(
@@ -430,7 +460,7 @@ export class SchedulerService {
   }
 
   async killAll(): Promise<void> {
-    const jobs = await (await db(this.ns)).scheduler.jobs;
+    const jobs = await (await db(this.ns, this.log)).scheduler.jobs;
     for (const job of Object.values(jobs)) {
       await this.doKillJob(job.id);
     }
@@ -449,17 +479,17 @@ export class SchedulerService {
   private async doKillJob(jobId: JobId): Promise<"ok" | "not-found"> {
     let retval: "ok" | "not-found" = "ok";
     const log = this.log.scope("doKillJob");
-    await dbLock(this.ns, "doKillJob", async (memdb) => {
-      const job = memdb.scheduler.jobs[jobId];
-      if (job === undefined) {
-        log.terror("Could not find job", { jobId });
-        retval = "not-found";
-        return;
-      }
-      if (job.id !== jobId) {
-        log.terror("Job ID mismatch", { jobId, onObject: job.id });
-      }
+    const memdb = await this.db.lock();
+    const job = memdb.scheduler.jobs[jobId];
 
+    if (job === undefined) {
+      log.terror("Could not find job", { jobId });
+      retval = "not-found";
+      await this.db.unlock();
+    } else if (job.id !== jobId) {
+      log.terror("Job ID mismatch", { jobId, onObject: job.id });
+      await this.db.unlock();
+    } else {
       for (const task of Object.values(job.tasks)) {
         this.ns.kill(task.pid);
         log.info("Killed task", {
@@ -470,79 +500,83 @@ export class SchedulerService {
         });
       }
       delete memdb.scheduler.jobs[jobId];
+      await this.db.writeAndUnlock(memdb);
       log.info("Killed job", {
         jobId,
         script: job.spec.script,
         args: job.spec.args,
       });
-      return memdb;
-    });
+    }
+
     return retval;
   }
 
   async taskFinished(request: SchedulerRequest$TaskFinished): Promise<void> {
     const { jobId, taskId, crash } = request;
     const log = this.log.scope("taskFinished");
-    await dbLock(this.ns, "finished", async (memdb) => {
-      const job = memdb.scheduler.jobs[jobId];
-      if (job === undefined) {
-        if (!crash) {
-          log.warn("Could not find job", { jobId });
-        }
-        return;
+    const memdb = await this.db.lock();
+    const job = memdb.scheduler.jobs[jobId];
+    if (job === undefined) {
+      if (!crash) {
+        log.warn("Could not find job", { jobId });
       }
-      if (job.id !== jobId) {
-        log.terror("Job ID mismatch", { jobId, onObject: job.id });
-        return;
-      }
+      await this.db.unlock();
+      return;
+    }
+    if (job.id !== jobId) {
+      log.terror("Job ID mismatch", { jobId, onObject: job.id });
+      await this.db.unlock();
+      return;
+    }
 
-      const task = job.tasks[taskId];
-      if (task === undefined) {
-        if (!crash) {
-          log.twarn("Could not find task", { taskId });
-        }
-        return;
+    const task = job.tasks[taskId];
+    if (task === undefined) {
+      if (!crash) {
+        log.twarn("Could not find task", { taskId });
       }
-      if (task.id !== taskId) {
-        log.terror("Task ID mismatch", { taskId, onObject: task.id });
-        return;
-      }
+      await this.db.unlock();
+      return;
+    }
+    if (task.id !== taskId) {
+      log.terror("Task ID mismatch", { taskId, onObject: task.id });
+      await this.db.unlock();
+      return;
+    }
 
-      log.info("Task finished", {
+    log.info("Task finished", {
+      job: job.id,
+      task: task.id,
+      hostname: task.hostname,
+      pid: task.pid,
+      script: job.spec.script,
+      args: job.spec.args,
+      threads: task.threads,
+    });
+    delete job.tasks[taskId];
+
+    if (Object.keys(job.tasks).length === 0) {
+      log.info("Job finished", {
         job: job.id,
-        task: task.id,
-        hostname: task.hostname,
-        pid: task.pid,
         script: job.spec.script,
         args: job.spec.args,
-        threads: task.threads,
+        threads: job.spec.threads,
       });
-      delete job.tasks[taskId];
+      delete memdb.scheduler.jobs[jobId];
 
-      if (Object.keys(job.tasks).length === 0) {
-        log.info("Job finished", {
-          job: job.id,
-          script: job.spec.script,
-          args: job.spec.args,
-          threads: job.spec.threads,
-        });
-        delete memdb.scheduler.jobs[jobId];
-
-        const { finishNotificationPort } = job;
-        if (
-          finishNotificationPort !== undefined &&
-          finishNotificationPort !== null
-        ) {
-          const clientPort = new ClientPort<SchedulerResponse>(
-            this.ns,
-            this.log,
-            finishNotificationPort
-          );
-          await clientPort.write(jobFinishedNotification(job.id));
-        }
+      const { finishNotificationPort } = job;
+      if (
+        finishNotificationPort !== undefined &&
+        finishNotificationPort !== null
+      ) {
+        const clientPort = new ClientPort<SchedulerResponse>(
+          this.ns,
+          this.log,
+          finishNotificationPort
+        );
+        await clientPort.write(jobFinishedNotification(job.id));
       }
-      return memdb;
-    });
+    }
+    await this.db.writeAndUnlock(memdb);
   }
 
   protected async hostCandidates(
@@ -660,10 +694,9 @@ export class SchedulerService {
 
     const scheduled = jobThreads(job);
     if (scheduled > 0) {
-      await dbLock(this.ns, "start", async (memdb) => {
-        memdb.scheduler.jobs[job.id] = job;
-        return memdb;
-      });
+      const memdb = await this.db.lock();
+      memdb.scheduler.jobs[job.id] = job;
+      await this.db.writeAndUnlock(memdb);
     }
 
     if (scheduled < threads) {
@@ -734,17 +767,18 @@ export class SchedulerService {
       if (!autonuke(this.ns, hostname)) {
         continue;
       }
-      const server = this.ns.getServer(hostname);
-      let freeMem = server.maxRam - this.ns.getServerUsedRam(hostname);
+      const maxRam = this.ns.getServerMaxRam(hostname);
+      let freeMem = maxRam - this.ns.getServerUsedRam(hostname);
       if (hostname === "home") {
-        freeMem -= (await db(this.ns)).config.scheduler.reserveHomeRam;
+        freeMem -= (await db(this.ns, this.log, true)).config.scheduler
+          .reserveHomeRam;
         freeMem = Math.max(0, freeMem);
       }
       capacities.push({
         hostname,
         freeMem,
-        totalMem: server.maxRam,
-        cores: server.cpuCores,
+        totalMem: maxRam,
+        cores: 1, // TODO: Support multi-core servers
       });
     }
     return capacities;

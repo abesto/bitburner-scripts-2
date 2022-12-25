@@ -2,6 +2,7 @@
 import { NS } from '@ns';
 
 import { Fmt } from '/fmt';
+import { getProcessInfo } from '/procinfo';
 
 export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
@@ -75,11 +76,9 @@ export async function main(ns: NS): Promise<void> {
       }
     }
 
-    if (
-      !ns.isRunning(ns.getRunningScript()!.filename, ns.getHostname(), "watch")
-    ) {
+    if (!ns.isRunning(getProcessInfo(ns).filename, ns.getHostname(), "watch")) {
       print("Starting stock watcher");
-      await ns.run(ns.getRunningScript()!.filename, 1, "watch");
+      await ns.run(getProcessInfo(ns).filename, 1, "watch");
     }
   }
 

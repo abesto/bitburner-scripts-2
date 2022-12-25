@@ -157,6 +157,15 @@ export async function main(ns: NS): Promise<void> {
       smallestChunk: fmt.memory(smallestChunk || 0),
       largestChunk: fmt.memory(largestChunk || 0),
     });
+    if (args.verbose as boolean) {
+      for (const host of capacity) {
+        log.tinfo("  host", {
+          hostname: host.hostname,
+          totalMem: fmt.memory(host.totalMem),
+          freeMem: fmt.memory(host.freeMem),
+        });
+      }
+    }
   }
 
   async function reload() {

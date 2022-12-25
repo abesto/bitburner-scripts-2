@@ -1,26 +1,12 @@
 import { NS } from '@ns';
 
-import { db } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 
 export async function main(ns: NS): Promise<void> {
-  const log = new Log(ns, "BuyWorkers");
+  const log = new Log(ns, "buy-server");
   const fmt = new Fmt(ns);
-
-  const config = async () => (await db(ns, log)).config.autobuyServers;
-  const reserveMoney = async () =>
-    fmt.parseMoney((await config()).reserveMoney);
-  const buyAt = async () => fmt.parseMoney((await config()).buyAt);
-  const interval = async () => (await config()).intervalMs;
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    if (ns.getPlayer().money >= (await buyAt())) {
-      await purchaseWorkers();
-    }
-    await ns.sleep(await interval());
-  }
+  await purchaseWorkers();
 
   async function deleteWeakestWorker(keep: number): Promise<string | null> {
     const server = ns
@@ -36,15 +22,11 @@ export async function main(ns: NS): Promise<void> {
       //ns.print(`Not deleting weakest worker, it's too big: ${server} (${ns.getServerMaxRam(server)}GB > ${keep}GB)`);
       return null;
     }
-    log.info("Deleting weakest server", {
-      server,
-      ram: fmt.memory(ns.getServerMaxRam(server)),
-    });
     for (const p of ns.ps(server)) {
       ns.kill(p.filename, server, ...p.args);
     }
     if (!ns.deleteServer(server)) {
-      log.error("Failed to delete server", { server });
+      log.terror("Failed to delete server", { server });
     }
     return server;
   }
@@ -56,7 +38,7 @@ export async function main(ns: NS): Promise<void> {
 
   async function biggestAffordableServer(): Promise<number> {
     let ram = 8;
-    const money = ns.getPlayer().money - (await reserveMoney());
+    const money = ns.getPlayer().money;
     if (ns.getPurchasedServerCost(ram) > money) {
       return 0;
     }
@@ -88,7 +70,7 @@ export async function main(ns: NS): Promise<void> {
       }
       const hostname = ns.purchaseServer(`worker-${index}`, ram);
       result.purchased.push(hostname);
-      log.info("Purchased server", { hostname, ram: fmt.memory(ram) });
+      log.tinfo("Purchased server", { hostname, ram: fmt.memory(ram) });
     }
 
     return result;

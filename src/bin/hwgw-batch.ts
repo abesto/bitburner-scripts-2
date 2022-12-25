@@ -13,6 +13,7 @@ export async function main(ns: NS): Promise<void> {
     ["job", ""],
     ["task", -1],
     ["initial", false],
+    ["dry-run", false],
   ]);
   const host = (args._ as string[])[0];
   const jobId = args["job"] as string;
@@ -21,13 +22,13 @@ export async function main(ns: NS): Promise<void> {
 
   if (!host || !jobId || taskId < 0) {
     log.terror(
-      "Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial]",
+      "Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial] [--dry-run]",
       { args }
     );
     return;
   }
 
-  const portRegistryClient = new PortRegistryClient(ns);
+  const portRegistryClient = new PortRegistryClient(ns, log);
 
   async function finished() {
     const schedulerClient = new NoResponseSchedulerClient(ns, log);
@@ -37,19 +38,12 @@ export async function main(ns: NS): Promise<void> {
     }
   }
 
-  try {
-    await db(ns);
-  } catch (e) {
-    log.terror("Failed to get DB", { e });
-    await finished();
-    return;
-  }
-
-  const spacing = (await db(ns)).config.hwgw.spacing;
+  const memdb = await db(ns, log);
+  const spacing = memdb.config.hwgw.spacing;
 
   const moneyMax = ns.getServerMaxMoney(host);
   const moneyStolenPerThread = ns.hackAnalyze(host) * moneyMax;
-  const moneyThreshold = moneyMax * (await db(ns)).config.hwgw.moneyThreshold;
+  const moneyThreshold = moneyMax * memdb.config.hwgw.moneyThreshold;
   const moneySteal = moneyMax - moneyThreshold;
 
   const wantHackThreads = Math.floor(moneySteal / moneyStolenPerThread);

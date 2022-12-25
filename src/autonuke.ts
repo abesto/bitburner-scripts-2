@@ -28,12 +28,10 @@ export function autonuke(ns: NS, host: string): boolean {
     ns.relaysmtp(host);
   }
 
-  const requiredPorts = ns.getServerNumPortsRequired(host);
-  const ports = ns.getServer(host).openPortCount;
-  if (ports < requiredPorts) {
+  try {
+    ns.nuke(host);
+    return true;
+  } catch (e) {
     return false;
   }
-
-  ns.nuke(host);
-  return true;
 }

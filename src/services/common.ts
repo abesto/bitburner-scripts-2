@@ -78,4 +78,16 @@ export class ServerPort<T> {
       return null;
     }
   }
+
+  empty(): boolean {
+    return this.port.empty();
+  }
+
+  nextWrite(): Promise<void> {
+    return this.port.nextWrite();
+  }
+
+  clear(): void {
+    this.port.clear();
+  }
 }

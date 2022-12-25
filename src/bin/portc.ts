@@ -11,7 +11,7 @@ export async function main(ns: NS): Promise<void> {
   const posArgs = args._ as string[];
   const command = posArgs[0];
 
-  const client = new PortRegistryClient(ns);
+  const client = new PortRegistryClient(ns, log);
 
   if (command === "status") {
     const status = await client.status();
