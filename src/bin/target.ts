@@ -2,8 +2,15 @@ import { NS } from '@ns';
 
 import { discoverServers } from '/discoverServers';
 import { Fmt } from '/fmt';
+import HwgwEstimator from '/HwgwEstimator';
+import { Log } from '/log';
 
 export async function main(ns: NS): Promise<void> {
+  const log = new Log(ns, "target");
+  const estimator = new HwgwEstimator(ns);
+  const args = ns.flags([["money-threshold", 0]]);
+  const moneyThresholdConfig = args["money-threshold"] as number;
+
   const hackingLevelThreshold = ns.getPlayer().skills.hacking / 3;
   const servers = discoverServers(ns);
 
@@ -24,11 +31,17 @@ export async function main(ns: NS): Promise<void> {
   for (const server of servers.slice(0, 20)) {
     const maxMoney = ns.getServerMaxMoney(server);
     const requiredHackingLevel = ns.getServerRequiredHackingLevel(server);
-    ns.tprint(
-      `${server}: maxMoney=${fmt.money(
-        maxMoney
-      )} hackingLevel=${requiredHackingLevel}`
-    );
+    if (maxMoney === 0) {
+      continue;
+    }
+
+    const estimate = await estimator.stable(server, moneyThresholdConfig);
+    log.tinfo(server, {
+      maxMoney: fmt.money(maxMoney),
+      hackLevel: requiredHackingLevel,
+      ...estimate,
+      peakRam: fmt.memory(estimate.peakRam),
+    });
   }
 }
 
