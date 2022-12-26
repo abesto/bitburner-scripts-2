@@ -51,7 +51,7 @@ export class DatabaseClient extends BaseClient<
       {
         lock: (response) => JSON.parse(response.content) as DB,
       },
-      { readTimeout: null }
+      { readTimeout: 0 }
     );
   }
 

@@ -34,6 +34,13 @@ export async function main(ns: NS): Promise<void> {
   const portRegistryClient = new PortRegistryClient(ns, log);
   const vizClient = new HwgwBatchVizClient(ns, log);
 
+  if (initial) {
+    ns.tail();
+    await ns.sleep(0);
+    ns.resizeTail(1000, 400);
+    ns.moveTail(1400, 0);
+  }
+
   async function finished() {
     const schedulerClient = new NoResponseSchedulerClient(ns, log);
     await schedulerClient.taskFinished(jobId, taskId);

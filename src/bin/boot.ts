@@ -25,8 +25,10 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  ns.clearPort(PORTS.FreePorts);
-  log.tinfo("Cleared FreePorts");
+  for (const port of Object.values(PORTS)) {
+    ns.clearPort(port);
+  }
+  log.tinfo("Cleared all service ports");
 
   const dbPid = ns.run(DATABASE);
   if (dbPid === 0) {

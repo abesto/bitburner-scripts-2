@@ -18,6 +18,9 @@ export type DB = {
     hwgw: {
       moneyThreshold: number;
       spacing: number;
+      batchViz: {
+        centerBias: number;
+      };
     };
     scheduler: {
       reserveHomeRam: number;
@@ -61,6 +64,9 @@ export const DEFAULT_DB: DB = {
     hwgw: {
       moneyThreshold: 0.5,
       spacing: 500,
+      batchViz: {
+        centerBias: 0.5,
+      },
     },
     scheduler: {
       reserveHomeRam: 8,

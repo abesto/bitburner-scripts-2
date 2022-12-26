@@ -61,7 +61,7 @@ export class SchedulerService {
 
     let exit = false;
     while (!exit) {
-      const request = await listenPort.read(null);
+      const request = await listenPort.read({ timeout: 0 });
       if (request === null) {
         continue;
       }

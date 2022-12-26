@@ -56,10 +56,12 @@ export abstract class BaseClient<
   >(
     request: Request,
     matcher: M,
-    options: { readTimeout?: number | null } = {}
+    options: { readTimeout?: number } = {}
   ): Promise<Ret> {
     await this.send(request);
-    const response = await this.responsePort.read(options.readTimeout);
+    const response = await this.responsePort.read({
+      timeout: options.readTimeout,
+    });
     return this.handleResponse(response, matcher);
   }
 

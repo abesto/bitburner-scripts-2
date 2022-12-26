@@ -14,19 +14,23 @@ export class ServerPort<T> {
     this.port = ns.getPortHandle(portNumber);
   }
 
-  async read(
-    timeout: number | undefined | null = undefined
-  ): Promise<T | null> {
-    if (timeout === undefined) {
-      timeout = 5000;
-    }
+  async read(options?: {
+    timeout?: number;
+    throwOnTimeout?: boolean;
+  }): Promise<T | null> {
+    const timeout = options?.timeout ?? 5000;
+    const throwOnTimeout = options?.throwOnTimeout ?? true;
     if (this.port.empty()) {
       const promise =
-        timeout === null
+        timeout === 0
           ? this.port.nextWrite()
           : Promise.any([this.port.nextWrite(), this.ns.asleep(timeout)]);
       if (await promise) {
-        throw new Error(`Timeout reading from port ${this.portNumber}`);
+        if (throwOnTimeout) {
+          throw new Error(`Timeout reading from port ${this.portNumber}`);
+        } else {
+          return null;
+        }
       }
     }
     const data = this.port.read();

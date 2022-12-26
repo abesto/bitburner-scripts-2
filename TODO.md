@@ -1,9 +1,17 @@
 # TODOs
 
+* hwgw logic
+  * Stalefish `max_depth` through config
+  * kill batches if `depth * period` changes
+  * use `Formulas`-based calculation in `stalefish` while `hacking` skill changes rapidly?
+  * safety checks
+    * money on server is good; kill & prepare if not
+    * security on server is good; kill & prepare if not
+    * if we fail to schedule all tasks in `hwgw-batch`, kill the whole batch
+  * `hwgw-controller`: kill all processes against the target on startup?
+  * fix preparation calculation (which is the same calculation as used for regular threads, so... concern.)
 * `HwgwBatchViz` service
-  * Configure: bias for past vs future jobs (`howCenter` multiplier)
   * Configure: filter for host
-  * Add command to open log window with correct size
   * Try to get more resolution somehow
 * Create `Hwgw` service
   * manage multiple `hwgw-controller`s
@@ -16,8 +24,6 @@
   * config cache class on top of `DatabaseClient` (with configurable TTL)
   * compress the data put on the port with `lz-string`? (we're more CPU bottlenecked though I think)
   * turn into key-value database instead of a glorified file lock (Redis query syntax?)
-* logging lib
-  * levels, filtering configured via `database.config`
 * `Scheduler` service
   * add `status <job-id>`
   * add `drain <host>` for use when buying new servers
@@ -26,17 +32,10 @@
   * extend `CrashWatcher` to alert if the `Scheduler` dies
   * include core count in 1. scheduling decisions 2. thread count accounting
 * `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
-* hwgw logic
-  * Stalefish `max_depth` through config
-  * kill batches if `depth * period` changes
-  * use `Formulas`-based calculation in `stalefish` while `hacking` skill changes rapidly?
-  * safety checks
-    * money on server is good; kill & prepare if not
-    * security on server is good; kill & prepare if not
-    * if we fail to schedule all tasks in `hwgw-batch`, kill the whole batch
-  * `hwgw-controller`: kill all processes against the target on startup?
 * `PortRegistry` service
   * implement safe restart (transfer internal state)
 * `BuyWorkers`
   * make decisions without config
 * persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)
+* logging lib
+  * levels, filtering configured via `database.config`

@@ -9,5 +9,10 @@ export async function main(ns: NS): Promise<void> {
     const height = ns.args[2] as number;
     const pid = ns.args[3] as number;
     ns.resizeTail(width, height, pid);
+  } else if (command === "m" || command === "move") {
+    const x = ns.args[1] as number;
+    const y = ns.args[2] as number;
+    const pid = ns.args[3] as number;
+    ns.moveTail(x, y, pid);
   }
 }

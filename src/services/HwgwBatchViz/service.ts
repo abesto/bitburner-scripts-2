@@ -161,14 +161,14 @@ export class HwgwBatchVizService {
     this.log.info(`Listening on port ${port.portNumber}`);
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const spacing = (await db(this.ns, this.log)).config.hwgw.spacing;
-      while (!port.empty()) {
-        const request = await port.read();
-        if (request !== null) {
-          await this.handleRequest(request);
-        } else {
-          await this.ns.sleep(spacing);
-        }
+      const memdb = await db(this.ns, this.log);
+      const spacing = memdb.config.hwgw.spacing;
+      const request = await port.read({
+        timeout: spacing,
+        throwOnTimeout: false,
+      });
+      if (request !== null) {
+        await this.handleRequest(request);
       }
 
       /*
@@ -188,7 +188,9 @@ export class HwgwBatchVizService {
       this.lastUpdate = now;
 
       const howCentered = (job: JobState) => {
-        const center = (job.plannedStart + job.plannedEnd) * 0.25;
+        const center =
+          (job.plannedStart + job.plannedEnd) *
+          memdb.config.hwgw.batchViz.centerBias;
         return Math.abs(center - now);
       };
 

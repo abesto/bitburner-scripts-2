@@ -57,7 +57,9 @@ export class DatabaseService {
         await Promise.any([listenPort.nextWrite(), this.ns.asleep(5000)]);
         continue;
       }
-      const request = await listenPort.read(null);
+      const request = await listenPort.read({
+        timeout: 0,
+      });
       if (request === null) {
         continue;
       }

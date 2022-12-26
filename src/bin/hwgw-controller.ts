@@ -37,15 +37,12 @@ export async function main(ns: NS): Promise<void> {
   if (!skipPrepare) {
     log.info("Initial preparation: weaken, grow, weaken");
     while (shouldWeaken() || (await shouldGrow())) {
-      const { jobId, threads } = await schedulerClient.start(
-        {
-          script: "/bin/hwgw-batch.js",
-          args: [host, "--initial"],
-          threads: 1,
-          hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
-        },
-        true
-      );
+      const { jobId, threads } = await schedulerClient.start({
+        script: "/bin/hwgw-batch.js",
+        args: [host, "--initial"],
+        threads: 1,
+        hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
+      });
       if (threads === 0) {
         log.info("Failed to start initial batch, sleeping then trying again");
         await ns.sleep(1000);
@@ -60,8 +57,8 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   ns.tail();
   await ns.sleep(0);
+  ns.moveTail(1270, 410);
   ns.resizeTail(1280, 930);
-  const monitorResolution = 3;
   const monitor = await Monitor.new(ns, log, host);
 
   // eslint-disable-next-line no-constant-condition
@@ -91,9 +88,9 @@ export async function main(ns: NS): Promise<void> {
       null
     );
 
-    for (let i = 0; i < 5 * monitorResolution; i++) {
+    for (let i = 0; i < 5; i++) {
       await monitor.report(period, depth);
-      await ns.sleep(period / monitorResolution);
+      await ns.sleep(period / 5);
     }
   }
 
@@ -173,10 +170,11 @@ function stalefish(
 }
 
 type ThreadMetrics = [started: number[], running: number[], finished: number[]];
+type SimpleMetrics = [min: number[], max: number[], current: number[]];
 
 interface Metrics {
-  money: number[];
-  security: number[];
+  money: SimpleMetrics;
+  security: SimpleMetrics;
   hack: ThreadMetrics;
   grow: ThreadMetrics;
   weaken: ThreadMetrics;
@@ -185,8 +183,8 @@ interface Metrics {
 class Monitor {
   private readonly fmt: Fmt;
   private metrics: Metrics = {
-    money: [],
-    security: [],
+    money: [[], [], []],
+    security: [[], [], []],
     hack: [[], [], []],
     grow: [[], [], []],
     weaken: [[], [], []],
@@ -224,6 +222,17 @@ class Monitor {
     if (metrics.length > this.history) {
       metrics.shift();
     }
+  }
+
+  protected recordSimple(
+    metrics: SimpleMetrics,
+    min: number,
+    current: number,
+    max: number
+  ): void {
+    this.recordOne(metrics[0], min);
+    this.recordOne(metrics[1], max);
+    this.recordOne(metrics[2], current);
   }
 
   protected recordThreads(memdb: DB, kind: "hack" | "grow" | "weaken"): void {
@@ -265,13 +274,17 @@ class Monitor {
 
   protected async record(): Promise<void> {
     const memdb = await db(this.ns, this.log);
-    this.recordOne(
+    this.recordSimple(
       this.metrics.money,
-      this.ns.getServerMoneyAvailable(this.host)
+      0,
+      this.ns.getServerMoneyAvailable(this.host),
+      this.maxMoney
     );
-    this.recordOne(
+    this.recordSimple(
       this.metrics.security,
-      this.ns.getServerSecurityLevel(this.host)
+      this.minSecurity,
+      this.ns.getServerSecurityLevel(this.host),
+      100
     );
     this.recordThreads(memdb, "hack");
     this.recordThreads(memdb, "grow");
@@ -297,14 +310,18 @@ class Monitor {
       height: 6,
       max: this.maxMoney,
       min: 0,
-    } as const;
+      // 1. `asciichart.white` isn't actually white, it seems to be the default color
+      // 2. later series are on top, we want the value on top
+      colors: [asciichart.red, asciichart.green, colors.WHITE],
+    };
 
     const securityConfig: asciichart.PlotConfig = {
       format: (x) => this.fmt.float(x).padStart(10, " "),
       height: 6,
       max: 100,
       min: 0,
-    } as const;
+      colors: [asciichart.green, asciichart.red, colors.WHITE],
+    };
 
     const threadsConfig: asciichart.PlotConfig = {
       height: 3,
@@ -317,29 +334,26 @@ class Monitor {
       depth,
     });
 
-    this.ns.printf("%s", "_".repeat(this.history));
     this.ns.printf("%s", asciichart.plot(this.metrics.money, moneyConfig));
-    this.ns.printf("%s Money", "̄ ".repeat(this.history - 10));
-
     this.log.info("money", {
-      current: this.fmt.money(
-        this.metrics.money[this.metrics.money.length - 1] || 0
+      [colors.red("min")]: this.fmt.money(0),
+      [colors.white("current")]: this.fmt.money(
+        this.metrics.money[this.metrics.money.length - 1][1] || 0
       ),
-      max: this.fmt.money(this.maxMoney),
+      [colors.green("max")]: this.fmt.money(this.maxMoney),
     });
     this.ns.printf("\n");
 
-    this.ns.printf("%s", "_".repeat(this.history));
     this.ns.printf(
       "%s",
       asciichart.plot(this.metrics.security, securityConfig)
     );
-    this.ns.printf("%s Security", "̄ ".repeat(this.history - 10));
     this.log.info("security", {
-      current: this.fmt.float(
-        this.metrics.security[this.metrics.security.length - 1] || 0
+      [colors.green("min")]: this.minSecurity,
+      [colors.white("current")]: this.fmt.float(
+        this.metrics.security[this.metrics.security.length - 1][1] || 0
       ),
-      min: this.minSecurity,
+      [colors.red("max")]: 100,
     });
     this.ns.printf("\n");
 
