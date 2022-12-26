@@ -86,6 +86,7 @@ export class SchedulerService {
         stopService: (request) => this.stopService(request),
         enableService: (request) => this.enableService(request),
         disableService: (request) => this.disableService(request),
+        tailService: (request) => this.tailService(request),
       });
     }
 
@@ -95,6 +96,33 @@ export class SchedulerService {
 
   generateJobId(): string {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  async tailService(request: Request<"tailService">): Promise<void> {
+    const memdb = await db(this.ns, this.log, true);
+    const port = new ClientPort<Response>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+
+    const service = memdb.scheduler.services[request.serviceName];
+    if (service === undefined) {
+      await port.write(Response.tailService("not-found"));
+      return;
+    }
+
+    const result = match(
+      service.status,
+      {
+        running: (status) => {
+          this.ns.tail(status.pid, status.hostname);
+          return "ok" as const;
+        },
+      },
+      () => "not-running"
+    );
+    await port.write(Response.tailService(result));
   }
 
   async tailTask(request: Request<"tailTask">): Promise<void> {

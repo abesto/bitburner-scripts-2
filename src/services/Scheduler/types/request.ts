@@ -33,6 +33,7 @@ export const SchedulerRequest = variantModule(
     stopService: fields<{ serviceName: string; responsePort: number }>(),
     enableService: fields<{ serviceName: string; responsePort: number }>(),
     disableService: fields<{ serviceName: string; responsePort: number }>(),
+    tailService: fields<{ serviceName: string; responsePort: number }>(),
   })
 );
 

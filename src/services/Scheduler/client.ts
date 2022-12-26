@@ -144,4 +144,13 @@ export class SchedulerClient extends BaseClient<Request, Response> {
       }
     );
   }
+
+  tailService(serviceName: string): Promise<Response<"tailService">> {
+    return this.sendReceive(
+      Request.tailService({ serviceName, ...this.rp() }),
+      {
+        tailService: id,
+      }
+    );
+  }
 }

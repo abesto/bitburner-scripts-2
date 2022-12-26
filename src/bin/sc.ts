@@ -51,6 +51,7 @@ export async function main(ns: NS): Promise<void> {
     "restart-service": restartService,
     "enable-service": enableService,
     "disable-service": disableService,
+    "tail-service": tailService,
   };
 
   const impl = commandImpls[command];
@@ -348,6 +349,18 @@ export async function main(ns: NS): Promise<void> {
     });
   }
 
+  async function tailService() {
+    const name = posArgs[1] as string;
+    if (name === undefined) {
+      log.terror("Missing service name", { name });
+      return;
+    }
+    await withClient(SchedulerClient, ns, log, async (client) => {
+      const response = await client.tailService(name);
+      log.tinfo("tail-service", { name, response: response.payload });
+    });
+  }
+
   function serviceStateFields(state: ServiceState): {
     [key: string]: unknown;
   } {
@@ -410,6 +423,7 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     "restart-service",
     "enable-service",
     "disable-service",
+    "tail-service",
   ];
   const cmd = args[0];
   if (cmd === undefined) {
@@ -426,6 +440,7 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
       "service-status",
       "enable-service",
       "disable-service",
+      "tail-service",
     ].includes(cmd)
   ) {
     return Object.keys(JSON.parse(serviceSpecs.default));

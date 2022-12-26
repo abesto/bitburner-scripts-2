@@ -4,6 +4,7 @@
   * Configure: bias for past vs future jobs (`howCenter` multiplier)
   * Configure: filter for host
   * Add command to open log window with correct size
+  * Try to get more resolution somehow
 * Create `Hwgw` service
   * manage multiple `hwgw-controller`s
 * Create `Stats` service
@@ -26,14 +27,14 @@
   * include core count in 1. scheduling decisions 2. thread count accounting
 * `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
 * hwgw logic
-  * Do the stalefish dance
-  * add safety check to `hwgw-batch`: when grow finishes, verify that money on server is good; kill hack jobs if not
-  * add safety check to `hwgw-batch`: if we fail to schedule all tasks, kill the whole batch
-  * add safety check to `hwgw-controller`: if money goes significantly below threshold, kill everything and grow it back
-  * add safety check to `hwgw-controller`: if security goes too high, kill everything and shrink it back
-  * `hwgw-controller`: kill all processes against the target on startup
-  * add nice reporting
-    * including: memory usage over time
+  * Stalefish `max_depth` through config
+  * kill batches if `depth * period` changes
+  * use `Formulas`-based calculation in `stalefish` while `hacking` skill changes rapidly?
+  * safety checks
+    * money on server is good; kill & prepare if not
+    * security on server is good; kill & prepare if not
+    * if we fail to schedule all tasks in `hwgw-batch`, kill the whole batch
+  * `hwgw-controller`: kill all processes against the target on startup?
 * `PortRegistry` service
   * implement safe restart (transfer internal state)
 * `BuyWorkers`

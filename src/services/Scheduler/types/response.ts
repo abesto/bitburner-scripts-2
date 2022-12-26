@@ -33,6 +33,7 @@ export const SchedulerResponse = variantModule(
     stopService: payload<"ok" | "not-found" | "not-running" | "kill-failed">(),
     enableService: payload<"ok" | "not-found" | "already-enabled">(),
     disableService: payload<"ok" | "not-found" | "already-disabled">(),
+    tailService: payload<"ok" | "not-running" | "not-found">(),
   })
 );
 

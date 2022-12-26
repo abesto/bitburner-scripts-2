@@ -18,6 +18,7 @@ export async function main(ns: NS): Promise<void> {
     ["dry-run", false],
   ]);
   const host = (args._ as string[])[0];
+
   const jobId = args["job"] as string;
   const taskId = args["task"] as number;
   const initial = args["initial"] as boolean;
@@ -70,7 +71,7 @@ export async function main(ns: NS): Promise<void> {
       (ns.getServerMinSecurityLevel(host) + hackSecurityGrowth)
   );
 
-  const hackWeakenThreads = Math.ceil(
+  const wantHackWeakenThreads = Math.ceil(
     (overWeaken *
       (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth)) /
       0.05
@@ -105,7 +106,7 @@ export async function main(ns: NS): Promise<void> {
       wantHackThreads,
       moneyAfterHack,
       hackSecurityGrowth,
-      hackWeakenThreads,
+      wantHackWeakenThreads,
       growMultiplier,
       wantGrowThreads,
       growSecurityGrowth,
@@ -127,28 +128,35 @@ export async function main(ns: NS): Promise<void> {
     wantHackThreads,
     moneyAfterHack: fmt.money(moneyAfterHack),
     hackSecurityGrowth,
-    hackWeakenThreads,
+    wantHackWeakenThreads,
     growMultiplier: fmt.percent(growMultiplier),
     wantGrowThreads,
     growSecurityGrowth,
     wantGrowWeakenThreads,
   });
 
-  const hackWeakenStart = Date.now();
-  const hackWeakenEnd = hackWeakenStart + weakenLength;
-  const hackEnd = hackWeakenEnd - spacing;
-  const hackStart = hackEnd - hackLength;
-  const growEnd = hackWeakenEnd + spacing;
-  const growStart = growEnd - growLength;
-  const growWeakenEnd = growEnd + spacing;
+  const growWeakenEnd = initial
+    ? Date.now() + weakenLength + 1000
+    : parseFloat((args._ as string[])[1]);
   const growWeakenStart = growWeakenEnd - weakenLength;
 
-  await vizClient.plan({
-    jobId,
-    kind: "hack",
-    plannedStart: hackStart,
-    plannedEnd: hackEnd,
-  });
+  const growEnd = growWeakenEnd - spacing;
+  const growStart = growEnd - growLength;
+
+  const hackWeakenEnd = growEnd - spacing;
+  const hackWeakenStart = hackWeakenEnd - weakenLength;
+
+  const hackEnd = hackWeakenEnd - spacing;
+  const hackStart = hackEnd - hackLength;
+
+  if (!initial) {
+    await vizClient.plan({
+      jobId,
+      kind: "hack",
+      plannedStart: hackStart,
+      plannedEnd: hackEnd,
+    });
+  }
   await vizClient.plan({
     jobId,
     kind: "hack-weaken",
@@ -168,10 +176,17 @@ export async function main(ns: NS): Promise<void> {
     plannedEnd: growWeakenEnd,
   });
 
+  const sleepToHackWeaken = hackWeakenStart - Date.now();
+  if (sleepToHackWeaken > 0) {
+    log.info("Sleeping until hack-weaken start", {
+      length: fmt.time(sleepToHackWeaken),
+    });
+  }
+  await ns.sleep(sleepToHackWeaken);
   const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
     "weaken",
     host,
-    hackWeakenThreads,
+    wantHackWeakenThreads,
     weakenLength
   );
   await vizClient.start({

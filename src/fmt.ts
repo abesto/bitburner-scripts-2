@@ -148,5 +148,5 @@ export function highlightJSON(value: unknown): string {
 
     return "{" + parts.join(",") + "}";
   }
-  throw new Error("unreachable");
+  throw new Error(`unreachable: ${value}`);
 }

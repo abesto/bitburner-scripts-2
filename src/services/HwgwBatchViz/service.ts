@@ -162,14 +162,13 @@ export class HwgwBatchVizService {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const spacing = (await db(this.ns, this.log)).config.hwgw.spacing;
-      try {
-        const request = await port.read(spacing);
-        if (request === null) {
-          continue;
+      while (!port.empty()) {
+        const request = await port.read();
+        if (request !== null) {
+          await this.handleRequest(request);
+        } else {
+          await this.ns.sleep(spacing);
         }
-        await this.handleRequest(request);
-      } catch (e) {
-        // No request, still update the UI
       }
 
       /*
@@ -215,6 +214,7 @@ export class HwgwBatchVizService {
       });
 
       if (shownBatches.length === 0) {
+        this.log.debug("No batches to show");
         continue;
       }
       const earliest = Array.from(shownBatches[0].values()).reduce(
@@ -224,6 +224,7 @@ export class HwgwBatchVizService {
       const latest = Array.from(shownBatches[shownBatches.length - 1].values())
         .map((job) => (job.type === "finished" ? job.end : job.plannedEnd))
         .reduce((max, end) => Math.max(max, end), -Infinity);
+      //const duration = Math.min(latest - earliest, this.width * spacing);
       const duration = latest - earliest;
       const chartStart = now - duration / 2;
       const chartEnd = chartStart + duration;
