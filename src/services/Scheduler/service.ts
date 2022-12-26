@@ -557,7 +557,7 @@ export class SchedulerService {
     const task = job.tasks[taskId];
     if (task === undefined) {
       if (!crash) {
-        log.twarn("Could not find task", { taskId });
+        log.twarn("Could not find task", { jobId, taskId });
       }
       await this.db.unlock();
       return;

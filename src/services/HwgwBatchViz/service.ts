@@ -205,12 +205,6 @@ export class HwgwBatchVizService {
         }
       }
 
-      const visibleChars = (job: JobState) => {
-        const start = Math.max(job.plannedStart, chartStart);
-        const end = Math.min(job.plannedEnd, chartEnd);
-        return Math.round((end - start) / this.resolutionMs);
-      };
-
       const howCentered = (job: JobState) => {
         const center = (job.plannedStart + job.plannedEnd) / 2;
         return Math.abs(center - now);
@@ -247,7 +241,8 @@ export class HwgwBatchVizService {
 
       const charPlanned = "░";
       const charRunning = "█";
-      const charOvertime = "▒";
+      const charEarly = "▄";
+      const charLate = "▀";
 
       for (const batch of shownBatches) {
         for (const kind of [
@@ -261,70 +256,29 @@ export class HwgwBatchVizService {
             this.ns.printf(" ");
             continue;
           }
-          if (visibleChars(job) === 0) {
-            this.ns.printf(" ");
-            continue;
-          }
           const jobColor = jobColors[job.kind];
-          const chars = [];
+          const chars: string[] = [];
           let time = chartStart;
 
-          for (
-            ;
-            time < job.plannedStart && time < chartEnd;
-            time += this.resolutionMs
-          ) {
-            chars.push(" ");
-          }
+          const to = (t: number, c: string) => {
+            for (; time < t && time < chartEnd; time += this.resolutionMs) {
+              chars.push(jobColor(c));
+            }
+          };
 
+          to(job.plannedStart, " ");
           if (job.type === "planned") {
-            for (
-              ;
-              time < job.plannedEnd && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(jobColor(charPlanned));
-            }
+            to(job.plannedEnd, charPlanned);
           } else if (job.type === "running") {
-            for (
-              ;
-              time < job.start && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(jobColor(charPlanned));
-            }
-            for (; time < now && time < chartEnd; time += this.resolutionMs) {
-              chars.push(jobColor(charRunning));
-            }
-            for (
-              ;
-              time < job.plannedEnd && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(jobColor(charPlanned));
-            }
-          } else {
-            for (
-              ;
-              time < job.start && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(jobColor(charPlanned));
-            }
-            for (
-              ;
-              time < job.end && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(jobColor(charRunning));
-            }
-            for (
-              ;
-              time < job.plannedEnd && time < chartEnd;
-              time += this.resolutionMs
-            ) {
-              chars.push(charOvertime);
-            }
+            to(job.start, charPlanned);
+            to(Math.min(now, job.plannedEnd), charRunning);
+            to(now, charLate);
+            to(job.plannedEnd, charPlanned);
+          } else if (job.type === "finished") {
+            to(job.start, charPlanned);
+            to(Math.min(job.end, job.plannedEnd), charRunning);
+            to(job.plannedEnd, charEarly);
+            to(job.end, charLate);
           }
 
           this.ns.printf("%s", chars.slice(0, this.width).join(""));
@@ -345,15 +299,15 @@ export class HwgwBatchVizService {
           endStr
       );
       this.ns.printf("%s", ".".repeat(this.width));
-      const demo = `${charPlanned}${charRunning}${charOvertime}`;
       this.log.info("Legend", {
-        hack: jobColors.hack(demo),
-        grow: jobColors.grow(demo),
-        "hack-weaken": jobColors["hack-weaken"](demo),
-        "grow-weaken": jobColors["grow-weaken"](demo),
+        hack: jobColors.hack(charRunning),
+        grow: jobColors.grow(charRunning),
+        "hack-weaken": jobColors["hack-weaken"](charRunning),
+        "grow-weaken": jobColors["grow-weaken"](charRunning),
         planned: charPlanned,
         running: charRunning,
-        overtime: charOvertime,
+        early: charEarly,
+        late: charLate,
       });
     }
   }

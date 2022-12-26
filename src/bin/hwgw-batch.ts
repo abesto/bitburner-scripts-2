@@ -272,18 +272,22 @@ export async function main(ns: NS): Promise<void> {
   log.info("All done");
 
   async function logDone(
-    jobId: string,
+    childJobId: string,
     kind: JobKind,
     schedulerClient: SchedulerClient
   ): Promise<void> {
     try {
-      await schedulerClient.waitForJobFinished(jobId);
+      await schedulerClient.waitForJobFinished(childJobId);
     } catch (e) {
-      log.error("Error waiting for job to finish", { kind, jobId, e });
+      log.error("Error waiting for job to finish", {
+        kind,
+        jobId: childJobId,
+        e,
+      });
     }
     await vizClient.finished({ jobId, kind });
     await schedulerClient.release();
-    log.info("Job finished", { kind, jobId });
+    log.info("Job finished", { kind, jobId: childJobId });
   }
 
   async function schedule(
