@@ -58,6 +58,9 @@ export async function main(ns: NS): Promise<void> {
   }
 
   log.info("Starting batched hacking");
+  ns.tail();
+  await ns.sleep(0);
+  ns.resizeTail(1690, 870);
   const monitorResolution = 3;
   const monitor = await Monitor.new(ns, log, host);
   // eslint-disable-next-line no-constant-condition

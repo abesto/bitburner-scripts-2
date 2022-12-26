@@ -1,5 +1,7 @@
 # TODOs
 
+* `Hwgw` service
+  * manage multiple `hwgw-controller`s
 * database service (with a lock queue)
   * `db` CLI, supported by a `status` API call
   * config cache class on top of `DatabaseClient` (with configurable TTL)
@@ -27,7 +29,6 @@
   * factor in Hacking skill growth when starting new batches (skill up -> ETA down, might mess up ordering of finishing tasks)
   * add nice reporting
     * including: memory usage over time
-* `hwgw-orchestrator`: manage multiple `hwgw-controller`s and the `hwgw` config
 * capacity management - reserve ram for full hwgw batch
 * `PortRegistry`
   * implement safe restart (transfer internal state)

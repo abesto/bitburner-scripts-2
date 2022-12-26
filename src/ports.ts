@@ -1,6 +1,7 @@
 import { NetscriptPort, NS, PortData } from '@ns';
 
 import { SERVICE_ID as DATABASE } from './services/Database/types';
+import { SERVICE_ID as HWGW_BATCH_VIZ } from './services/HWGwBatchViz/types';
 import { SERVICE_ID as PORT_REGISTRY } from './services/PortRegistry/types';
 import { SERVICE_ID as SCHEDULER } from './services/Scheduler/types';
 
@@ -9,6 +10,7 @@ export const PORTS = {
   [PORT_REGISTRY]: 4,
   FreePorts: 5,
   [DATABASE]: 6,
+  [HWGW_BATCH_VIZ]: 7,
 };
 
 export function supervisorControl(ns: NS): NetscriptPort {

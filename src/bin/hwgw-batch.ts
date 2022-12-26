@@ -3,6 +3,8 @@ import { NS } from '@ns';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { db } from '/services/Database/client';
+import { HwgwBatchVizClient } from '/services/HwgwBatchViz/client';
+import { JobKind } from '/services/HWGwBatchViz/types';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
 
@@ -29,6 +31,7 @@ export async function main(ns: NS): Promise<void> {
   }
 
   const portRegistryClient = new PortRegistryClient(ns, log);
+  const vizClient = new HwgwBatchVizClient(ns, log);
 
   async function finished() {
     const schedulerClient = new NoResponseSchedulerClient(ns, log);
@@ -131,13 +134,6 @@ export async function main(ns: NS): Promise<void> {
     wantGrowWeakenThreads,
   });
 
-  const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
-    "weaken",
-    host,
-    hackWeakenThreads,
-    weakenLength
-  );
-
   const hackWeakenStart = Date.now();
   const hackWeakenEnd = hackWeakenStart + weakenLength;
   const hackEnd = hackWeakenEnd - spacing;
@@ -146,6 +142,42 @@ export async function main(ns: NS): Promise<void> {
   const growStart = growEnd - growLength;
   const growWeakenEnd = growEnd + spacing;
   const growWeakenStart = growWeakenEnd - weakenLength;
+
+  await vizClient.plan({
+    jobId,
+    kind: "hack",
+    plannedStart: hackStart,
+    plannedEnd: hackEnd,
+  });
+  await vizClient.plan({
+    jobId,
+    kind: "hack-weaken",
+    plannedStart: hackWeakenStart,
+    plannedEnd: hackWeakenEnd,
+  });
+  await vizClient.plan({
+    jobId,
+    kind: "grow",
+    plannedStart: growStart,
+    plannedEnd: growEnd,
+  });
+  await vizClient.plan({
+    jobId,
+    kind: "grow-weaken",
+    plannedStart: growWeakenStart,
+    plannedEnd: growWeakenEnd,
+  });
+
+  const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
+    "weaken",
+    host,
+    hackWeakenThreads,
+    weakenLength
+  );
+  await vizClient.start({
+    jobId,
+    kind: "hack-weaken",
+  });
 
   log.info("Sleeping until grow-weaken start", {
     length: fmt.time(growWeakenStart - Date.now()),
@@ -164,6 +196,10 @@ export async function main(ns: NS): Promise<void> {
     await finished();
     return;
   }
+  await vizClient.start({
+    jobId,
+    kind: "grow-weaken",
+  });
 
   log.info("Sleeping until grow start", {
     length: fmt.time(growStart - Date.now()),
@@ -187,6 +223,10 @@ export async function main(ns: NS): Promise<void> {
     await finished();
     return;
   }
+  await vizClient.start({
+    jobId,
+    kind: "grow",
+  });
 
   let hackJobId, hackClient;
   if (initial) {
@@ -210,6 +250,10 @@ export async function main(ns: NS): Promise<void> {
       );
       // TODO kill all batches
     }
+    await vizClient.start({
+      jobId,
+      kind: "hack",
+    });
   }
 
   const fullTimeout = growWeakenEnd - Date.now() + spacing * 5;
@@ -229,7 +273,7 @@ export async function main(ns: NS): Promise<void> {
 
   async function logDone(
     jobId: string,
-    kind: string,
+    kind: JobKind,
     schedulerClient: SchedulerClient
   ): Promise<void> {
     try {
@@ -237,6 +281,7 @@ export async function main(ns: NS): Promise<void> {
     } catch (e) {
       log.error("Error waiting for job to finish", { kind, jobId, e });
     }
+    await vizClient.finished({ jobId, kind });
     await schedulerClient.release();
     log.info("Job finished", { kind, jobId });
   }
