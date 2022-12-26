@@ -8,6 +8,7 @@ import { Log } from '/log';
 import { PORTS } from '/ports';
 
 import { ServerPort } from '../common/ServerPort';
+import { db } from '../Database/client';
 import { JobId } from '../Scheduler/types';
 import { HwgwBatchVizRequest, JobKind, SERVICE_ID, toHwgwBatchVizRequest } from './types';
 
@@ -48,8 +49,7 @@ export class HwgwBatchVizService {
     private readonly ns: NS,
     private readonly log: Log,
     private readonly width = 140,
-    private readonly showBatchCount = 15,
-    private readonly resolutionMs = 750
+    private readonly showBatchCount = 15
   ) {
     this.fmt = new Fmt(ns);
   }
@@ -161,8 +161,9 @@ export class HwgwBatchVizService {
     this.log.info(`Listening on port ${port.portNumber}`);
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      const spacing = (await db(this.ns, this.log)).config.hwgw.spacing;
       try {
-        const request = await port.read(null);
+        const request = await port.read(spacing);
         if (request === null) {
           continue;
         }
@@ -182,16 +183,52 @@ export class HwgwBatchVizService {
 
       // UI!
       const now = Math.round(Date.now());
-      if (now - this.lastUpdate <= this.resolutionMs) {
+      if (now - this.lastUpdate <= spacing) {
         continue;
       }
       this.lastUpdate = now;
 
-      const shownDuration = this.resolutionMs * this.width;
-      const chartStart = Math.round(now - shownDuration / 2);
-      const chartEnd = chartStart + shownDuration;
+      const howCentered = (job: JobState) => {
+        const center = (job.plannedStart + job.plannedEnd) * 0.25;
+        return Math.abs(center - now);
+      };
 
-      // Done handling request, now drop old batches
+      const batches = Array.from(this.batches.values()).filter((batch) => {
+        return batch.has("hack-weaken");
+      });
+      batches.sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const aCentered = howCentered(a.get("hack-weaken")!);
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const bCentered = howCentered(b.get("hack-weaken")!);
+        return aCentered - bCentered;
+      });
+      const shownBatches = batches.slice(0, this.showBatchCount);
+      const emptyLines = ((this.showBatchCount - shownBatches.length) * 4) / 2;
+      shownBatches.sort((a, b) => {
+        return (
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          a.get("hack-weaken")!.plannedStart -
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          b.get("hack-weaken")!.plannedStart
+        );
+      });
+
+      if (shownBatches.length === 0) {
+        continue;
+      }
+      const earliest = Array.from(shownBatches[0].values()).reduce(
+        (min, job) => Math.min(min, job.plannedStart),
+        Infinity
+      );
+      const latest = Array.from(shownBatches[shownBatches.length - 1].values())
+        .map((job) => (job.type === "finished" ? job.end : job.plannedEnd))
+        .reduce((max, end) => Math.max(max, end), -Infinity);
+      const duration = latest - earliest;
+      const chartStart = now - duration / 2;
+      const chartEnd = chartStart + duration;
+      const chartStep = duration / this.width;
+
       for (const [jobId, batch] of this.batches) {
         let oldCount = 0;
         for (const [, job] of batch) {
@@ -204,28 +241,6 @@ export class HwgwBatchVizService {
           this.batches.delete(jobId);
         }
       }
-
-      const howCentered = (job: JobState) => {
-        const center = (job.plannedStart + job.plannedEnd) / 2;
-        return Math.abs(center - now);
-      };
-
-      const batches = Array.from(this.batches.values()).filter((batch) => {
-        return batch.has("hack-weaken");
-      });
-      batches.sort((a, b) => {
-        const aCentered = howCentered(a.get("hack-weaken")!);
-        const bCentered = howCentered(b.get("hack-weaken")!);
-        return aCentered - bCentered;
-      });
-      const shownBatches = batches.slice(0, this.showBatchCount);
-      const emptyLines = ((this.showBatchCount - shownBatches.length) * 4) / 2;
-      shownBatches.sort((a, b) => {
-        return (
-          a.get("hack-weaken")!.plannedStart -
-          b.get("hack-weaken")!.plannedStart
-        );
-      });
 
       this.ns.clearLog();
       for (let i = 0; i < emptyLines; i++) {
@@ -261,7 +276,7 @@ export class HwgwBatchVizService {
           let time = chartStart;
 
           const to = (t: number, c: string) => {
-            for (; time < t && time < chartEnd; time += this.resolutionMs) {
+            for (; time < t && time < chartEnd; time += chartStep) {
               chars.push(jobColor(c));
             }
           };
@@ -308,6 +323,7 @@ export class HwgwBatchVizService {
         running: charRunning,
         early: charEarly,
         late: charLate,
+        ".": this.fmt.float(chartStep / 1000) + "s",
       });
     }
   }

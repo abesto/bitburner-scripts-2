@@ -1,47 +1,41 @@
 # TODOs
 
-* `Hwgw` service
+* `HwgwBatchViz` service
+  * Configure: bias for past vs future jobs (`howCenter` multiplier)
+  * Configure: filter for host
+  * Add command to open log window with correct size
+* Create `Hwgw` service
   * manage multiple `hwgw-controller`s
-* database service (with a lock queue)
+* Create `Stats` service
+  * chart used/total capacity
+  * charts per hwgw controller
+  * charts for income per income source
+* `Database` service
   * `db` CLI, supported by a `status` API call
   * config cache class on top of `DatabaseClient` (with configurable TTL)
-  * compress the data put on the port with `lz-string`?
+  * compress the data put on the port with `lz-string`? (we're more CPU bottlenecked though I think)
   * turn into key-value database instead of a glorified file lock (Redis query syntax?)
 * logging lib
   * levels, filtering configured via `database.config`
-* `Scheduler`
+* `Scheduler` service
   * add `status <job-id>`
   * add `drain <host>` for use when buying new servers
   * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?
   * extend `CrashWatcher` to alert if the `Scheduler` dies
-  * nice formatting for service status, a 'la systemd
-  * tiny `CrashWatcherWatcher` service for redundancy
-* `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
-* scheduler:
   * include core count in 1. scheduling decisions 2. thread count accounting
-* hwgw
+* `parseMemory`, `parseTime` in `fmt` (may need to pull in `numeral` as an NPM module)
+* hwgw logic
+  * Do the stalefish dance
   * add safety check to `hwgw-batch`: when grow finishes, verify that money on server is good; kill hack jobs if not
   * add safety check to `hwgw-batch`: if we fail to schedule all tasks, kill the whole batch
   * add safety check to `hwgw-controller`: if money goes significantly below threshold, kill everything and grow it back
   * add safety check to `hwgw-controller`: if security goes too high, kill everything and shrink it back
   * `hwgw-controller`: kill all processes against the target on startup
-  * factor in Hacking skill growth when starting new batches (skill up -> ETA down, might mess up ordering of finishing tasks)
   * add nice reporting
     * including: memory usage over time
-* capacity management - reserve ram for full hwgw batch
-* `PortRegistry`
+* `PortRegistry` service
   * implement safe restart (transfer internal state)
-* `hacknet`
-  * turn into service, autobuy (maybe with money reserve)
-* `stock`
-  * turn into service
-  * break watcher out into separate service?
-  * add short option, do something fun there with hacking maybe?
 * `BuyWorkers`
   * make decisions without config
-* `Stats` service
-  * chart used/total capacity
-  * charts per hwgw controller
-  * charts for income per income source
 * persistent alerts about badness via UI (so that badness is known even while focusing on faction work or w/e)

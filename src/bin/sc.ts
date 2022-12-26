@@ -240,12 +240,12 @@ export async function main(ns: NS): Promise<void> {
           if (!args.verbose) {
             log.tinfo("Last logs follow");
             for (const log of logs.slice(-10)) {
-              ns.tprintf(log);
+              ns.tprintf("%s", log);
             }
           } else {
             log.tinfo("Logs follow");
             for (const log of logs) {
-              ns.tprintf(log);
+              ns.tprintf("%s", log);
             }
           }
         },

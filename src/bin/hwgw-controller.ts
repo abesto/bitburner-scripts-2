@@ -60,13 +60,13 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   ns.tail();
   await ns.sleep(0);
-  ns.resizeTail(1690, 870);
+  ns.resizeTail(1280, 930);
   const monitorResolution = 3;
   const monitor = await Monitor.new(ns, log, host);
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const thisSpacing = await spacing();
-    const { jobId, threads } = await schedulerClient.start(
+    await schedulerClient.start(
       {
         script: "/bin/hwgw-batch.js",
         args: [host],
@@ -153,7 +153,7 @@ class Monitor {
     private readonly log: Log,
     private readonly maxMoney: number,
     private readonly minSecurity: number,
-    private readonly history = 180
+    private readonly history = 120
   ) {
     this.log = log;
     this.fmt = new Fmt(ns);
@@ -258,7 +258,10 @@ class Monitor {
       colors: [asciichart.green, asciichart.red, asciichart.blue],
     };
 
+    this.ns.printf("%s", "_".repeat(this.history));
     this.ns.printf("%s", asciichart.plot(this.metrics.money, moneyConfig));
+    this.ns.printf("%s Money", "̄ ".repeat(this.history - 10));
+
     this.log.info("money", {
       current: this.fmt.money(
         this.metrics.money[this.metrics.money.length - 1] || 0
@@ -267,10 +270,12 @@ class Monitor {
     });
     this.ns.printf("\n");
 
+    this.ns.printf("%s", "_".repeat(this.history));
     this.ns.printf(
       "%s",
       asciichart.plot(this.metrics.security, securityConfig)
     );
+    this.ns.printf("%s Security", "̄ ".repeat(this.history - 10));
     this.log.info("security", {
       current: this.fmt.float(
         this.metrics.security[this.metrics.security.length - 1] || 0

@@ -18,5 +18,8 @@
       "type": "mustRunOn",
       "host": "home"
     }
+  },
+  "HwgwBatchViz": {
+    "enableWhenDiscovered": false
   }
 }
