@@ -60,16 +60,31 @@ export async function main(ns: NS): Promise<void> {
   const wantHackThreads = Math.floor(moneySteal / moneyStolenPerThread);
   const moneyAfterHack = moneyMax - moneyStolenPerThread * wantHackThreads;
   const hackSecurityGrowth = ns.hackAnalyzeSecurity(wantHackThreads);
-  const hackWeakenThreads = Math.ceil(
-    (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth) / 0.05
+
+  const overWeaken = Math.max(
+    1,
+    ns.getServerSecurityLevel(host) /
+      (ns.getServerMinSecurityLevel(host) + hackSecurityGrowth)
   );
 
+  const hackWeakenThreads = Math.ceil(
+    (overWeaken *
+      (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth)) /
+      0.05
+  );
+
+  const overGrow = Math.max(
+    1,
+    ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
+  );
   const growMultiplier = initial
     ? moneyMax / ns.getServerMoneyAvailable(host)
-    : 1 + moneySteal / moneyAfterHack;
+    : (1 + moneySteal / moneyAfterHack) * overGrow;
   const wantGrowThreads = Math.ceil(ns.growthAnalyze(host, growMultiplier));
   const growSecurityGrowth = ns.growthAnalyzeSecurity(wantGrowThreads);
-  const wantGrowWeakenThreads = Math.ceil(growSecurityGrowth / 0.05);
+  const wantGrowWeakenThreads = Math.ceil(
+    (overWeaken * growSecurityGrowth) / 0.05
+  );
 
   const weakenLength = ns.getWeakenTime(host);
   const growLength = ns.getGrowTime(host);
@@ -101,6 +116,8 @@ export async function main(ns: NS): Promise<void> {
     jobId,
     taskId,
     host,
+    overWeaken,
+    overGrow,
     moneyMax: fmt.money(moneyMax),
     moneyThreshold: fmt.money(moneyThreshold),
     moneySteal: fmt.money(moneySteal),
@@ -199,12 +216,10 @@ export async function main(ns: NS): Promise<void> {
   log.info("Waiting for everything to finish up", {
     ETA: fmt.time(fullTimeout),
   });
-  if (!initial && hackJobId !== undefined && hackClient !== undefined) {
+  if (hackJobId !== undefined && hackClient !== undefined) {
     await logDone(hackJobId, "hack", hackClient);
   }
-  if (!initial && hackWeakenJobId !== undefined) {
-    await logDone(hackWeakenJobId, "hack-weaken", hackWeakenClient);
-  }
+  await logDone(hackWeakenJobId, "hack-weaken", hackWeakenClient);
   await logDone(growJobId, "grow", growClient);
   await logDone(growWeakenJobId, "grow-weaken", growWeakenClient);
 
