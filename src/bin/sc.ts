@@ -74,8 +74,10 @@ export async function main(ns: NS): Promise<void> {
           script: posArgs[1],
           args: args["--"] || [],
         },
-        args.stail as boolean,
-        null
+        {
+          tail: args.stail as boolean,
+          finishNotificationPort: null,
+        }
       );
       log.tinfo("Started job", response);
     });
@@ -94,7 +96,7 @@ export async function main(ns: NS): Promise<void> {
           script: posArgs[1],
           args: args["--"] || [],
         },
-        args.stail as boolean
+        { tail: args.stail as boolean }
       );
       log.tinfo("Started job", response);
       await client.waitForJobFinished(response.jobId);

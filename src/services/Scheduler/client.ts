@@ -1,11 +1,29 @@
+import { NS } from '@ns';
+
+import minimist from 'minimist';
+
+import { Log } from '/log';
 import { PORTS } from '/ports';
 import { JobId, JobSpec, SERVICE_ID as SCHEDULER, TaskId } from '/services/Scheduler/types';
 
 import { BaseClient } from '../common/BaseClient';
 import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
 import { id } from '../common/Result';
+import { PortRegistryClient } from '../PortRegistry/client';
 import { SchedulerRequest as Request } from './types/request';
 import { SchedulerResponse as Response, toSchedulerResponse } from './types/response';
+
+function schedulerParent(ns: NS): { jobId: JobId; taskId: TaskId } | undefined {
+  // minimist because `ns.flags` throws on unexpected flags
+  const args = minimist(ns.args.map((arg) => arg.toString()));
+  const jobId = args.job;
+  const taskId = args.task;
+
+  if (jobId !== undefined && taskId !== undefined) {
+    return { jobId, taskId: parseInt(taskId, 10) };
+  }
+  return undefined;
+}
 
 export class NoResponseSchedulerClient extends BaseNoResponseClient<Request> {
   requestPortNumber(): number {
@@ -25,11 +43,28 @@ export class NoResponseSchedulerClient extends BaseNoResponseClient<Request> {
   }
 
   startServiceNoResponse(serviceName: string): Promise<void> {
-    return this.send(Request.startService({ serviceName, responsePort: null }));
+    return this.send(
+      Request.startService({
+        serviceName,
+        responsePort: null,
+      })
+    );
   }
 }
 
 export class SchedulerClient extends BaseClient<Request, Response> {
+  private readonly schedulerParent?: { jobId: JobId; taskId: TaskId };
+
+  constructor(
+    ns: NS,
+    log: Log,
+    responsePortNumber: number,
+    portRegistryClient?: PortRegistryClient
+  ) {
+    super(ns, log, responsePortNumber, portRegistryClient);
+    this.schedulerParent = schedulerParent(ns);
+  }
+
   requestPortNumber(): number {
     return PORTS[SCHEDULER];
   }
@@ -40,12 +75,27 @@ export class SchedulerClient extends BaseClient<Request, Response> {
 
   start(
     spec: JobSpec,
-    tail = false,
-    finishNotificationPort: number | undefined | null = undefined
-  ): Promise<Response<"start">> {
-    if (finishNotificationPort === undefined) {
-      finishNotificationPort = this.responsePort.portNumber;
+    options?: {
+      tail?: boolean;
+      finishNotificationPort?: number | null;
+      nohup?: boolean;
     }
+  ): Promise<Response<"start">> {
+    const tail = options?.tail ?? false;
+    const finishNotificationPort =
+      options?.finishNotificationPort === undefined
+        ? this.responsePort.portNumber
+        : options.finishNotificationPort;
+    const nohup = options?.nohup ?? false;
+
+    if (
+      !nohup &&
+      this.schedulerParent !== undefined &&
+      spec.parent === undefined
+    ) {
+      spec.parent = this.schedulerParent;
+    }
+
     return this.sendReceive(
       Request.start({
         spec,

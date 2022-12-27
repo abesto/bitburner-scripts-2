@@ -1,5 +1,5 @@
 import { LockData } from './services/Database/types';
-import { Job, ServiceState } from './services/Scheduler/types';
+import { Job, JobId, ServiceState, TaskId } from './services/Scheduler/types';
 
 export type DB = {
   config: {
@@ -37,7 +37,8 @@ export type DB = {
 };
 
 export type SchedulerDB = {
-  jobs: { [jobId: string]: Job };
+  jobs: { [jobId: JobId]: Job };
+  children: { [jobId: JobId]: { [taskId: TaskId]: JobId[] } };
   services: {
     [name: string]: ServiceState;
   };
@@ -82,6 +83,7 @@ export const DEFAULT_DB: DB = {
   scheduler: {
     jobs: {},
     services: {},
+    children: {},
   },
   meta: { lockQueue: [], currentLock: null },
 };

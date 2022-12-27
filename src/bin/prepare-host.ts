@@ -20,8 +20,7 @@ export async function main(ns: NS): Promise<void> {
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
-      true,
-      null
+      { tail: true, finishNotificationPort: null }
     );
     log.tinfo("Started --initial batch", { host, jobId: resp.jobId });
   });

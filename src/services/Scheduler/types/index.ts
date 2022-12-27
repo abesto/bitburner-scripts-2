@@ -15,6 +15,10 @@ export type JobSpec = {
   args: string[];
   threads: number;
   hostAffinity?: HostAffinity;
+  parent?: {
+    jobId: JobId;
+    taskId: TaskId;
+  };
 };
 
 export type Job = {

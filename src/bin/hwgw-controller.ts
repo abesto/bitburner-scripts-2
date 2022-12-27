@@ -13,7 +13,11 @@ import { SchedulerClient } from '/services/Scheduler/client';
 import { HostAffinity, JobId, jobThreads } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
-  const args = ns.flags([["skip-prepare", false]]);
+  const args = ns.flags([
+    ["skip-prepare", false],
+    ["job", ""],
+    ["task", -1],
+  ]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
   const skipPrepare = args["skip-prepare"] as boolean;
@@ -25,13 +29,25 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  const fmt = new Fmt(ns);
-
-  autonuke(ns, host);
-
   const portRegistryClient = new PortRegistryClient(ns, log);
   const schedulerResponsePort = await portRegistryClient.reservePort();
   const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);
+  const fmt = new Fmt(ns);
+
+  if (!args.job || args.task < 0) {
+    const resp = await schedulerClient.start(
+      {
+        script: "/bin/hwgw-controller.js",
+        args: ns.args.map((arg) => arg.toString()),
+        threads: 1,
+      },
+      { nohup: true }
+    );
+    log.tinfo("Migrated into Scheduler", { jobId: resp.jobId });
+    return;
+  }
+
+  autonuke(ns, host);
 
   if (!skipPrepare) {
     log.info("Initial preparation: weaken, grow, weaken");
@@ -87,8 +103,7 @@ export async function main(ns: NS): Promise<void> {
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
-      false,
-      null
+      { tail: true, finishNotificationPort: null }
     );
 
     for (let i = 0; i < 5; i++) {

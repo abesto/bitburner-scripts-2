@@ -16,7 +16,7 @@ import { DatabaseClient, db } from '../Database/client';
 import { PortRegistryClient } from '../PortRegistry/client';
 import {
     Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID as SCHEDULER, ServiceSpec,
-    ServiceStatus
+    ServiceStatus, TaskId
 } from './types';
 import { SchedulerRequest as Request, toSchedulerRequest } from './types/request';
 import { SchedulerResponse as Response } from './types/response';
@@ -96,6 +96,34 @@ export class SchedulerService {
 
   generateJobId(): string {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  async killChildren(job: JobId, task: TaskId, memdb: DB): Promise<void> {
+    if (parent === undefined) {
+      return;
+    }
+    const allChildren = memdb.scheduler.children;
+    if (allChildren === undefined) {
+      return;
+    }
+    const jobChildren = allChildren[job];
+    if (jobChildren === undefined) {
+      return;
+    }
+    const taskChildren = jobChildren[task];
+    if (taskChildren === undefined) {
+      return;
+    }
+    for (const childJobId of taskChildren) {
+      if (childJobId in memdb.scheduler.jobs) {
+        this.log.info("Killing child", { job, task, childJobId });
+        await this.doKillJob(childJobId, memdb);
+      }
+    }
+    delete memdb.scheduler.children[job][task];
+    if (Object.keys(memdb.scheduler.children[job]).length === 0) {
+      delete memdb.scheduler.children[job];
+    }
   }
 
   async tailService(request: Request<"tailService">): Promise<void> {
@@ -529,19 +557,26 @@ export class SchedulerService {
     await client.write(Response.killJob({ result }));
   }
 
-  private async doKillJob(jobId: JobId): Promise<"ok" | "not-found"> {
+  private async doKillJob(
+    jobId: JobId,
+    memdb_?: DB
+  ): Promise<"ok" | "not-found"> {
     let retval: "ok" | "not-found" = "ok";
     const log = this.log.scope("doKillJob");
-    const memdb = await this.db.lock();
+    const memdb = memdb_ || (await this.db.lock());
     const job = memdb.scheduler.jobs[jobId];
 
     if (job === undefined) {
       log.terror("Could not find job", { jobId });
       retval = "not-found";
-      await this.db.unlock();
+      if (memdb_) {
+        await this.db.unlock();
+      }
     } else if (job.id !== jobId) {
       log.terror("Job ID mismatch", { jobId, onObject: job.id });
-      await this.db.unlock();
+      if (memdb_) {
+        await this.db.unlock();
+      }
     } else {
       for (const task of Object.values(job.tasks)) {
         this.ns.kill(task.pid);
@@ -551,14 +586,17 @@ export class SchedulerService {
           hostname: task.hostname,
           pid: task.pid,
         });
+        await this.killChildren(jobId, task.id, memdb);
       }
       delete memdb.scheduler.jobs[jobId];
-      await this.db.writeAndUnlock(memdb);
-      log.info("Killed job", {
-        jobId,
-        script: job.spec.script,
-        args: job.spec.args,
-      });
+      if (memdb_) {
+        await this.db.writeAndUnlock(memdb);
+        log.info("Killed job", {
+          jobId,
+          script: job.spec.script,
+          args: job.spec.args,
+        });
+      }
     }
 
     return retval;
@@ -605,6 +643,7 @@ export class SchedulerService {
       args: job.spec.args,
       threads: task.threads,
     });
+    await this.killChildren(jobId, taskId, memdb);
     delete job.tasks[taskId];
 
     if (Object.keys(job.tasks).length === 0) {
@@ -749,6 +788,20 @@ export class SchedulerService {
     if (scheduled > 0) {
       const memdb = await this.db.lock();
       memdb.scheduler.jobs[job.id] = job;
+      if (spec.parent !== undefined) {
+        if (memdb.scheduler.children === undefined) {
+          memdb.scheduler.children = {};
+        }
+        const allChildren = memdb.scheduler.children;
+        if (allChildren[spec.parent.jobId] === undefined) {
+          allChildren[spec.parent.jobId] = {};
+        }
+        const jobChildren = allChildren[spec.parent.jobId];
+        if (jobChildren[spec.parent.taskId] === undefined) {
+          jobChildren[spec.parent.taskId] = [];
+        }
+        jobChildren[spec.parent.taskId].push(job.id);
+      }
       await this.db.writeAndUnlock(memdb);
     }
 

@@ -143,7 +143,7 @@ export async function main(ns: NS): Promise<void> {
   });
 
   const growWeakenEnd = initial
-    ? Date.now() + weakenLength + 1000
+    ? Date.now() + weakenLength + spacing * 5
     : parseFloat((args._ as string[])[1]);
   const growWeakenStart = growWeakenEnd - weakenLength;
 
@@ -163,7 +163,12 @@ export async function main(ns: NS): Promise<void> {
     hackWeakenStart < now ||
     hackStart < now
   ) {
-    log.error("not enough time");
+    log.error("not enough time", {
+      growWeakenStart: fmt.time(growWeakenStart - now),
+      growStart: fmt.time(growStart - now),
+      hackWeakenStart: fmt.time(hackWeakenStart - now),
+      hackStart: fmt.time(hackStart - now),
+    });
     await finished();
     return;
   }

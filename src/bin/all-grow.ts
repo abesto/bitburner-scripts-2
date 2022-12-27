@@ -42,7 +42,7 @@ export async function main(ns: NS): Promise<void> {
           args: [host],
           threads: threadTarget,
         },
-        true
+        { tail: true }
       );
       if (threads === 0) {
         log.info("Failed to start grow batch, sleeping then trying again");
@@ -64,7 +64,7 @@ export async function main(ns: NS): Promise<void> {
           args: [host],
           threads: threadTarget,
         },
-        true
+        { tail: true }
       );
       if (threads === 0) {
         log.info("Failed to start weaken batch /shrug");
