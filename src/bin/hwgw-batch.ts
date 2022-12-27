@@ -85,7 +85,7 @@ export async function main(ns: NS): Promise<void> {
   );
 
   const overGrow = Math.max(
-    1,
+    1.2,
     ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
   );
   const growMultiplier = initial
@@ -155,6 +155,18 @@ export async function main(ns: NS): Promise<void> {
 
   const hackEnd = hackWeakenEnd - spacing;
   const hackStart = hackEnd - hackLength;
+
+  const now = Date.now();
+  if (
+    growWeakenStart < now ||
+    growStart < now ||
+    hackWeakenStart < now ||
+    hackStart < now
+  ) {
+    log.error("not enough time");
+    await finished();
+    return;
+  }
 
   if (!initial) {
     await vizClient.plan({

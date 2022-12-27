@@ -26,7 +26,6 @@ export async function main(ns: NS): Promise<void> {
   }
 
   const fmt = new Fmt(ns);
-  const spacing = async () => (await db(ns, log)).config.hwgw.spacing;
 
   autonuke(ns, host);
 
@@ -63,15 +62,19 @@ export async function main(ns: NS): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const thisSpacing = await spacing();
+    const memdb = await db(ns, log);
+    const spacing = memdb.config.hwgw.spacing;
+    const maxDepth = memdb.config.hwgw.maxDepth;
+
     const stalefishResult = stalefish(
       ns.getWeakenTime(host) / 1000,
       ns.getGrowTime(host) / 1000,
       ns.getHackTime(host) / 1000,
-      thisSpacing / 1000
+      spacing / 1000,
+      maxDepth <= 0 ? Infinity : maxDepth
     );
     if (stalefishResult === undefined) {
-      log.terror("Stalefish failed", { host, thisSpacing });
+      log.terror("Stalefish failed", { host, spacing });
       return;
     }
     const period = stalefishResult.period * 1000;
@@ -301,6 +304,10 @@ class Monitor {
     return series[series.length - 1];
   }
 
+  currentSimpleMetric(metrics: SimpleMetrics): number {
+    return metrics[2][metrics[2].length - 1] || 0;
+  }
+
   async report(period: number, depth: number) {
     await this.record();
     this.ns.clearLog();
@@ -338,7 +345,7 @@ class Monitor {
     this.log.info("money", {
       [colors.red("min")]: this.fmt.money(0),
       [colors.white("current")]: this.fmt.money(
-        this.metrics.money[this.metrics.money.length - 1][1] || 0
+        this.currentSimpleMetric(this.metrics.money)
       ),
       [colors.green("max")]: this.fmt.money(this.maxMoney),
     });
@@ -351,7 +358,7 @@ class Monitor {
     this.log.info("security", {
       [colors.green("min")]: this.minSecurity,
       [colors.white("current")]: this.fmt.float(
-        this.metrics.security[this.metrics.security.length - 1][1] || 0
+        this.currentSimpleMetric(this.metrics.security)
       ),
       [colors.red("max")]: 100,
     });

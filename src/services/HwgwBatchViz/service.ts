@@ -189,7 +189,7 @@ export class HwgwBatchVizService {
 
       const howCentered = (job: JobState) => {
         const center =
-          (job.plannedStart + job.plannedEnd) *
+          (job.plannedEnd + job.plannedStart) *
           memdb.config.hwgw.batchViz.centerBias;
         return Math.abs(center - now);
       };

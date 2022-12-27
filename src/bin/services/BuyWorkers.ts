@@ -68,12 +68,15 @@ export async function main(ns: NS): Promise<void> {
   async function purchaseWorkers(
     reserveMoney: number
   ): Promise<PurchaseResult> {
+    log.debug("purchaseWorkers", { reserveMoney: fmt.money(reserveMoney) });
+
     const result: PurchaseResult = { deleted: [], purchased: [] };
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const ram = await biggestAffordableServer(reserveMoney);
       if (ram === 0) {
+        log.debug("No more affordable servers");
         break;
       }
       if (ns.getPurchasedServerLimit() <= ns.getPurchasedServers().length) {

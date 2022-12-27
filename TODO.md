@@ -1,10 +1,9 @@
 # TODOs
 
 * hwgw logic
-  * Stalefish `max_depth` through config
-  * kill batches if `depth * period` changes
   * use `Formulas`-based calculation in `stalefish` while `hacking` skill changes rapidly?
   * safety checks
+    * kill batches if `depth` or `period` changes
     * money on server is good; kill & prepare if not
     * security on server is good; kill & prepare if not
     * if we fail to schedule all tasks in `hwgw-batch`, kill the whole batch
@@ -14,7 +13,8 @@
   * Configure: filter for host
   * Try to get more resolution somehow
 * Create `Hwgw` service
-  * manage multiple `hwgw-controller`s
+  * Replace / extend `hwgw-controller`
+  * Detect JS runtime overload, *do something* (maybe: kill all batches, drop `maxDepth` config)
 * Create `Stats` service
   * chart used/total capacity
   * charts per hwgw controller

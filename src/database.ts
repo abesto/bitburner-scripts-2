@@ -18,6 +18,7 @@ export type DB = {
     hwgw: {
       moneyThreshold: number;
       spacing: number;
+      maxDepth: number;
       batchViz: {
         centerBias: number;
       };
@@ -64,6 +65,7 @@ export const DEFAULT_DB: DB = {
     hwgw: {
       moneyThreshold: 0.5,
       spacing: 500,
+      maxDepth: 0,
       batchViz: {
         centerBias: 0.5,
       },
