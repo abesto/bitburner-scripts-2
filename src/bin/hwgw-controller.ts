@@ -6,6 +6,7 @@ import { autonuke } from '/autonuke';
 import * as colors from '/colors';
 import { DB } from '/database';
 import { Fmt } from '/fmt';
+import { Formulas } from '/Formulas';
 import { Log } from '/log';
 import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
@@ -33,6 +34,7 @@ export async function main(ns: NS): Promise<void> {
   const schedulerResponsePort = await portRegistryClient.reservePort();
   const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);
   const fmt = new Fmt(ns);
+  const formulas = new Formulas(ns);
 
   if (!args.job || args.task < 0) {
     const resp = await schedulerClient.start(
@@ -72,9 +74,9 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   ns.tail();
   await ns.sleep(0);
-  ns.moveTail(1270, 410);
-  ns.resizeTail(1280, 930);
-  const monitor = await Monitor.new(ns, log, host);
+  ns.moveTail(1413, 350);
+  ns.resizeTail(1145, 890);
+  const monitor = await Monitor.new(ns, log, args.job as JobId, host);
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -83,9 +85,9 @@ export async function main(ns: NS): Promise<void> {
     const maxDepth = memdb.config.hwgw.maxDepth;
 
     const stalefishResult = stalefish(
-      ns.getWeakenTime(host) / 1000,
-      ns.getGrowTime(host) / 1000,
-      ns.getHackTime(host) / 1000,
+      formulas.getWeakenTime(host) / 1000,
+      formulas.getGrowTime(host) / 1000,
+      formulas.getHackTime(host) / 1000,
       spacing / 1000,
       maxDepth <= 0 ? Infinity : maxDepth
     );
@@ -103,11 +105,11 @@ export async function main(ns: NS): Promise<void> {
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
-      { tail: true, finishNotificationPort: null }
+      { finishNotificationPort: null }
     );
 
     for (let i = 0; i < 5; i++) {
-      await monitor.report(period, depth);
+      await monitor.report(spacing, period, depth);
       await ns.sleep(period / 5);
     }
   }
@@ -219,20 +221,44 @@ class Monitor {
 
   constructor(
     private readonly ns: NS,
-    private readonly host: string,
     private readonly log: Log,
+    private readonly jobId: JobId,
+    private readonly host: string,
     private readonly maxMoney: number,
     private readonly minSecurity: number,
-    private readonly history = 120
+    private readonly history = 105
   ) {
     this.log = log;
     this.fmt = new Fmt(ns);
+
+    this.metrics.money[0] = new Array(history).fill(0);
+    this.metrics.money[1] = new Array(history).fill(maxMoney);
+
+    this.metrics.security[0] = new Array(history).fill(minSecurity);
+    this.metrics.security[1] = new Array(history).fill(100);
+
+    this.metrics.hack[0] = new Array(history).fill(0);
+    this.metrics.hack[1] = new Array(history).fill(0);
+    this.metrics.hack[2] = new Array(history).fill(0);
+
+    this.metrics.grow[0] = new Array(history).fill(0);
+    this.metrics.grow[1] = new Array(history).fill(0);
+    this.metrics.grow[2] = new Array(history).fill(0);
+
+    this.metrics.weaken[0] = new Array(history).fill(0);
+    this.metrics.weaken[1] = new Array(history).fill(0);
+    this.metrics.weaken[2] = new Array(history).fill(0);
   }
 
-  static async new(ns: NS, log: Log, host: string): Promise<Monitor> {
+  static async new(
+    ns: NS,
+    log: Log,
+    jobId: JobId,
+    host: string
+  ): Promise<Monitor> {
     const maxMoney = ns.getServerMaxMoney(host);
     const minSecurity = ns.getServerMinSecurityLevel(host);
-    return new Monitor(ns, host, log, maxMoney, minSecurity);
+    return new Monitor(ns, log, jobId, host, maxMoney, minSecurity);
   }
 
   protected recordOne<T, M extends T[]>(metrics: M, value: T): void {
@@ -323,7 +349,7 @@ class Monitor {
     return metrics[2][metrics[2].length - 1] || 0;
   }
 
-  async report(period: number, depth: number) {
+  async report(spacing: number, period: number, depth: number) {
     await this.record();
     this.ns.clearLog();
 
@@ -351,8 +377,10 @@ class Monitor {
       colors: [asciichart.green, asciichart.red, asciichart.blue],
     };
 
+    this.log.info("About", { job: this.jobId, targetHost: this.host });
     this.log.info("Stalefish", {
-      period: this.fmt.float(period / 1000) + "s",
+      t0: this.fmt.time(spacing, true),
+      period: this.fmt.time(period, true),
       depth,
     });
 

@@ -8,8 +8,6 @@ export const CYAN = "\u001b[36m";
 export const WHITE = "\u001b[37m";
 export const RESET = "\u001b[0m";
 
-export const BOLD = "\u001b[1m";
-
 export function black(text: string): string {
   return BLACK + text + RESET;
 }
@@ -34,6 +32,8 @@ export function cyan(text: string): string {
 export function white(text: string): string {
   return WHITE + text + RESET;
 }
-export function bold(text: string): string {
-  return BOLD + text + RESET;
-}
+
+export const fg256 = (r: number, g: number, b: number) => (text: string) => {
+  const color = 16 + r * 36 + g * 6 + b;
+  return `\u001b[38;5;${color}m` + text + RESET;
+};

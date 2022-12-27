@@ -1,6 +1,7 @@
 import { NS } from '@ns';
 
 import { Fmt } from '/fmt';
+import { Formulas } from '/Formulas';
 import { Log } from '/log';
 import { db } from '/services/Database/client';
 import { HwgwBatchVizClient } from '/services/HwgwBatchViz/client';
@@ -44,13 +45,17 @@ export async function main(ns: NS): Promise<void> {
   async function finished() {
     const schedulerClient = new NoResponseSchedulerClient(ns, log);
     await schedulerClient.taskFinished(jobId, taskId);
+  }
+
+  ns.atExit(() => {
     if (initial) {
       ns.closeTail();
     }
-  }
+  });
 
   const fmt = new Fmt(ns);
   const memdb = await db(ns, log);
+  const formulas = new Formulas(ns);
   const spacing = memdb.config.hwgw.spacing;
 
   const moneyMax = ns.getServerMaxMoney(host);
@@ -65,41 +70,50 @@ export async function main(ns: NS): Promise<void> {
     await finished();
     return;
   }
-  const moneyThreshold = moneyMax * memdb.config.hwgw.moneyThreshold;
-  const moneySteal = moneyMax - moneyThreshold;
+  const moneyThreshold = memdb.config.hwgw.moneyThreshold;
+  const moneySteal = moneyMax * (1 - moneyThreshold);
 
-  const wantHackThreads = Math.floor(moneySteal / moneyStolenPerThread);
+  const wantHackThreads = formulas.hacksFromToMoneyRatio(
+    host,
+    1,
+    moneyThreshold
+  );
   const moneyAfterHack = moneyMax - moneyStolenPerThread * wantHackThreads;
   const hackSecurityGrowth = ns.hackAnalyzeSecurity(wantHackThreads);
 
-  const overWeaken = Math.max(
-    1,
-    ns.getServerSecurityLevel(host) /
-      (ns.getServerMinSecurityLevel(host) + hackSecurityGrowth)
-  );
-
+  const overWeaken = initial
+    ? 1
+    : Math.max(
+        1.2,
+        ns.getServerSecurityLevel(host) /
+          (ns.getServerMinSecurityLevel(host) + hackSecurityGrowth)
+      );
   const wantHackWeakenThreads = Math.ceil(
-    (overWeaken *
-      (initial ? ns.getServerSecurityLevel(host) : hackSecurityGrowth)) /
-      0.05
+    (initial
+      ? formulas.weakenToMinimum(host)
+      : formulas.weakenAfterHacks(wantHackThreads)) * overWeaken
   );
 
-  const overGrow = Math.max(
-    1.2,
-    ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
+  const overGrow = initial
+    ? 1
+    : Math.max(
+        1.2,
+        ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
+      );
+  const wantGrowThreads = Math.ceil(
+    initial
+      ? formulas.growthToTargetMoneyRatio(host, 1)
+      : formulas.growthFromToMoneyRatio(host, moneyAfterHack / moneyMax, 1) *
+          overGrow
   );
-  const growMultiplier = initial
-    ? moneyMax / ns.getServerMoneyAvailable(host)
-    : (1 + moneySteal / moneyAfterHack) * overGrow;
-  const wantGrowThreads = Math.ceil(ns.growthAnalyze(host, growMultiplier));
-  const growSecurityGrowth = ns.growthAnalyzeSecurity(wantGrowThreads);
+
   const wantGrowWeakenThreads = Math.ceil(
-    (overWeaken * growSecurityGrowth) / 0.05
+    formulas.weakenAfterGrows(wantGrowThreads) * overWeaken
   );
 
-  const weakenLength = ns.getWeakenTime(host);
-  const growLength = ns.getGrowTime(host);
-  const hackLength = ns.getHackTime(host);
+  const weakenLength = formulas.getWeakenTime(host);
+  const growLength = formulas.getGrowTime(host);
+  const hackLength = formulas.getHackTime(host);
 
   if (isNaN(moneyAfterHack)) {
     log.terror("wtf", {
@@ -114,9 +128,7 @@ export async function main(ns: NS): Promise<void> {
       moneyAfterHack,
       hackSecurityGrowth,
       wantHackWeakenThreads,
-      growMultiplier,
       wantGrowThreads,
-      growSecurityGrowth,
       wantGrowWeakenThreads,
     });
     await finished();
@@ -136,9 +148,7 @@ export async function main(ns: NS): Promise<void> {
     moneyAfterHack: fmt.money(moneyAfterHack),
     hackSecurityGrowth,
     wantHackWeakenThreads,
-    growMultiplier: fmt.percent(growMultiplier),
     wantGrowThreads,
-    growSecurityGrowth,
     wantGrowWeakenThreads,
   });
 
@@ -258,7 +268,6 @@ export async function main(ns: NS): Promise<void> {
       scheduledGrowThreads,
       wantGrowThreads,
     });
-    // TODO kill growWeaken batch
     await finished();
     return;
   }
@@ -287,7 +296,6 @@ export async function main(ns: NS): Promise<void> {
         "Scheduled hack threads does not match requested hack threads",
         { host, scheduledHackThreads, wantHackThreads }
       );
-      // TODO kill all batches
     }
     await vizClient.start({
       jobId,

@@ -30,8 +30,8 @@ export class Fmt {
     return this.ns.nFormat(n, "0a");
   }
 
-  time(t: number): string {
-    return this.ns.tFormat(t);
+  time(t: number, milliPrecition?: boolean): string {
+    return this.ns.tFormat(t, milliPrecition);
   }
 
   timeShort(t: number): string {

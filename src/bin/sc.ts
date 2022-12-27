@@ -106,6 +106,7 @@ export async function main(ns: NS): Promise<void> {
   }
 
   async function status() {
+    const filter = args._[1];
     const status = await withClient(
       SchedulerClient,
       ns,
@@ -115,6 +116,13 @@ export async function main(ns: NS): Promise<void> {
       }
     );
     for (const job of status.jobs) {
+      if (
+        filter &&
+        !job.spec.script.includes(filter) &&
+        !job.spec.args.join(" ").includes(filter)
+      ) {
+        continue;
+      }
       log.tinfo("Job", {
         jobId: job.id,
         script: job.spec.script,
@@ -128,6 +136,7 @@ export async function main(ns: NS): Promise<void> {
             taskId: task.id,
             hostname: task.hostname,
             threads: task.threads,
+            pid: task.pid,
           });
         }
       }

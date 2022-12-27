@@ -8,10 +8,10 @@
     * security on server is good; kill & prepare if not
     * if we fail to schedule all tasks in `hwgw-batch`, kill the whole batch
   * `hwgw-controller`: kill all processes against the target on startup?
-  * fix preparation calculation (which is the same calculation as used for regular threads, so... concern.)
 * `HwgwBatchViz` service
   * Configure: filter for host
   * Try to get more resolution somehow
+  * Notice when batches crash
 * Create `Hwgw` service
   * Replace / extend `hwgw-controller`
   * Detect JS runtime overload, *do something* (maybe: kill all batches, drop `maxDepth` config)

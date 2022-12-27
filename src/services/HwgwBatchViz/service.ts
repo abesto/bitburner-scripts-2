@@ -40,6 +40,77 @@ type JobState<T extends TypeNames<typeof JobState> = undefined> = VariantOf<
   T
 >;
 
+const charNormal = "█" as const;
+const charEarly = "▄" as const;
+const charLate = "▀" as const;
+
+type Partials = { [key: string]: readonly (readonly [number, string])[] };
+const charPartial: { start: Partials; end: Partials } = {
+  start: {
+    [charNormal]: [
+      [0.125, "▕"],
+      [0.5, "▐"],
+      [1, charNormal],
+    ],
+  },
+  end: {
+    [charNormal]: [
+      [0.125, "▏"],
+      [0.25, "▎"],
+      [0.375, "▍"],
+      [0.5, "▌"],
+      [0.625, "▋"],
+      [0.75, "▊"],
+      [0.875, "▉"],
+      [1, charNormal],
+    ],
+    [charEarly]: [
+      [0.5, "▖"],
+      [1, charEarly],
+    ],
+    [charLate]: [
+      [0.5, "▘"],
+      [1, charLate],
+    ],
+  },
+} as const;
+
+const jobColors = {
+  hack: {
+    planned: colors.fg256(0, 1, 0),
+    normal: colors.fg256(0, 5, 0),
+  },
+  grow: {
+    planned: colors.fg256(1, 0, 0),
+    normal: colors.fg256(5, 0, 0),
+  },
+  "hack-weaken": {
+    planned: colors.fg256(0, 1, 1),
+    normal: colors.fg256(0, 5, 5),
+  },
+  "grow-weaken": {
+    planned: colors.fg256(1, 0, 1),
+    normal: colors.fg256(5, 0, 5),
+  },
+} as const;
+
+function charToPartial(
+  kind: keyof typeof charPartial,
+  char: string,
+  progress: number
+): string {
+  if (charPartial[kind][char] === undefined) {
+    return char;
+  }
+  const options = charPartial[kind][char];
+  // Return the character that is the closest match to the progress.
+  return options.reduce((prev, curr) => {
+    return Math.abs(curr[0] - progress) < Math.abs(prev[0] - progress)
+      ? curr
+      : prev;
+  })[1];
+}
+
 export class HwgwBatchVizService {
   private readonly batches: Map<JobId, Map<JobKind, JobState>> = new Map();
   private readonly fmt: Fmt;
@@ -220,17 +291,28 @@ export class HwgwBatchVizService {
         continue;
       }
       const earliest = Array.from(shownBatches[0].values()).reduce(
-        (min, job) => Math.min(min, job.plannedStart),
+        (min, job) =>
+          Math.min(
+            min,
+            job.type === "planned"
+              ? job.plannedStart
+              : Math.min(job.start, job.plannedStart)
+          ),
         Infinity
       );
       const latest = Array.from(shownBatches[shownBatches.length - 1].values())
-        .map((job) => (job.type === "finished" ? job.end : job.plannedEnd))
+        .map((job) =>
+          job.type === "finished"
+            ? Math.max(job.end, job.plannedEnd)
+            : job.plannedEnd
+        )
         .reduce((max, end) => Math.max(max, end), -Infinity);
-      //const duration = Math.min(latest - earliest, this.width * spacing);
       const duration = latest - earliest;
-      const chartStart = now - duration / 2;
-      const chartEnd = chartStart + duration;
-      const chartStep = duration / this.width;
+
+      // Round to nearest 250ms that can fit all the content
+      const chartStep = Math.ceil(duration / this.width / 250) * 250;
+      const chartStart = Math.floor(earliest / chartStep) * chartStep;
+      const chartEnd = Math.ceil(latest / chartStep) * chartStep;
 
       for (const [jobId, batch] of this.batches) {
         let oldCount = 0;
@@ -250,18 +332,6 @@ export class HwgwBatchVizService {
         this.ns.printf(" ");
       }
 
-      const jobColors = {
-        hack: colors.green,
-        grow: colors.red,
-        "hack-weaken": colors.cyan,
-        "grow-weaken": colors.magenta,
-      };
-
-      const charPlanned = "░";
-      const charRunning = "█";
-      const charEarly = "▄";
-      const charLate = "▀";
-
       for (const batch of shownBatches) {
         for (const kind of [
           "hack",
@@ -274,32 +344,62 @@ export class HwgwBatchVizService {
             this.ns.printf(" ");
             continue;
           }
-          const jobColor = jobColors[job.kind];
           const chars: string[] = [];
+          const colors: ((s: string) => string)[] = [];
           let time = chartStart;
 
-          const to = (t: number, c: string) => {
+          const to = (
+            t: number,
+            c: string,
+            state: "planned" | "normal" = "normal"
+          ) => {
             for (; time < t && time < chartEnd; time += chartStep) {
-              chars.push(jobColor(c));
+              chars.push(c);
+              colors.push(jobColors[kind][state]);
             }
           };
 
           to(job.plannedStart, " ");
           if (job.type === "planned") {
-            to(job.plannedEnd, charPlanned);
+            to(job.plannedEnd, charNormal, "planned");
           } else if (job.type === "running") {
-            to(job.start, charPlanned);
-            to(Math.min(now, job.plannedEnd), charRunning);
+            to(job.start, charNormal, "planned");
+            to(Math.min(now, job.plannedEnd), charNormal);
             to(now, charLate);
-            to(job.plannedEnd, charPlanned);
+            to(job.plannedEnd, charNormal, "planned");
           } else if (job.type === "finished") {
-            to(job.start, charPlanned);
-            to(Math.min(job.end, job.plannedEnd), charRunning);
-            to(job.plannedEnd, charEarly);
+            to(job.start, charNormal, "planned");
+            to(Math.min(job.end, job.plannedEnd), charNormal);
+            to(job.plannedEnd, charEarly, "planned");
             to(job.end, charLate);
           }
 
-          this.ns.printf("%s", chars.slice(0, this.width).join(""));
+          chars.splice(this.width, chars.length - this.width);
+          // Make the first non-space char partial if needed
+          for (let i = 0; i < chars.length; i++) {
+            if (chars[i] !== " ") {
+              chars[i] = charToPartial(
+                "start",
+                chars[i],
+                (chartStep - ((job.plannedStart - chartStart) % chartStep)) /
+                  chartStep
+              );
+              break;
+            }
+          }
+          // Make the last char partial if needed
+          chars[chars.length - 1] = charToPartial(
+            "end",
+            chars[chars.length - 1],
+            ((job.type === "finished"
+              ? Math.max(job.end, job.plannedEnd)
+              : job.plannedEnd - chartStart) %
+              chartStep) /
+              chartStep
+          );
+
+          const colored = chars.map((c, i) => colors[i](c));
+          this.ns.printf("%s", colored.join(""));
         }
       }
 
@@ -318,15 +418,14 @@ export class HwgwBatchVizService {
       );
       this.ns.printf("%s", ".".repeat(this.width));
       this.log.info("Legend", {
-        hack: jobColors.hack(charRunning),
-        grow: jobColors.grow(charRunning),
-        "hack-weaken": jobColors["hack-weaken"](charRunning),
-        "grow-weaken": jobColors["grow-weaken"](charRunning),
-        planned: charPlanned,
-        running: charRunning,
+        hack: jobColors.hack.normal(charNormal),
+        grow: jobColors.grow.normal(charNormal),
+        "hack-weaken": jobColors["hack-weaken"].normal(charNormal),
+        "grow-weaken": jobColors["grow-weaken"].normal(charNormal),
+        planned: jobColors.hack.planned(charNormal),
         early: charEarly,
         late: charLate,
-        ".": this.fmt.float(chartStep / 1000) + "s",
+        ".": this.fmt.time(chartStep, true),
       });
     }
   }
