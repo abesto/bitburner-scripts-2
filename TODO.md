@@ -1,7 +1,6 @@
 # TODOs
 
 * `BuyWorkers`
-  * use `upgradePurchasedServer` (this is new innit)
   * make decisions without config
 * `hwgw-controller`: kill all processes against the target on startup?
 * `HwgwBatchViz` service
