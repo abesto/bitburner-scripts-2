@@ -192,13 +192,24 @@ export class HwgwBatchVizService {
           return;
         }
         match(job, {
-          planned: () => {
+          planned: ({ plannedStart, plannedEnd }) => {
             /*
               this.log.error("Job  not running", {
                 jobId,
                 request: "finished",
               });
               */
+            batch.set(
+              kind,
+              JobState.finished({
+                jobId,
+                plannedStart,
+                plannedEnd,
+                kind,
+                start: timestamp,
+                end: timestamp,
+              })
+            );
           },
           running: ({ jobId, plannedStart, plannedEnd, kind, start }) => {
             batch.set(

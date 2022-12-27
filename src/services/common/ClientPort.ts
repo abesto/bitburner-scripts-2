@@ -21,6 +21,17 @@ export class ClientPort<T> {
     }
   }
 
+  writeSync(data: T): T | null {
+    if (this.port === null) {
+      return null;
+    }
+    const old = this.port.write(JSON.stringify(data));
+    if (old !== null) {
+      return JSON.parse(old as string);
+    }
+    return null;
+  }
+
   async write(data: T, options?: ClientWriteOptions): Promise<void> {
     if (this.port === null) {
       return;

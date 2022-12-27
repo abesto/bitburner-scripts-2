@@ -58,7 +58,7 @@ export class DatabaseService {
         continue;
       }
       const request = await listenPort.read({
-        timeout: 0,
+        timeout: Infinity,
       });
       if (request === null) {
         continue;
@@ -69,8 +69,24 @@ export class DatabaseService {
         lock: (request) => this.lock(request),
         unlock: (request) => this.unlock(request),
         writeAndUnlock: (request) => this.writeAndUnlock(request),
+        status: (request) => this.status(request),
       });
     }
+  }
+
+  private async status(request: Request<"status">): Promise<void> {
+    const clientPort = new ClientPort<Response>(
+      this.ns,
+      this.log,
+      request.responsePort
+    );
+    const memdb = await this.loadFromDisk();
+    await clientPort.write(
+      Response.status({
+        currentLock: memdb.meta.currentLock,
+        lockQueue: memdb.meta.lockQueue,
+      })
+    );
   }
 
   private async breakStaleLock(): Promise<void> {

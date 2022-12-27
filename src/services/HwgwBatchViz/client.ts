@@ -34,4 +34,13 @@ export class HwgwBatchVizClient extends BaseNoResponseClient<HwgwBatchVizRequest
       }
     );
   }
+
+  finishedSync(params: {
+    jobId: string;
+    kind: JobKind;
+  }): HwgwBatchVizRequest | null {
+    return this.sendSync(
+      HwgwBatchVizRequest.finished({ ...params, timestamp: Date.now() })
+    );
+  }
 }

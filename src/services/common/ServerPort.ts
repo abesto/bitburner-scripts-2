@@ -20,9 +20,9 @@ export class ServerPort<T> {
   }): Promise<T | null> {
     const timeout = options?.timeout ?? 5000;
     const throwOnTimeout = options?.throwOnTimeout ?? true;
-    if (this.port.empty()) {
+    if (this.port.empty() && timeout > 0) {
       const promise =
-        timeout === 0
+        timeout === Infinity
           ? this.port.nextWrite()
           : Promise.any([this.port.nextWrite(), this.ns.asleep(timeout)]);
       if (await promise) {
@@ -34,7 +34,9 @@ export class ServerPort<T> {
       }
     }
     const data = this.port.read();
-    await this.ns.sleep(0);
+    if (data === "NULL PORT DATA") {
+      return null;
+    }
     try {
       const json = JSON.parse(data.toString());
       const parsed = this.parse(json);

@@ -109,8 +109,8 @@ export class SchedulerClient extends BaseClient<Request, Response> {
     );
   }
 
-  async waitForJobFinished(jobId: JobId): Promise<void> {
-    const response = await this.responsePort.read({ timeout: 0 });
+  async waitForJobFinished(jobId: JobId, timeout = Infinity): Promise<void> {
+    const response = await this.responsePort.read({ timeout });
     await this.handleResponse(response, {
       jobFinished: (data) => {
         if (data.jobId !== jobId) {

@@ -34,8 +34,8 @@ export class Fmt {
     return this.ns.tFormat(t, milliPrecition);
   }
 
-  timeShort(t: number): string {
-    return this.ns.nFormat(t / 1000, "00:00:00");
+  timeSeconds(t: number): string {
+    return this.ns.nFormat(t / 1000, "0.000") + "s";
   }
 
   timestamp(ms: number): string {

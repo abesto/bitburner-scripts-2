@@ -17,12 +17,14 @@ export async function main(ns: NS): Promise<void> {
     ["task", -1],
     ["initial", false],
     ["dry-run", false],
+    ["yolo", false],
   ]);
   const host = (args._ as string[])[0];
 
   const jobId = args["job"] as string;
   const taskId = args["task"] as number;
   const initial = args["initial"] as boolean;
+  const yolo = args["yolo"] as boolean;
 
   if (!host || !jobId || taskId < 0) {
     log.terror(
@@ -51,6 +53,14 @@ export async function main(ns: NS): Promise<void> {
     if (initial) {
       ns.closeTail();
     }
+    for (const kind of [
+      "hack",
+      "grow",
+      "hack-weaken",
+      "grow-weaken",
+    ] as const) {
+      vizClient.finishedSync({ jobId, kind });
+    }
   });
 
   const fmt = new Fmt(ns);
@@ -58,7 +68,9 @@ export async function main(ns: NS): Promise<void> {
   const formulas = new Formulas(ns);
   const spacing = memdb.config.hwgw.spacing;
 
+  const moneyCurrent = ns.getServerMoneyAvailable(host);
   const moneyMax = ns.getServerMaxMoney(host);
+  const securityMin = ns.getServerMinSecurityLevel(host);
   const moneyStolenPerThread = ns.hackAnalyze(host) * moneyMax;
   if (moneyStolenPerThread === 0) {
     log.terror("moneyStolePerThread=0", {
@@ -67,8 +79,7 @@ export async function main(ns: NS): Promise<void> {
       currentMoney: fmt.money(ns.getServerMoneyAvailable(host)),
       securityLevel: ns.getServerSecurityLevel(host),
     });
-    await finished();
-    return;
+    return await finished();
   }
   const moneyThreshold = memdb.config.hwgw.moneyThreshold;
   const moneySteal = moneyMax * (1 - moneyThreshold);
@@ -85,8 +96,7 @@ export async function main(ns: NS): Promise<void> {
     ? 1
     : Math.max(
         1.2,
-        ns.getServerSecurityLevel(host) /
-          (ns.getServerMinSecurityLevel(host) + hackSecurityGrowth)
+        ns.getServerSecurityLevel(host) / (securityMin + hackSecurityGrowth)
       );
   const wantHackWeakenThreads = Math.ceil(
     (initial
@@ -115,6 +125,15 @@ export async function main(ns: NS): Promise<void> {
   const growLength = formulas.getGrowTime(host);
   const hackLength = formulas.getHackTime(host);
 
+  let shouldHack = wantHackThreads > 0 && !initial && moneyCurrent === moneyMax;
+  let noHackReason = initial
+    ? "--initial"
+    : moneyCurrent < moneyMax
+    ? "moneyLow"
+    : wantHackThreads === 0
+    ? "wantHackThreads=0"
+    : "/shrug";
+
   if (isNaN(moneyAfterHack)) {
     log.terror("wtf", {
       jobId,
@@ -131,8 +150,7 @@ export async function main(ns: NS): Promise<void> {
       wantGrowThreads,
       wantGrowWeakenThreads,
     });
-    await finished();
-    return;
+    return await finished();
   }
 
   log.info("startup", {
@@ -152,19 +170,15 @@ export async function main(ns: NS): Promise<void> {
     wantGrowWeakenThreads,
   });
 
-  const growWeakenEnd = initial
-    ? Date.now() + weakenLength + spacing * 5
-    : parseFloat((args._ as string[])[1]);
-  const growWeakenStart = growWeakenEnd - weakenLength;
-
-  const growEnd = growWeakenEnd - spacing;
-  const growStart = growEnd - growLength;
-
-  const hackWeakenEnd = growEnd - spacing;
-  const hackWeakenStart = hackWeakenEnd - weakenLength;
-
-  const hackEnd = hackWeakenEnd - spacing;
-  const hackStart = hackEnd - hackLength;
+  const [hackStart, hackWeakenStart, growStart, growWeakenStart] = (
+    args._ as string[]
+  )
+    .slice(1)
+    .map((x) => parseFloat(x));
+  const hackEnd = hackStart + hackLength;
+  const hackWeakenEnd = hackWeakenStart + weakenLength;
+  const growEnd = growStart + growLength;
+  const growWeakenEnd = growWeakenStart + weakenLength;
 
   const now = Date.now();
   if (
@@ -179,11 +193,10 @@ export async function main(ns: NS): Promise<void> {
       hackWeakenStart: fmt.time(hackWeakenStart - now),
       hackStart: fmt.time(hackStart - now),
     });
-    await finished();
-    return;
+    return await finished();
   }
 
-  if (!initial) {
+  if (shouldHack) {
     await vizClient.plan({
       jobId,
       kind: "hack",
@@ -217,12 +230,16 @@ export async function main(ns: NS): Promise<void> {
     });
   }
   await ns.sleep(sleepToHackWeaken);
+  desyncCheckBefore();
   const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
     "weaken",
     host,
     wantHackWeakenThreads,
     weakenLength
   );
+  if (!desyncCheckAfter("hack-weaken", hackWeakenStart)) {
+    return await finished();
+  }
   await vizClient.start({
     jobId,
     kind: "hack-weaken",
@@ -232,6 +249,7 @@ export async function main(ns: NS): Promise<void> {
     length: fmt.time(growWeakenStart - Date.now()),
   });
   await ns.sleep(growWeakenStart - Date.now());
+  desyncCheckBefore();
   const {
     jobId: growWeakenJobId,
     threads: scheduledGrowWeakenThreads,
@@ -242,8 +260,10 @@ export async function main(ns: NS): Promise<void> {
       "Scheduled grow-weaken threads does not match requested grow-weaken threads",
       { host, scheduledGrowWeakenThreads, wantGrowWeakenThreads }
     );
-    await finished();
-    return;
+    return await finished();
+  }
+  if (!desyncCheckAfter("grow-weaken", growWeakenStart)) {
+    return await finished();
   }
   await vizClient.start({
     jobId,
@@ -254,6 +274,7 @@ export async function main(ns: NS): Promise<void> {
     length: fmt.time(growStart - Date.now()),
   });
   await ns.sleep(growStart - Date.now());
+  desyncCheckBefore();
   const {
     jobId: growJobId,
     threads: scheduledGrowThreads,
@@ -268,8 +289,10 @@ export async function main(ns: NS): Promise<void> {
       scheduledGrowThreads,
       wantGrowThreads,
     });
-    await finished();
-    return;
+    return await finished();
+  }
+  if (!desyncCheckAfter("grow", growStart)) {
+    return await finished();
   }
   await vizClient.start({
     jobId,
@@ -277,13 +300,14 @@ export async function main(ns: NS): Promise<void> {
   });
 
   let hackJobId, hackClient;
-  if (initial) {
-    log.info("Skipping hack", { reason: "--initial" });
+  if (!shouldHack) {
+    log.info("Skipping hack", { reason: noHackReason });
   } else {
     log.info("Sleeping until hack start", {
       length: fmt.time(hackStart - Date.now()),
     });
     await ns.sleep(hackStart - Date.now());
+    desyncCheckBefore();
     const {
       jobId: _hackJobId,
       threads: scheduledHackThreads,
@@ -296,6 +320,9 @@ export async function main(ns: NS): Promise<void> {
         "Scheduled hack threads does not match requested hack threads",
         { host, scheduledHackThreads, wantHackThreads }
       );
+    }
+    if (!desyncCheckAfter("hack", hackStart)) {
+      return await finished();
     }
     await vizClient.start({
       jobId,
@@ -353,5 +380,38 @@ export async function main(ns: NS): Promise<void> {
     });
     log.info("Started job", { kind, jobId, threads, wantThreads });
     return { jobId, threads, client: schedulerClient };
+  }
+
+  function desyncCheckBefore() {
+    if (initial || !shouldHack) {
+      return;
+    }
+    const money = ns.getServerMoneyAvailable(host);
+    if (money < moneyMax) {
+      shouldHack = false;
+      noHackReason = "moneyLow";
+      return;
+    }
+    const security = ns.getServerSecurityLevel(host);
+    if (security > securityMin) {
+      shouldHack = false;
+      noHackReason = "securityHigh";
+      return;
+    }
+  }
+
+  function desyncCheckAfter(kind: JobKind, wantedStart: number): boolean {
+    const actualStart = Date.now();
+    const diff = Math.abs(wantedStart - actualStart);
+    if (diff > spacing) {
+      log.terror("HWGW desync: late start", {
+        kind,
+        wantedStart: fmt.timestamp(wantedStart),
+        actualStart: fmt.timestamp(actualStart),
+        diff: fmt.time(diff),
+      });
+      return false;
+    }
+    return true;
   }
 }

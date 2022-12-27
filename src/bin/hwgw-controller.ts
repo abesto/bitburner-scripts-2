@@ -8,10 +8,12 @@ import { DB } from '/database';
 import { Fmt } from '/fmt';
 import { Formulas } from '/Formulas';
 import { Log } from '/log';
+import { ServerPort } from '/services/common/ServerPort';
 import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient } from '/services/Scheduler/client';
 import { HostAffinity, JobId, jobThreads } from '/services/Scheduler/types';
+import { toSchedulerResponse } from '/services/Scheduler/types/response';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
@@ -21,6 +23,7 @@ export async function main(ns: NS): Promise<void> {
   ]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
+  const server = ns.getServer(host);
   const skipPrepare = args["skip-prepare"] as boolean;
 
   const log = new Log(ns, "hwgw-controller");
@@ -42,6 +45,7 @@ export async function main(ns: NS): Promise<void> {
         script: "/bin/hwgw-controller.js",
         args: ns.args.map((arg) => arg.toString()),
         threads: 1,
+        hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
       { nohup: true }
     );
@@ -54,9 +58,29 @@ export async function main(ns: NS): Promise<void> {
   if (!skipPrepare) {
     log.info("Initial preparation: weaken, grow, weaken");
     while (shouldWeaken() || (await shouldGrow())) {
+      const t0 = (await db(ns, log)).config.hwgw.spacing;
+
+      const hack_time = formulas.getHackTime(host);
+      const weak_time = formulas.getWeakenTime(host);
+      const grow_time = formulas.getGrowTime(host);
+
+      const batchEnd = Date.now() + weak_time + 5 * t0;
+
+      const hack_delay = batchEnd - 4 * t0 - hack_time;
+      const weak_delay_1 = batchEnd - 3 * t0 - weak_time;
+      const grow_delay = batchEnd - 2 * t0 - grow_time;
+      const weak_delay_2 = batchEnd - 1 * t0 - weak_time;
+
       const { jobId, threads } = await schedulerClient.start({
         script: "/bin/hwgw-batch.js",
-        args: [host, "--initial"],
+        args: [
+          host,
+          hack_delay.toString(),
+          weak_delay_1.toString(),
+          grow_delay.toString(),
+          weak_delay_2.toString(),
+          "--initial",
+        ],
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       });
@@ -77,41 +101,135 @@ export async function main(ns: NS): Promise<void> {
   ns.moveTail(1413, 350);
   ns.resizeTail(1145, 890);
   const monitor = await Monitor.new(ns, log, args.job as JobId, host);
+  const memdb = await db(ns, log);
+  const t0 = memdb.config.hwgw.spacing;
 
+  let lastPeriodStart = 0;
+  const validFrom = ns.getPlayer();
+  const validUpTo = ns.getPlayer();
+  validUpTo.skills.hacking = Math.ceil(
+    validUpTo.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
+  );
+
+  const jobs: JobId[] = [];
+  const jobFinishedPortNumber = await portRegistryClient.reservePort();
+  const jobFinishedPort = new ServerPort(
+    ns,
+    log,
+    jobFinishedPortNumber,
+    toSchedulerResponse
+  );
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const memdb = await db(ns, log);
-    const spacing = memdb.config.hwgw.spacing;
+    // Consume job finished notifications
+    while (!jobFinishedPort.empty()) {
+      while (!jobFinishedPort.empty()) {
+        const response = await jobFinishedPort.read({ timeout: 0 });
+        if (response !== null && response.type === "jobFinished") {
+          jobs.splice(jobs.indexOf(response.jobId), 1);
+        }
+      }
+    }
+
+    const yolo = !formulas.haveFormulas;
+    if (!yolo && ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
+      log.error("Hacking skill increased, killing existing batches");
+      for (const jobId of jobs) {
+        await schedulerClient.killJob(jobId);
+      }
+      jobs.splice(0, jobs.length);
+      validFrom.skills.hacking = ns.getPlayer().skills.hacking;
+      const memdb = await db(ns, log);
+      validUpTo.skills.hacking = Math.ceil(
+        validFrom.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
+      );
+    }
+
     const maxDepth = memdb.config.hwgw.maxDepth;
 
-    const stalefishResult = stalefish(
-      formulas.getWeakenTime(host) / 1000,
-      formulas.getGrowTime(host) / 1000,
-      formulas.getHackTime(host) / 1000,
-      spacing / 1000,
-      maxDepth <= 0 ? Infinity : maxDepth
-    );
+    const hack_time = formulas.getHackTime(host);
+    const weak_time = formulas.getWeakenTime(host);
+    const grow_time = formulas.getGrowTime(host);
+
+    const stalefishResult = stalefish({
+      weak_time_max: formulas.haveFormulas
+        ? ns.formulas.hacking.weakenTime(server, validFrom)
+        : weak_time,
+      weak_time_min: formulas.haveFormulas
+        ? ns.formulas.hacking.weakenTime(server, validUpTo)
+        : weak_time,
+      grow_time_max: formulas.haveFormulas
+        ? ns.formulas.hacking.growTime(server, validFrom)
+        : grow_time,
+      grow_time_min: formulas.haveFormulas
+        ? ns.formulas.hacking.growTime(server, validUpTo)
+        : grow_time,
+      hack_time_max: formulas.haveFormulas
+        ? ns.formulas.hacking.hackTime(server, validFrom)
+        : hack_time,
+      hack_time_min: formulas.haveFormulas
+        ? ns.formulas.hacking.hackTime(server, validUpTo)
+        : hack_time,
+      t0,
+      max_depth: maxDepth <= 0 ? Infinity : maxDepth,
+    });
     if (stalefishResult === undefined) {
-      log.terror("Stalefish failed", { host, spacing });
+      log.terror("Stalefish failed", { host, t0 });
       return;
     }
-    const period = stalefishResult.period * 1000;
+    const period = stalefishResult.period;
     const depth = stalefishResult.depth;
-    const batchEnd = Date.now() + period * depth;
-    await schedulerClient.start(
+
+    await monitor.report({
+      t0,
+      period,
+      depth,
+      hackMin: validFrom.skills.hacking,
+      hackMax: validUpTo.skills.hacking,
+      yolo,
+    });
+
+    const periodStart = period * Math.floor(Date.now() / period);
+    if (periodStart === lastPeriodStart) {
+      const nextPeriodStart = periodStart + period;
+      const updateResolution = 10;
+      const updateInterval = (nextPeriodStart - periodStart) / updateResolution;
+      await ns.sleep(updateInterval);
+      continue;
+    }
+    lastPeriodStart = periodStart;
+
+    const hack_delay = depth * period - 4 * t0 - hack_time;
+    const weak_delay_1 = depth * period - 3 * t0 - weak_time;
+    const grow_delay = depth * period - 2 * t0 - grow_time;
+    const weak_delay_2 = depth * period - 1 * t0 - weak_time;
+
+    // Schedule a period into the future to give `hwgw-batch` time to start
+    const batchStart = periodStart + period;
+    const hack_start = batchStart + hack_delay;
+    const weak_start_1 = batchStart + weak_delay_1;
+    const grow_start = batchStart + grow_delay;
+    const weak_start_2 = batchStart + weak_delay_2;
+
+    const { jobId } = await schedulerClient.start(
       {
         script: "/bin/hwgw-batch.js",
-        args: [host, batchEnd.toString()],
+        args: [
+          host,
+          hack_start.toString(),
+          weak_start_1.toString(),
+          grow_start.toString(),
+          weak_start_2.toString(),
+          ...(yolo ? ["--yolo"] : []),
+        ],
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
       },
-      { finishNotificationPort: null }
+      {
+        finishNotificationPort: jobFinishedPortNumber,
+      }
     );
-
-    for (let i = 0; i < 5; i++) {
-      await monitor.report(spacing, period, depth);
-      await ns.sleep(period / 5);
-    }
+    jobs.push(jobId);
   }
 
   function shouldWeaken(): boolean {
@@ -150,31 +268,44 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
 }
 
 // As seen on https://discord.com/channels/415207508303544321/944647347625930762/946098412519059526
-function stalefish(
-  weak_time: number,
-  grow_time: number,
-  hack_time: number,
-  t0: number,
-  max_depth = Infinity
-): { period: number; depth: number } | undefined {
+function stalefish(input: {
+  weak_time_min: number;
+  weak_time_max: number;
+  grow_time_min: number;
+  grow_time_max: number;
+  hack_time_min: number;
+  hack_time_max: number;
+  t0: number;
+  max_depth: number;
+}): { period: number; depth: number } | undefined {
+  const {
+    weak_time_min,
+    weak_time_max,
+    grow_time_min,
+    grow_time_max,
+    hack_time_min,
+    hack_time_max,
+    t0,
+    max_depth,
+  } = input;
   let period, depth;
   const kW_max = Math.min(
-    Math.floor(1 + (weak_time - 4 * t0) / (8 * t0)),
+    Math.floor(1 + (weak_time_max - 4 * t0) / (8 * t0)),
     max_depth
   );
   schedule: for (let kW = kW_max; kW >= 1; --kW) {
-    const t_min_W = (weak_time + 4 * t0) / kW;
-    const t_max_W = (weak_time - 4 * t0) / (kW - 1);
+    const t_min_W = (weak_time_max + 4 * t0) / kW;
+    const t_max_W = (weak_time_min - 4 * t0) / (kW - 1);
     const kG_min = Math.ceil(Math.max((kW - 1) * 0.8, 1));
     const kG_max = Math.floor(1 + kW * 0.8);
     for (let kG = kG_max; kG >= kG_min; --kG) {
-      const t_min_G = (grow_time + 3 * t0) / kG;
-      const t_max_G = (grow_time - 3 * t0) / (kG - 1);
+      const t_min_G = (grow_time_max + 3 * t0) / kG;
+      const t_max_G = (grow_time_min - 3 * t0) / (kG - 1);
       const kH_min = Math.ceil(Math.max((kW - 1) * 0.25, (kG - 1) * 0.3125, 1));
       const kH_max = Math.floor(Math.min(1 + kW * 0.25, 1 + kG * 0.3125));
       for (let kH = kH_max; kH >= kH_min; --kH) {
-        const t_min_H = (hack_time + 5 * t0) / kH;
-        const t_max_H = (hack_time - 1 * t0) / (kH - 1);
+        const t_min_H = (hack_time_max + 5 * t0) / kH;
+        const t_max_H = (hack_time_min - 1 * t0) / (kH - 1);
         const t_min = Math.max(t_min_H, t_min_G, t_min_W);
         const t_max = Math.min(t_max_H, t_max_G, t_max_W);
         if (t_min <= t_max) {
@@ -349,7 +480,14 @@ class Monitor {
     return metrics[2][metrics[2].length - 1] || 0;
   }
 
-  async report(spacing: number, period: number, depth: number) {
+  async report(input: {
+    t0: number;
+    period: number;
+    depth: number;
+    hackMin: number;
+    hackMax: number;
+    yolo: boolean;
+  }) {
     await this.record();
     this.ns.clearLog();
 
@@ -378,11 +516,18 @@ class Monitor {
     };
 
     this.log.info("About", { job: this.jobId, targetHost: this.host });
-    this.log.info("Stalefish", {
-      t0: this.fmt.time(spacing, true),
-      period: this.fmt.time(period, true),
-      depth,
-    });
+    const kw: { [key: string]: string | number } = {
+      t0: this.fmt.timeSeconds(input.t0),
+      period: this.fmt.timeSeconds(input.period),
+      depth: input.depth,
+    };
+    if (input.yolo) {
+      kw.yolo = "oloy";
+    } else {
+      kw.hackMin = input.hackMin;
+      kw.hackMax = input.hackMax;
+    }
+    this.log.info("Stalefish", kw);
 
     this.ns.printf("%s", asciichart.plot(this.metrics.money, moneyConfig));
     this.log.info("money", {

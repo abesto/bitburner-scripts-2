@@ -19,4 +19,8 @@ export abstract class BaseNoResponseClient<Request extends { type: string }> {
   ): Promise<void> {
     await this.requestPort.write(request, options);
   }
+
+  protected sendSync(request: Request): Request | null {
+    return this.requestPort.writeSync(request);
+  }
 }

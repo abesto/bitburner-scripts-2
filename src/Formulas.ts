@@ -6,7 +6,7 @@ export class Formulas {
 
   constructor(private ns: NS) {}
 
-  private get haveFormulas(): boolean {
+  get haveFormulas(): boolean {
     if (Date.now() - this.lastFormulasCheck > 1000) {
       this.lastFormulasCheck = Date.now();
       this._haveFormulas = this.ns.fileExists("Formulas.exe");
@@ -38,7 +38,7 @@ export class Formulas {
         threads *= 1.01;
       }
     }
-    return Math.ceil(threads);
+    return Math.max(0, Math.ceil(threads));
   }
 
   growthToTargetMoneyRatio(server: string, targetMoneyRatio: number): number {
@@ -69,6 +69,9 @@ export class Formulas {
   }
 
   hacksFromToMoneyRatio(server: string, from: number, to: number): number {
+    if (from < to) {
+      return 0;
+    }
     const targetPercent = from - to;
     if (this.haveFormulas) {
       const serverObj = this.ns.getServer(server);
@@ -84,7 +87,7 @@ export class Formulas {
     const threads = Math.floor(
       this.ns.hackAnalyzeThreads(server, targetMoneyStolen)
     );
-    return Math.floor(threads);
+    return Math.max(0, threads);
   }
 
   weakenForSecurityDecrease(security: number): number {
@@ -94,7 +97,7 @@ export class Formulas {
     while (this.ns.weakenAnalyze(threads) < security) {
       threads++;
     }
-    return Math.ceil(threads);
+    return Math.max(0, Math.ceil(threads));
   }
 
   weakenToMinimum(server: string): number {

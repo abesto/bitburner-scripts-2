@@ -18,6 +18,7 @@ export const DatabaseRequest = variantModule(
     lock: fields<{ lockData: LockData }>(),
     unlock: fields<{ lockData: LockData }>(),
     writeAndUnlock: fields<{ lockData: LockData; content: string }>(),
+    status: fields<{ responsePort: number }>(),
   })
 );
 
@@ -30,6 +31,7 @@ export const DatabaseResponse = variantModule(
     writeAndUnlock: fields<{
       result: UnlockResult;
     }>(),
+    status: fields<{ currentLock: LockData | null; lockQueue: LockData[] }>(),
   })
 );
 

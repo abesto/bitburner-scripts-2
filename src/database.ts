@@ -19,6 +19,7 @@ export type DB = {
       moneyThreshold: number;
       spacing: number;
       maxDepth: number;
+      hackSkillRangeMult: number;
       batchViz: {
         centerBias: number;
       };
@@ -67,6 +68,7 @@ export const DEFAULT_DB: DB = {
       moneyThreshold: 0.5,
       spacing: 500,
       maxDepth: 0,
+      hackSkillRangeMult: 1.05,
       batchViz: {
         centerBias: 0.5,
       },
