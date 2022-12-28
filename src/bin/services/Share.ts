@@ -20,13 +20,18 @@ export async function main(ns: NS): Promise<void> {
         (sum, { freeMem }) => sum + freeMem,
         0
       );
-      const percentage = (await db(ns, log)).config.share.percentage;
+      const memdb = await db(ns, log);
+      const config = memdb.config.share;
+      const percentage = config.percentage;
+      const max = config.max ?? Infinity;
+
       if (percentage === 0 || percentage > 1) {
         log.twarn("Invalid percentage", { percentage });
         await ns.sleep(30000);
         continue;
       }
-      const targetMem = Math.floor(sumFreeMem * percentage);
+
+      const targetMem = Math.min(max, Math.floor(sumFreeMem * percentage));
       const targetThreads = Math.floor(targetMem / scriptMem);
       log.info("Sharing", {
         sumFreeMem: fmt.memory(sumFreeMem),

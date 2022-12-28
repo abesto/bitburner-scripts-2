@@ -9,6 +9,7 @@ import { getProcessInfo } from '/procinfo';
 
 import { withClient } from '../client_factory';
 import { BaseClient } from '../common/BaseClient';
+import { id } from '../common/Result';
 import {
     DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, toDatabaseResponse, UnlockResult
 } from './types';
@@ -44,14 +45,23 @@ export class DatabaseClient extends BaseClient<
     };
   }
 
-  protected lock(): Promise<DB> {
-    return this.sendReceive(
+  protected async lock(): Promise<DB> {
+    const resp: DatabaseResponse<"lock"> = await this.sendReceive(
       DatabaseRequest.lock(this.lockData()),
       {
-        lock: (response) => JSON.parse(response.content) as DB,
-      },
-      { readTimeout: Infinity }
+        lock: id,
+      }
     );
+    if (resp.payload !== "ack") {
+      return JSON.parse(resp.payload) as DB;
+    } else {
+      return await this.receive(
+        {
+          lockDeferred: (response) => JSON.parse(response.payload) as DB,
+        },
+        { readTimeout: Infinity }
+      );
+    }
   }
 
   protected unlock(): Promise<UnlockResult> {
@@ -80,6 +90,9 @@ export class DatabaseClient extends BaseClient<
 
   async withLock(fn: (db: DB) => Promise<DB | undefined>): Promise<void> {
     const memdb = await this.lock();
+    if (memdb === undefined) {
+      throw new Error("Could not lock database, received undefined as the DB");
+    }
     let newDb;
     try {
       newDb = await fn(memdb);
@@ -120,4 +133,12 @@ export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
     );
   }
   return deepmerge(DEFAULT_DB, contents);
+}
+
+export function dbSync(ns: NS): DB {
+  if (ns.getHostname() === "home") {
+    return deepmerge(DEFAULT_DB, JSON.parse(ns.read(DB_PATH)));
+  } else {
+    throw new Error("dbSync can only be called on home");
+  }
 }

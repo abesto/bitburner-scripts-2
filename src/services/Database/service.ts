@@ -2,14 +2,14 @@ import { NS } from '@ns';
 
 import { match } from 'variant';
 
-import { DB, DB_PATH } from '/database';
+import { DB, DB_PATH, DEFAULT_DB } from '/database';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { PORTS } from '/ports';
 
 import { ClientPort } from '../common/ClientPort';
 import { ServerPort } from '../common/ServerPort';
-import { db } from './client';
+import { dbSync } from './client';
 import {
     DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
     toDatabaseRequest
@@ -30,6 +30,7 @@ function arrayEquals(a: unknown[], b: unknown[]): boolean {
 export class DatabaseService {
   private readonly fmt: Fmt;
   private readonly log: Log;
+  private memdb: DB = DEFAULT_DB;
 
   constructor(private readonly ns: NS) {
     if (this.ns.getHostname() !== "home") {
@@ -50,21 +51,23 @@ export class DatabaseService {
       port: listenPort.portNumber,
     });
 
+    const buffer = [];
+
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      await this.breakStaleLock();
-      if (listenPort.empty()) {
-        await Promise.any([listenPort.nextWrite(), this.ns.asleep(5000)]);
-        continue;
-      }
-      const request = await listenPort.read({
-        timeout: Infinity,
-      });
+      this.breakStaleLock();
+      buffer.push(...listenPort.drain());
+      const request =
+        buffer.shift() ??
+        (await listenPort.read({
+          timeout: Infinity,
+          throwOnTimeout: false,
+        }));
       if (request === null) {
         continue;
       }
 
-      await match(request, {
+      match(request, {
         read: (request) => this.read(request),
         lock: (request) => this.lock(request),
         unlock: (request) => this.unlock(request),
@@ -74,14 +77,14 @@ export class DatabaseService {
     }
   }
 
-  private async status(request: Request<"status">): Promise<void> {
+  status(request: Request<"status">): void {
     const clientPort = new ClientPort<Response>(
       this.ns,
       this.log,
       request.responsePort
     );
-    const memdb = await this.loadFromDisk();
-    await clientPort.write(
+    const memdb = this.loadFromDisk();
+    clientPort.writeSync(
       Response.status({
         currentLock: memdb.meta.currentLock,
         lockQueue: memdb.meta.lockQueue,
@@ -89,8 +92,8 @@ export class DatabaseService {
     );
   }
 
-  private async breakStaleLock(): Promise<void> {
-    const memdb = await this.loadFromDisk();
+  private breakStaleLock(): void {
+    const memdb = this.loadFromDisk();
     if (memdb.meta.currentLock === null) {
       return;
     }
@@ -109,69 +112,62 @@ export class DatabaseService {
       memdb.meta.currentLock = null;
       const nextLock = memdb.meta.lockQueue.shift();
       if (nextLock !== undefined) {
-        await this.doNextLock(memdb, nextLock);
+        this.doNextLock(memdb, nextLock);
       }
-      await this.saveToDisk(memdb);
+      this.saveToDisk(memdb);
     }
   }
 
-  private async loadFromDisk(): Promise<DB> {
-    return await db(this.ns, this.log, true);
+  private loadFromDisk(): DB {
+    return dbSync(this.ns);
   }
 
-  private async saveToDisk(db: DB): Promise<void> {
+  private saveToDisk(db: DB): void {
     this.ns.write(DB_PATH, JSON.stringify(db, null, 2), "w");
   }
 
-  async read(request: Request<"read">): Promise<void> {
+  read(request: Request<"read">): void {
     const response = Response.read({
-      content: JSON.stringify(await this.loadFromDisk()),
+      content: JSON.stringify(this.loadFromDisk()),
     });
     const client = new ClientPort<Response>(
       this.ns,
       this.log,
       request.responsePort
     );
-    await client.write(response);
+    client.writeSync(response);
   }
 
-  async lock(request: Request<"lock">): Promise<void> {
-    const memdb = await this.loadFromDisk();
+  lock(request: Request<"lock">): void {
+    const memdb = this.loadFromDisk();
+    const client = new ClientPort<Response>(
+      this.ns,
+      this.log,
+      request.lockData.responsePort
+    );
 
     if (memdb.meta.currentLock === null) {
       memdb.meta.currentLock = request.lockData;
-      await this.saveToDisk(memdb);
-      const client = new ClientPort<Response>(
-        this.ns,
-        this.log,
-        request.lockData.responsePort
-      );
-      const response = Response.lock({
-        content: JSON.stringify(memdb),
-      });
-      await client.write(response);
+      this.saveToDisk(memdb);
+      client.writeSync(Response.lock(JSON.stringify(memdb)));
     } else {
       memdb.meta.lockQueue.push(request.lockData);
+      client.writeSync(Response.lock("ack"));
     }
   }
 
-  private async doNextLock(memdb: DB, nextLock: LockData): Promise<void> {
+  private doNextLock(memdb: DB, nextLock: LockData): void {
     memdb.meta.currentLock = nextLock;
     const newClient = new ClientPort<Response>(
       this.ns,
       this.log,
       nextLock.responsePort
     );
-    return await newClient.write(
-      Response.lock({ content: JSON.stringify(memdb) })
-    );
+    newClient.writeSync(Response.lockDeferred(JSON.stringify(memdb)));
   }
 
-  async unlock(
-    request: Request<"unlock">,
-    newDb: DB | null = null
-  ): Promise<void> {
-    const memdb = newDb || (await this.loadFromDisk());
+  unlock(request: Request<"unlock">, newDb: DB | null = null): void {
+    const memdb = newDb || this.loadFromDisk();
 
     const client = new ClientPort<Response>(
       this.ns,
@@ -183,7 +179,8 @@ export class DatabaseService {
         "Unlock request received but no lock is held",
         request.lockData
       );
-      return await client.write(Response.unlock({ result: "not-locked" }));
+      client.writeSync(Response.unlock({ result: "not-locked" }));
+      return;
     }
 
     if (
@@ -200,21 +197,22 @@ export class DatabaseService {
           owner: memdb.meta.currentLock,
         }
       );
-      return await client.write(Response.unlock({ result: "locked-by-other" }));
+      client.writeSync(Response.unlock({ result: "locked-by-other" }));
+      return;
     }
 
     memdb.meta.currentLock = null;
-    await client.write(Response.unlock({ result: "ok" }));
+    client.writeSync(Response.unlock({ result: "ok" }));
 
     const nextLock = memdb.meta.lockQueue.shift();
     if (nextLock !== undefined) {
-      await this.doNextLock(memdb, nextLock);
+      this.doNextLock(memdb, nextLock);
     }
 
-    await this.saveToDisk(memdb);
+    this.saveToDisk(memdb);
   }
 
-  async writeAndUnlock(request: Request<"writeAndUnlock">): Promise<void> {
-    await this.unlock(Request.unlock(request), JSON.parse(request.content));
+  writeAndUnlock(request: Request<"writeAndUnlock">): void {
+    this.unlock(Request.unlock(request), JSON.parse(request.content));
   }
 }

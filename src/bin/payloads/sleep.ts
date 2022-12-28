@@ -1,8 +1,10 @@
 import { NS } from '@ns';
 
+import { Log } from '/log';
 import { NoResponseSchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
+  const log = new Log(ns, "grow");
   const args = ns.flags([
     ["job", ""],
     ["task", -1],
@@ -18,9 +20,9 @@ export async function main(ns: NS): Promise<void> {
         args
       )}`
     );
-    await new NoResponseSchedulerClient(ns).taskFinished(jobId, taskId);
+    await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
     return;
   }
   await ns.sleep(parseInt(ns.args[0] as string, 10));
-  await new NoResponseSchedulerClient(ns).taskFinished(jobId, taskId);
+  await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
 }

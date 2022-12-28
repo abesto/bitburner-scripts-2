@@ -8,6 +8,7 @@ export type DB = {
     };
     share: {
       percentage: number;
+      max: number;
     };
     simpleHack: {
       // Defines how much money a server should have before we hack it
@@ -59,6 +60,7 @@ export const DEFAULT_DB: DB = {
     },
     share: {
       percentage: 0.75,
+      max: 1000 * 1000,
     },
     simpleHack: {
       moneyThreshold: 0.75,

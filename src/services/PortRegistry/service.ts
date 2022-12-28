@@ -71,22 +71,27 @@ export class PortRegistryService {
     listenPort.clear(); // TODO remove this once we have a safe restart mechanism
     this.log.info("Listening", { port: listenPort.portNumber });
 
+    const buffer = [];
+
     let exit = false;
     while (!exit) {
       this.populateFreePorts();
-      if (listenPort.empty()) {
-        this.freeLeakedPorts();
-        await Promise.any([this.ns.asleep(5000), listenPort.nextWrite()]);
+      this.freeLeakedPorts();
+
+      buffer.push(...listenPort.drain());
+      const request =
+        buffer.shift() ??
+        (await listenPort.read({
+          timeout: Infinity,
+          throwOnTimeout: false,
+        }));
+      if (request === null) {
         continue;
       }
 
-      const message = await listenPort.read();
-      if (message === null) {
-        continue;
-      }
-      this.log.debug("Received message", { message });
+      this.log.debug("Received message", { request });
 
-      match(message, {
+      match(request, {
         exit: () => {
           this.log.info("Exiting");
           exit = true;

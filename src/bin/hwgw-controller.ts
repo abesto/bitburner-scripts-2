@@ -204,8 +204,8 @@ export async function main(ns: NS): Promise<void> {
     const grow_delay = depth * period - 2 * t0 - grow_time;
     const weak_delay_2 = depth * period - 1 * t0 - weak_time;
 
-    // Schedule a period into the future to give `hwgw-batch` time to start
-    const batchStart = periodStart + period;
+    // Schedule the next period so that everything has time to start up
+    const batchStart = periodStart + 2 * period;
     const hack_start = batchStart + hack_delay;
     const weak_start_1 = batchStart + weak_delay_1;
     const grow_start = batchStart + grow_delay;

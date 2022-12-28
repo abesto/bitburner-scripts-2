@@ -19,33 +19,6 @@ export async function main(ns: NS): Promise<void> {
     await ns.sleep(thisConfig.intervalMs);
   }
 
-  async function deleteWeakestWorker(keep: number): Promise<string | null> {
-    const server = ns
-      .getPurchasedServers()
-      .filter((h) => h.startsWith("worker-"))
-      .reduce((a, b) => {
-        if (ns.getServerMaxRam(a) > ns.getServerMaxRam(b)) {
-          return b;
-        }
-        return a;
-      });
-    if (ns.getServerMaxRam(server) >= keep) {
-      //ns.print(`Not deleting weakest worker, it's too big: ${server} (${ns.getServerMaxRam(server)}GB > ${keep}GB)`);
-      return null;
-    }
-    log.info("Deleting weakest server", {
-      server,
-      ram: fmt.memory(ns.getServerMaxRam(server)),
-    });
-    for (const p of ns.ps(server)) {
-      ns.kill(p.filename, server, ...p.args);
-    }
-    if (!ns.deleteServer(server)) {
-      log.error("Failed to delete server", { server });
-    }
-    return server;
-  }
-
   interface PurchaseResult {
     purchased: string[];
     upgraded: string[];

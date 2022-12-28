@@ -17,14 +17,12 @@ export async function main(ns: NS): Promise<void> {
     ["task", -1],
     ["initial", false],
     ["dry-run", false],
-    ["yolo", false],
   ]);
   const host = (args._ as string[])[0];
 
   const jobId = args["job"] as string;
   const taskId = args["task"] as number;
   const initial = args["initial"] as boolean;
-  const yolo = args["yolo"] as boolean;
 
   if (!host || !jobId || taskId < 0) {
     log.terror(
@@ -125,11 +123,9 @@ export async function main(ns: NS): Promise<void> {
   const growLength = formulas.getGrowTime(host);
   const hackLength = formulas.getHackTime(host);
 
-  let shouldHack = wantHackThreads > 0 && !initial && moneyCurrent === moneyMax;
+  let shouldHack = wantHackThreads > 0 && !initial;
   let noHackReason = initial
     ? "--initial"
-    : moneyCurrent < moneyMax
-    ? "moneyLow"
     : wantHackThreads === 0
     ? "wantHackThreads=0"
     : "/shrug";
@@ -187,7 +183,7 @@ export async function main(ns: NS): Promise<void> {
     hackWeakenStart < now ||
     hackStart < now
   ) {
-    log.error("not enough time", {
+    log.terror("Not enough time", {
       growWeakenStart: fmt.time(growWeakenStart - now),
       growStart: fmt.time(growStart - now),
       hackWeakenStart: fmt.time(hackWeakenStart - now),
@@ -408,7 +404,7 @@ export async function main(ns: NS): Promise<void> {
         kind,
         wantedStart: fmt.timestamp(wantedStart),
         actualStart: fmt.timestamp(actualStart),
-        diff: fmt.time(diff),
+        diff: fmt.timeSeconds(diff),
       });
       return false;
     }

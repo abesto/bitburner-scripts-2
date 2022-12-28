@@ -241,14 +241,23 @@ export class HwgwBatchVizService {
     );
 
     this.log.info(`Listening on port ${port.portNumber}`);
+
+    const buffer = [];
+
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const memdb = await db(this.ns, this.log);
       const spacing = memdb.config.hwgw.spacing;
-      const request = await port.read({
-        timeout: spacing,
-        throwOnTimeout: false,
-      });
+      buffer.push(...port.drain());
+      const request =
+        buffer.shift() ??
+        (await port.read({
+          timeout: Infinity,
+          throwOnTimeout: false,
+        }));
+      if (request === null) {
+        continue;
+      }
       if (request !== null) {
         await this.handleRequest(request);
       }

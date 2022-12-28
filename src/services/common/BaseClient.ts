@@ -50,6 +50,16 @@ export abstract class BaseClient<
     });
   }
 
+  async receive<
+    Ret,
+    M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
+  >(matcher: M, options: { readTimeout?: number } = {}): Promise<Ret> {
+    const response = await this.responsePort.read({
+      timeout: options.readTimeout,
+    });
+    return this.handleResponse(response, matcher);
+  }
+
   async sendReceive<
     Ret,
     M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
@@ -59,10 +69,7 @@ export abstract class BaseClient<
     options: { readTimeout?: number } = {}
   ): Promise<Ret> {
     await this.send(request);
-    const response = await this.responsePort.read({
-      timeout: options.readTimeout,
-    });
-    return this.handleResponse(response, matcher);
+    return await this.receive(matcher, options);
   }
 
   protected rp(): { responsePort: number } {

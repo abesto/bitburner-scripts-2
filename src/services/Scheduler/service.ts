@@ -59,12 +59,21 @@ export class SchedulerService {
       port: listenPort.portNumber,
     });
 
+    const buffer = [];
+
     let exit = false;
     while (!exit) {
-      const request = await listenPort.read({ timeout: Infinity });
+      buffer.push(...listenPort.drain());
+      const request =
+        buffer.shift() ??
+        (await listenPort.read({
+          timeout: Infinity,
+          throwOnTimeout: false,
+        }));
       if (request === null) {
         continue;
       }
+
       this.log.info("Request", { request });
       await match(request, {
         status: (request) => this.status(request),

@@ -43,11 +43,34 @@ export class ServerPort<T> {
       if (parsed === null) {
         this.log.terror("Failed to parse message", { data });
       }
+      //this.log.tdebug("Read from port", { port: this.portNumber, data });
       return parsed;
     } catch (e) {
       this.log.terror("Failed to parse message", { data, e });
       return null;
     }
+  }
+
+  drain(): T[] {
+    const messages: T[] = [];
+    while (!this.port.empty()) {
+      const data = this.port.read();
+      if (data === "NULL PORT DATA") {
+        continue;
+      }
+      try {
+        const json = JSON.parse(data.toString());
+        const parsed = this.parse(json);
+        if (parsed === null) {
+          this.log.terror("Failed to parse message", { data });
+        } else {
+          messages.push(parsed);
+        }
+      } catch (e) {
+        this.log.terror("Failed to parse message", { data, e });
+      }
+    }
+    return messages;
   }
 
   empty(): boolean {

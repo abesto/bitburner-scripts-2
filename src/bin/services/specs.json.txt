@@ -20,6 +20,10 @@
     }
   },
   "HwgwBatchViz": {
-    "enableWhenDiscovered": false
+    "enableWhenDiscovered": false,
+    "hostAffinity": {
+      "type": "preferToRunOn",
+      "host": "home"
+    }
   }
 }
