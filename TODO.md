@@ -2,12 +2,12 @@
 
 * `BuyWorkers`
   * make decisions without config
-* `hwgw-controller`: kill all processes against the target on startup?
 * `HwgwBatchViz` service
   * Configure: filter for host
 * Create `Hwgw` service
   * Replace / extend `hwgw-controller`
   * Detect JS runtime overload, *do something* (maybe: kill all batches, drop `maxDepth` config)
+  * Spawn / stop `HwgwBatchViz` for each running target
 * Create `Stats` service
   * chart used/total capacity
   * charts per hwgw controller

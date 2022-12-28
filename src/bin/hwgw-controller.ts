@@ -33,6 +33,11 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
+  if (!ns.hasRootAccess(host)) {
+    log.terror("Need root access to host", { host });
+    return;
+  }
+
   const portRegistryClient = new PortRegistryClient(ns, log);
   const schedulerResponsePort = await portRegistryClient.reservePort();
   const schedulerClient = new SchedulerClient(ns, log, schedulerResponsePort);

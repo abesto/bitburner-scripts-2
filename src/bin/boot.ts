@@ -3,7 +3,9 @@ import { NS } from '@ns';
 
 import { Log } from '/log';
 import { freePorts, PORTS } from '/ports';
+import { withClient } from '/services/client_factory';
 import { dbLock } from '/services/Database/client';
+import { SchedulerClient } from '/services/Scheduler/client';
 import { ServiceStatus } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
@@ -88,6 +90,12 @@ export async function main(ns: NS): Promise<void> {
     log.terror("Failed to start Scheduler");
     return;
   }
+  await ns.sleep(0);
+  await withClient(SchedulerClient, ns, log, async (client) => {
+    log.tinfo("Scheduler services", {
+      services: (await client.status()).services,
+    });
+  });
   log.tinfo("Started Scheduler", { pid: schedulerPid });
 
   await ns.sleep(1000);

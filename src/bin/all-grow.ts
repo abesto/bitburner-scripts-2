@@ -36,14 +36,11 @@ export async function main(ns: NS): Promise<void> {
     });
 
     {
-      const { jobId, threads } = await schedulerClient.start(
-        {
-          script: growPayload,
-          args: [host],
-          threads: threadTarget,
-        },
-        { tail: true }
-      );
+      const { jobId, threads } = await schedulerClient.start({
+        script: growPayload,
+        args: [host],
+        threads: threadTarget,
+      });
       if (threads === 0) {
         log.info("Failed to start grow batch, sleeping then trying again");
         await ns.sleep(1000);
@@ -58,14 +55,11 @@ export async function main(ns: NS): Promise<void> {
       ns.getServerSecurityLevel(host) >
       ns.getServerMinSecurityLevel(host) + 30
     ) {
-      const { jobId, threads } = await schedulerClient.start(
-        {
-          script: weakenPayload,
-          args: [host],
-          threads: threadTarget,
-        },
-        { tail: true }
-      );
+      const { jobId, threads } = await schedulerClient.start({
+        script: weakenPayload,
+        args: [host],
+        threads: threadTarget,
+      });
       if (threads === 0) {
         log.info("Failed to start weaken batch /shrug");
         await ns.sleep(1000);
