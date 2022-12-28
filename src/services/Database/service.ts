@@ -2,13 +2,10 @@ import { NS } from '@ns';
 
 import { match } from 'variant';
 
-import { DB, DB_PATH, DEFAULT_DB } from '/database';
-import { Fmt } from '/fmt';
-import { Log } from '/log';
+import { DB, DB_PATH } from '/database';
 import { PORTS } from '/ports';
 
-import { ClientPort } from '../common/ClientPort';
-import { ServerPort } from '../common/ServerPort';
+import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { dbSync } from './client';
 import {
     DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
@@ -27,46 +24,25 @@ function arrayEquals(a: unknown[], b: unknown[]): boolean {
   return true;
 }
 
-export class DatabaseService {
-  private readonly fmt: Fmt;
-  private readonly log: Log;
-  private memdb: DB = DEFAULT_DB;
-
-  constructor(private readonly ns: NS) {
+export class DatabaseService extends BaseService<Request, Response> {
+  constructor(ns: NS) {
+    super(ns);
     if (this.ns.getHostname() !== "home") {
       throw new Error("DatabaseService must be run on home");
     }
-    this.fmt = new Fmt(ns);
-    this.log = new Log(ns, "Database");
   }
 
-  async listen(): Promise<void> {
-    const listenPort = new ServerPort<Request>(
-      this.ns,
-      this.log,
-      PORTS[DATABASE],
-      toDatabaseRequest
-    );
-    this.log.info("Listening", {
-      port: listenPort.portNumber,
-    });
-
-    const buffer = [];
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      this.breakStaleLock();
-      buffer.push(...listenPort.drain());
-      const request =
-        buffer.shift() ??
-        (await listenPort.read({
-          timeout: Infinity,
-          throwOnTimeout: false,
-        }));
-      if (request === null) {
-        continue;
-      }
-
+  protected override listenPortNumber(): number {
+    return PORTS[DATABASE];
+  }
+  protected override parseRequest(message: unknown): Request | null {
+    return toDatabaseRequest(message);
+  }
+  protected override handleRequest(
+    request: Request | null
+  ): HandleRequestResult {
+    this.breakStaleLock();
+    if (request !== null) {
       match(request, {
         read: (request) => this.read(request),
         lock: (request) => this.lock(request),
@@ -75,16 +51,13 @@ export class DatabaseService {
         status: (request) => this.status(request),
       });
     }
+    return "continue";
   }
 
   status(request: Request<"status">): void {
-    const clientPort = new ClientPort<Response>(
-      this.ns,
-      this.log,
-      request.responsePort
-    );
     const memdb = this.loadFromDisk();
-    clientPort.writeSync(
+    this.respond(
+      request.responsePort,
       Response.status({
         currentLock: memdb.meta.currentLock,
         lockQueue: memdb.meta.lockQueue,
@@ -119,7 +92,7 @@ export class DatabaseService {
   }
 
   private loadFromDisk(): DB {
-    return dbSync(this.ns);
+    return dbSync(this.ns, true);
   }
 
   private saveToDisk(db: DB): void {
@@ -127,60 +100,46 @@ export class DatabaseService {
   }
 
   read(request: Request<"read">): void {
-    const response = Response.read({
-      content: JSON.stringify(this.loadFromDisk()),
-    });
-    const client = new ClientPort<Response>(
-      this.ns,
-      this.log,
-      request.responsePort
+    this.respond(
+      request.responsePort,
+      Response.read({ content: JSON.stringify(this.loadFromDisk()) })
     );
-    client.writeSync(response);
   }
 
   lock(request: Request<"lock">): void {
     const memdb = this.loadFromDisk();
-    const client = new ClientPort<Response>(
-      this.ns,
-      this.log,
-      request.lockData.responsePort
-    );
+    const responsePort = request.lockData.responsePort;
 
     if (memdb.meta.currentLock === null) {
       memdb.meta.currentLock = request.lockData;
       this.saveToDisk(memdb);
-      client.writeSync(Response.lock(JSON.stringify(memdb)));
+      this.respond(responsePort, Response.lock(JSON.stringify(memdb)));
     } else {
       memdb.meta.lockQueue.push(request.lockData);
-      client.writeSync(Response.lock("ack"));
+      this.respond(responsePort, Response.lock("ack"));
     }
   }
 
   private doNextLock(memdb: DB, nextLock: LockData): void {
     memdb.meta.currentLock = nextLock;
-    const newClient = new ClientPort<Response>(
-      this.ns,
-      this.log,
-      nextLock.responsePort
+    this.respond(
+      nextLock.responsePort,
+      Response.lockDeferred(JSON.stringify(memdb))
     );
-    newClient.writeSync(Response.lockDeferred(JSON.stringify(memdb)));
   }
 
   unlock(request: Request<"unlock">, newDb: DB | null = null): void {
     const memdb = newDb || this.loadFromDisk();
 
-    const client = new ClientPort<Response>(
-      this.ns,
-      this.log,
-      request.lockData.responsePort
-    );
     if (memdb.meta.currentLock === null) {
       this.log.warn(
         "Unlock request received but no lock is held",
         request.lockData
       );
-      client.writeSync(Response.unlock({ result: "not-locked" }));
-      return;
+      return this.respond(
+        request.lockData.responsePort,
+        Response.unlock({ result: "not-locked" })
+      );
     }
 
     if (
@@ -197,12 +156,17 @@ export class DatabaseService {
           owner: memdb.meta.currentLock,
         }
       );
-      client.writeSync(Response.unlock({ result: "locked-by-other" }));
-      return;
+      return this.respond(
+        request.lockData.responsePort,
+        Response.unlock({ result: "locked-by-other" })
+      );
     }
 
     memdb.meta.currentLock = null;
-    client.writeSync(Response.unlock({ result: "ok" }));
+    this.respond(
+      request.lockData.responsePort,
+      Response.unlock({ result: "ok" })
+    );
 
     const nextLock = memdb.meta.lockQueue.shift();
     if (nextLock !== undefined) {

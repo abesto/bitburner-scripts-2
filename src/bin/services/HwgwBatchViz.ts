@@ -1,11 +1,8 @@
 import { NS } from '@ns';
 
-import { Log } from '/log';
 import { HwgwBatchVizService } from '/services/HwgwBatchViz/service';
 
 export async function main(ns: NS): Promise<void> {
-  const log = new Log(ns, "HwgwBatchViz");
-
   ns.tail();
   await ns.sleep(0);
   ns.moveTail(58, 0);
@@ -14,6 +11,6 @@ export async function main(ns: NS): Promise<void> {
     ns.closeTail();
   });
 
-  const service = new HwgwBatchVizService(ns, log);
+  const service = new HwgwBatchVizService(ns);
   await service.listen();
 }

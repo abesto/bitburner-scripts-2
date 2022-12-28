@@ -30,13 +30,6 @@ export async function main(ns: NS): Promise<void> {
   }
   log.tinfo("Cleared all service ports");
 
-  const dbPid = ns.run(DATABASE);
-  if (dbPid === 0) {
-    log.terror("Failed to start database");
-    return;
-  }
-  log.tinfo("Started DatabaseService", { pid: dbPid });
-
   // Spin up `PortRegistry` so we (and the `Scheduler`) can talk to the database service
   const freePortsPort = freePorts(ns);
   const portRegistryPid = ns.run(PORT_REGISTRY);
@@ -48,6 +41,14 @@ export async function main(ns: NS): Promise<void> {
   if (freePortsPort.empty()) {
     await freePorts(ns).nextWrite();
   }
+
+  // We need the `Database`
+  const dbPid = ns.run(DATABASE);
+  if (dbPid === 0) {
+    log.terror("Failed to start database");
+    return;
+  }
+  log.tinfo("Started DatabaseService", { pid: dbPid });
 
   // Inject the `PortRegistry` and `Database` services into the `Scheduler` database
   const spec = JSON.parse(ns.read("/bin/services/specs.json.txt"));

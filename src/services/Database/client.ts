@@ -135,8 +135,8 @@ export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
   return deepmerge(DEFAULT_DB, contents);
 }
 
-export function dbSync(ns: NS): DB {
-  if (ns.getHostname() === "home") {
+export function dbSync(ns: NS, unsafe = false): DB {
+  if (unsafe || ns.getHostname() === "home") {
     return deepmerge(DEFAULT_DB, JSON.parse(ns.read(DB_PATH)));
   } else {
     throw new Error("dbSync can only be called on home");

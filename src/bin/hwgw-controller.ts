@@ -220,7 +220,6 @@ export async function main(ns: NS): Promise<void> {
           weak_start_1.toString(),
           grow_start.toString(),
           weak_start_2.toString(),
-          ...(yolo ? ["--yolo"] : []),
         ],
         threads: 1,
         hostAffinity: HostAffinity.preferToRunOn({ host: "home" }),
