@@ -6,7 +6,7 @@
   * Configure: filter for host
 * Create `Hwgw` service
   * Replace / extend `hwgw-controller`
-  * Detect JS runtime overload, *do something* (maybe: kill all batches, drop `maxDepth` config)
+  * Optimize `config.hwgw.maxDepth`
   * Spawn / stop `HwgwBatchViz` for each running target
 * Create `Stats` service
   * chart used/total capacity

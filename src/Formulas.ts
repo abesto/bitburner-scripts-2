@@ -170,3 +170,56 @@ export class Formulas {
     );
   }
 }
+
+// As seen on https://discord.com/channels/415207508303544321/944647347625930762/946098412519059526
+export function stalefish(input: {
+  weak_time_min: number;
+  weak_time_max: number;
+  grow_time_min: number;
+  grow_time_max: number;
+  hack_time_min: number;
+  hack_time_max: number;
+  t0: number;
+  max_depth: number;
+}): { period: number; depth: number } | undefined {
+  const {
+    weak_time_min,
+    weak_time_max,
+    grow_time_min,
+    grow_time_max,
+    hack_time_min,
+    hack_time_max,
+    t0,
+    max_depth,
+  } = input;
+  let period, depth;
+  const kW_max = Math.min(
+    Math.floor(1 + (weak_time_max - 4 * t0) / (8 * t0)),
+    max_depth
+  );
+  schedule: for (let kW = kW_max; kW >= 1; --kW) {
+    const t_min_W = (weak_time_max + 4 * t0) / kW;
+    const t_max_W = (weak_time_min - 4 * t0) / (kW - 1);
+    const kG_min = Math.ceil(Math.max((kW - 1) * 0.8, 1));
+    const kG_max = Math.floor(1 + kW * 0.8);
+    for (let kG = kG_max; kG >= kG_min; --kG) {
+      const t_min_G = (grow_time_max + 3 * t0) / kG;
+      const t_max_G = (grow_time_min - 3 * t0) / (kG - 1);
+      const kH_min = Math.ceil(Math.max((kW - 1) * 0.25, (kG - 1) * 0.3125, 1));
+      const kH_max = Math.floor(Math.min(1 + kW * 0.25, 1 + kG * 0.3125));
+      for (let kH = kH_max; kH >= kH_min; --kH) {
+        const t_min_H = (hack_time_max + 5 * t0) / kH;
+        const t_max_H = (hack_time_min - 1 * t0) / (kH - 1);
+        const t_min = Math.max(t_min_H, t_min_G, t_min_W);
+        const t_max = Math.min(t_max_H, t_max_G, t_max_W);
+        if (t_min <= t_max) {
+          period = t_min;
+          depth = kW;
+          break schedule;
+        }
+      }
+    }
+  }
+  if (period === undefined || depth === undefined) return undefined;
+  return { period, depth };
+}

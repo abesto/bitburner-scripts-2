@@ -21,6 +21,8 @@ import { SchedulerRequest as Request, toSchedulerRequest } from './types/request
 import { SchedulerResponse as Response } from './types/response';
 
 export class SchedulerService extends BaseService<Request, Response> {
+  private lastReview = Date.now();
+
   constructor(
     ns: NS,
     log: Log,
@@ -35,7 +37,7 @@ export class SchedulerService extends BaseService<Request, Response> {
   }
 
   static async new(ns: NS): Promise<SchedulerService> {
-    const log = new Log(ns, this.constructor.name);
+    const log = new Log(ns, "SchedulerService");
     const portRegistry = new PortRegistryClient(ns, log);
     const dbResponsePort = await portRegistry.reservePort();
     const db = new DatabaseClient(ns, log, dbResponsePort);
@@ -51,8 +53,10 @@ export class SchedulerService extends BaseService<Request, Response> {
   protected override async handleRequest(
     request: Identity<Request> | null
   ): Promise<HandleRequestResult> {
-    await this.reviewServices();
-    await this.doReload();
+    if (Date.now() - this.lastReview > 1000) {
+      await this.reviewServices();
+      this.lastReview = Date.now();
+    }
 
     if (request === null) {
       return "continue";

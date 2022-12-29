@@ -15,7 +15,7 @@
   },
   "Share": {
     "hostAffinity": {
-      "type": "mustRunOn",
+      "type": "preferToRunOn",
       "host": "home"
     }
   },

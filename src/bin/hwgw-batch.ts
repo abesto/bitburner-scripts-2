@@ -10,6 +10,19 @@ import { PortRegistryClient } from '/services/PortRegistry/client';
 import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
 
 export async function main(ns: NS): Promise<void> {
+  try {
+    await _main(ns);
+  } catch (err) {
+    const log = new Log(ns, "hwgw-batch");
+    if (err instanceof Error) {
+      log.terror("Unhandled error", { err: err.message, stack: err.stack });
+    } else {
+      log.terror("Unhandled error", { err });
+    }
+  }
+}
+
+async function _main(ns: NS): Promise<void> {
   const log = new Log(ns, "hwgw-batch");
 
   const args = ns.flags([
@@ -66,7 +79,6 @@ export async function main(ns: NS): Promise<void> {
   const formulas = new Formulas(ns);
   const spacing = memdb.config.hwgw.spacing;
 
-  const moneyCurrent = ns.getServerMoneyAvailable(host);
   const moneyMax = ns.getServerMaxMoney(host);
   const securityMin = ns.getServerMinSecurityLevel(host);
   const moneyStolenPerThread = ns.hackAnalyze(host) * moneyMax;
@@ -93,7 +105,7 @@ export async function main(ns: NS): Promise<void> {
   const overWeaken = initial
     ? 1
     : Math.max(
-        1.2,
+        1.1,
         ns.getServerSecurityLevel(host) / (securityMin + hackSecurityGrowth)
       );
   const wantHackWeakenThreads = Math.ceil(
@@ -105,7 +117,7 @@ export async function main(ns: NS): Promise<void> {
   const overGrow = initial
     ? 1
     : Math.max(
-        1.2,
+        1.1,
         ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
       );
   const wantGrowThreads = Math.ceil(

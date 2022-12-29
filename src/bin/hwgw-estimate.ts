@@ -3,15 +3,16 @@ import { AutocompleteData, NS } from '@ns';
 import { Fmt } from '/fmt';
 import HwgwEstimator from '/HwgwEstimator';
 import { Log } from '/log';
+import { db } from '/services/Database/client';
 
 export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
   const log = new Log(ns, "hwgw-estimate");
   const estimator = new HwgwEstimator(ns);
 
-  const args = ns.flags([["money-threshold", 0]]);
+  const args = ns.flags([]);
   const host = (args._ as string[])[0];
-  const moneyThresholdConfig = args["money-threshold"] as number;
+  const memdb = await db(ns, log);
 
   if (!host) {
     log.terror(
@@ -27,9 +28,10 @@ export async function main(ns: NS): Promise<void> {
     ramRequirement: fmt.memory(initial.ramRequirement),
     batchLen: fmt.time(initial.batchLen),
   });
-
-  const stable = await estimator.stable(host, moneyThresholdConfig);
-  log.tinfo("Stable hwgw", { ...stable, peakRam: fmt.memory(stable.peakRam) });
+  log.tinfo(
+    "Stable",
+    await estimator.stableMaxDepth(host, moneyThresholdConfig)
+  );
 }
 
 export function autocomplete(data: AutocompleteData): string[] {

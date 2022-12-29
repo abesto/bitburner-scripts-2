@@ -12,11 +12,20 @@ export async function main(ns: NS): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const thisConfig = await config();
-    if (ns.getPlayer().money >= fmt.parseMoney(thisConfig.buyAt)) {
-      await purchaseWorkers(fmt.parseMoney(thisConfig.reserveMoney));
+    try {
+      const thisConfig = await config();
+      if (ns.getPlayer().money >= fmt.parseMoney(thisConfig.buyAt)) {
+        await purchaseWorkers(fmt.parseMoney(thisConfig.reserveMoney));
+      }
+      await ns.sleep(thisConfig.intervalMs);
+    } catch (e) {
+      if (e instanceof Error) {
+        log.error(e.message, { stack: e.stack });
+      } else {
+        log.error("Error", { e });
+      }
+      await ns.sleep(1000);
     }
-    await ns.sleep(thisConfig.intervalMs);
   }
 
   interface PurchaseResult {

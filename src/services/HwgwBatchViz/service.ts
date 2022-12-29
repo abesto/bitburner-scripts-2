@@ -407,12 +407,22 @@ export class HwgwBatchVizService extends BaseService<
     }
 
     const startStr = this.fmt.timestamp(chartStart);
+    const avgPeriods = this.calcAvgPeriod();
+    const midStr =
+      "avgPeriod(planned=" +
+      this.fmt.timeSeconds(avgPeriods.planned) +
+      ", finished=" +
+      this.fmt.timeSeconds(avgPeriods.finished) +
+      ")";
     const endStr = this.fmt.timestamp(chartEnd);
-
+    const spacecount =
+      this.width - startStr.length - midStr.length - endStr.length;
     this.ns.printf(
       "%s",
       startStr +
-        " ".repeat(this.width - endStr.length - startStr.length) +
+        " ".repeat(Math.max(0, Math.floor(spacecount / 2))) +
+        midStr +
+        " ".repeat(Math.max(0, Math.ceil(spacecount / 2))) +
         endStr
     );
     this.ns.printf("%s", ".".repeat(this.width));
@@ -426,5 +436,41 @@ export class HwgwBatchVizService extends BaseService<
       late: charLate,
       ".": this.fmt.time(chartStep, true),
     });
+  }
+
+  private calcAvgPeriod(): { planned: number; finished: number } {
+    const ends: { planned: number[]; finished: number[] } = {
+      planned: [],
+      finished: [],
+    };
+    // Average time passed between the hack-end of consecutive batches
+    for (const batch of this.batches.values()) {
+      const job = batch.get("hack");
+      if (job === undefined) {
+        continue;
+      }
+      if (job.type === "finished") {
+        ends.finished.push(job.end);
+      } else {
+        ends.planned.push(job.plannedEnd);
+      }
+    }
+
+    return {
+      planned: this.calcAvgPeriodFor(ends.planned),
+      finished: this.calcAvgPeriodFor(ends.finished),
+    };
+  }
+
+  private calcAvgPeriodFor(ends: number[]): number {
+    if (ends.length < 2) {
+      return 0;
+    }
+
+    let sum = 0;
+    for (let i = 1; i < ends.length; i++) {
+      sum += ends[i] - ends[i - 1];
+    }
+    return sum / (ends.length - 1);
   }
 }
