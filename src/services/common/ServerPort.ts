@@ -2,6 +2,11 @@ import { NetscriptPort, NS } from '@ns';
 
 import { Log } from '/log';
 
+export type ReadOptions = {
+  timeout?: number;
+  throwOnTimeout?: boolean;
+};
+
 export class ServerPort<T> {
   private readonly port: NetscriptPort;
 
@@ -14,10 +19,7 @@ export class ServerPort<T> {
     this.port = ns.getPortHandle(portNumber);
   }
 
-  async read(options?: {
-    timeout?: number;
-    throwOnTimeout?: boolean;
-  }): Promise<T | null> {
+  async read(options?: ReadOptions): Promise<T | null> {
     const timeout = options?.timeout ?? 5000;
     const throwOnTimeout = options?.throwOnTimeout ?? true;
     if (this.port.empty() && timeout > 0) {

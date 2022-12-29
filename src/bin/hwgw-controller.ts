@@ -1,3 +1,4 @@
+/* eslint-disable no-constant-condition */
 import { AutocompleteData, NS } from '@ns';
 
 import * as asciichart from 'asciichart';
@@ -9,12 +10,10 @@ import { Fmt } from '/fmt';
 import { Formulas, stalefish } from '/Formulas';
 import HwgwEstimator from '/HwgwEstimator';
 import { Log } from '/log';
-import { ServerPort } from '/services/common/ServerPort';
 import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient } from '/services/Scheduler/client';
 import { HostAffinity, JobId, jobThreads } from '/services/Scheduler/types';
-import { toSchedulerResponse } from '/services/Scheduler/types/response';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
@@ -90,35 +89,65 @@ export async function main(ns: NS): Promise<void> {
 
   const jobs: JobId[] = [];
   const jobFinishedPortNumber = await portRegistryClient.reservePort();
-  const jobFinishedPort = new ServerPort(
-    ns,
-    log,
-    jobFinishedPortNumber,
-    toSchedulerResponse
-  );
+  const jobFinished = new SchedulerClient(ns, log, jobFinishedPortNumber);
   let stalefishResult: { period: number; depth: number } | undefined =
     undefined;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     // Consume job finished notifications
-    while (!jobFinishedPort.empty()) {
-      while (!jobFinishedPort.empty()) {
-        const response = await jobFinishedPort.read({ timeout: 0 });
-        if (response !== null && response.type === "jobFinished") {
-          jobs.splice(jobs.indexOf(response.jobId), 1);
-        }
+    while (true) {
+      const response = await jobFinished.waitForJobFinished(undefined, {
+        timeout: 0,
+        throwOnTimeout: false,
+      });
+      if (response !== null) {
+        jobs.splice(jobs.indexOf(response.jobId), 1);
+      } else {
+        break;
       }
     }
 
     const yolo = !formulas.haveFormulas;
     if (!yolo && ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
-      log.error("Hacking skill increased, killing existing batches");
-      for (const jobId of jobs) {
-        await schedulerClient.killJob(jobId);
+      // TODO make this a persistent banner
+      log.warn(
+        "Hacking skill increased, waiting for jobs to finish and recalculating"
+      );
+
+      try {
+        let remainingTimeout =
+          stalefishResult === undefined
+            ? 5000
+            : stalefishResult.depth * (stalefishResult.period + 1);
+        while (jobs.length > 0 && remainingTimeout > 0) {
+          const waitStart = Date.now();
+          const response = await jobFinished.waitForJobFinished(undefined, {
+            timeout: remainingTimeout,
+            throwOnTimeout: false,
+          });
+          if (response !== null) {
+            jobs.splice(jobs.indexOf(response.jobId), 1);
+            remainingTimeout -= Date.now() - waitStart;
+          } else {
+            break;
+          }
+        }
+      } finally {
+        if (jobs.length > 0) {
+          log.error("Failed to wait for jobs to finish, killing them", {
+            jobs,
+          });
+          while (jobs.length > 0) {
+            const jobId = jobs.shift();
+            if (jobId !== undefined) {
+              await schedulerClient.killJob(jobId);
+            }
+          }
+        }
       }
       if (shouldWeaken() || (await shouldGrow())) {
         await prepare();
       }
+
       jobs.splice(0, jobs.length);
       validFrom.skills.hacking = ns.getPlayer().skills.hacking;
       const memdb = await db(ns, log);

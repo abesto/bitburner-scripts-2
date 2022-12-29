@@ -9,6 +9,7 @@ import { JobId, JobSpec, SERVICE_ID as SCHEDULER, TaskId } from '/services/Sched
 import { BaseClient } from '../common/BaseClient';
 import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
 import { id } from '../common/Result';
+import { ReadOptions } from '../common/ServerPort';
 import { PortRegistryClient } from '../PortRegistry/client';
 import { SchedulerRequest as Request } from './types/request';
 import { SchedulerResponse as Response, toSchedulerResponse } from './types/response';
@@ -109,13 +110,17 @@ export class SchedulerClient extends BaseClient<Request, Response> {
     );
   }
 
-  async waitForJobFinished(jobId: JobId, timeout = Infinity): Promise<void> {
-    const response = await this.responsePort.read({ timeout });
-    await this.handleResponse(response, {
+  async waitForJobFinished(
+    jobId?: JobId,
+    options?: ReadOptions
+  ): Promise<Response<"jobFinished">> {
+    const response = await this.responsePort.read(options);
+    return await this.handleResponse(response, {
       jobFinished: (data) => {
-        if (data.jobId !== jobId) {
+        if (jobId !== undefined && data.jobId !== jobId) {
           throw new Error(`Unexpected jobId: ${data.jobId}`);
         }
+        return data;
       },
     });
   }
