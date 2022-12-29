@@ -50,12 +50,32 @@ export abstract class BaseClient<
     });
   }
 
+  handleResponseOrNull<
+    Ret,
+    M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
+  >(result: Response | null, matcher: M): Ret | null {
+    if (result === null) {
+      return null;
+    }
+    return match(result, matcher, () => {
+      throw new Error(`Invalid response: ${JSON.stringify(result)}`);
+    });
+  }
+
   async receive<
     Ret,
     M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
   >(matcher: M, options?: ReadOptions): Promise<Ret> {
     const response = await this.responsePort.read(options);
     return this.handleResponse(response, matcher);
+  }
+
+  async receiveOrNull<
+    Ret,
+    M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
+  >(matcher: M, options?: ReadOptions): Promise<Ret | null> {
+    const response = await this.responsePort.read(options);
+    return this.handleResponseOrNull(response, matcher);
   }
 
   async sendReceive<

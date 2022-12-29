@@ -103,8 +103,7 @@ export async function main(ns: NS): Promise<void> {
       }
     }
 
-    const yolo = !formulas.haveFormulas;
-    if (!yolo && ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
+    if (ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
       // TODO make this a persistent banner
       log.warn(
         "Hacking skill increased, waiting for jobs to finish and recalculating"
@@ -114,12 +113,15 @@ export async function main(ns: NS): Promise<void> {
         let remainingTimeout =
           stalefishResult === undefined
             ? 5000
-            : stalefishResult.depth * (stalefishResult.period + 1);
+            : stalefishResult.depth * stalefishResult.period * 2;
         while (jobs.length > 0 && remainingTimeout > 0) {
+          log.info("Waiting for jobs to finish", {
+            jobs: jobs.length,
+            remainingTimeout: fmt.time(remainingTimeout),
+          });
           const waitStart = Date.now();
-          const response = await jobFinished.waitForJobFinished(undefined, {
+          const response = await jobFinished.pollNextJobFinished({
             timeout: remainingTimeout,
-            throwOnTimeout: false,
           });
           if (response !== null) {
             jobs.splice(jobs.indexOf(response.jobId), 1);
@@ -149,10 +151,8 @@ export async function main(ns: NS): Promise<void> {
       validFrom.skills.hacking = ns.getPlayer().skills.hacking;
       const memdb = await db(ns, log);
       validUpTo.skills.hacking = Math.ceil(
-        validFrom.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
+        validUpTo.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
       );
-      stalefishResult = undefined;
-    } else if (yolo) {
       stalefishResult = undefined;
     }
 
@@ -212,7 +212,6 @@ export async function main(ns: NS): Promise<void> {
         depth,
         hackMin: validFrom.skills.hacking,
         hackMax: validUpTo.skills.hacking,
-        yolo,
       });
     } catch (e) {
       if (e instanceof Error) {
@@ -510,7 +509,6 @@ class Monitor {
     depth: number;
     hackMin: number;
     hackMax: number;
-    yolo: boolean;
   }) {
     await this.record();
     this.ns.clearLog();
@@ -544,13 +542,9 @@ class Monitor {
       t0: this.fmt.timeSeconds(input.t0),
       period: this.fmt.timeSeconds(input.period),
       depth: input.depth,
+      hackMin: input.hackMin,
+      hackMax: input.hackMax,
     };
-    if (input.yolo) {
-      kw.yolo = "oloy";
-    } else {
-      kw.hackMin = input.hackMin;
-      kw.hackMax = input.hackMax;
-    }
     this.log.info("Stalefish", kw);
 
     this.ns.printf("%s", asciichart.plot(this.metrics.money, moneyConfig));

@@ -130,12 +130,21 @@ export class SchedulerClient extends BaseClient<Request, Response> {
     );
   }
 
-  async pollNextJobFinished(): Promise<Response<"jobFinished"> | null> {
-    try {
-      return await this.waitForJobFinished(undefined, { timeout: 0 });
-    } catch (e) {
-      return null;
-    }
+  async pollNextJobFinished(
+    options?: ReadOptions
+  ): Promise<Response<"jobFinished"> | null> {
+    return await this.receiveOrNull(
+      {
+        jobFinished: (data) => {
+          return data;
+        },
+      },
+      {
+        timeout: 0,
+        throwOnTimeout: false,
+        ...options,
+      }
+    );
   }
 
   status(): Promise<Response<"status">> {
