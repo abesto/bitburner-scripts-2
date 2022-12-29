@@ -1,4 +1,4 @@
-import { augmented, fields, isOfVariant, TypeNames, variantModule, VariantOf } from 'variant';
+import { augmented, fields, TypeNames, variantModule, VariantOf } from 'variant';
 
 export const SERVICE_ID = "PortRegistry";
 export type ServiceTag = { service: typeof SERVICE_ID };
@@ -24,36 +24,9 @@ export const PortRegistryResponse = variantModule(
 );
 
 /* -- Boilerplate below -- */
-
 export type PortRegistryRequest<
   T extends TypeNames<typeof PortRegistryRequest> = undefined
 > = VariantOf<typeof PortRegistryRequest, T>;
-
-export function isPortRegistryRequest(x: unknown): x is PortRegistryRequest {
-  return isOfVariant(x, PortRegistryRequest) && x.service === SERVICE_ID;
-}
-export function toPortRegistryRequest(x: unknown): PortRegistryRequest | null {
-  if (isPortRegistryRequest(x)) {
-    return x;
-  } else {
-    return null;
-  }
-}
-
 export type PortRegistryResponse<
   T extends TypeNames<typeof PortRegistryResponse> = undefined
 > = VariantOf<typeof PortRegistryResponse, T>;
-
-export function isPortRegistryResponse(x: unknown): x is PortRegistryResponse {
-  return isOfVariant(x, PortRegistryResponse) && x.service === SERVICE_ID;
-}
-
-export function toPortRegistryResponse(
-  x: unknown
-): PortRegistryResponse | null {
-  if (isPortRegistryResponse(x)) {
-    return x;
-  } else {
-    return null;
-  }
-}

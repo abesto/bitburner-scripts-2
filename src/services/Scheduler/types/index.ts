@@ -1,5 +1,9 @@
 import { fields, TypeNames, variantModule, VariantOf } from 'variant';
 
+export const SERVICE_ID = "Scheduler";
+export type ServiceTag = { service: typeof SERVICE_ID };
+export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
+
 export type JobId = string;
 export type TaskId = number;
 
@@ -77,7 +81,3 @@ export type ServiceState = {
   enabled: boolean;
   status: ServiceStatus;
 };
-
-export const SERVICE_ID = "Scheduler";
-export type ServiceTag = { service: typeof SERVICE_ID };
-export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };

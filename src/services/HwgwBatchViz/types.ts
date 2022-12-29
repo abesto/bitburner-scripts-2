@@ -1,4 +1,4 @@
-import { augmented, fields, isOfVariant, TypeNames, variantModule, VariantOf } from 'variant';
+import { augmented, fields, TypeNames, variantModule, VariantOf } from 'variant';
 
 import { JobId } from '../Scheduler/types';
 
@@ -30,13 +30,3 @@ export const HwgwBatchVizRequest = variantModule(
 export type HwgwBatchVizRequest<
   T extends TypeNames<typeof HwgwBatchVizRequest> = undefined
 > = VariantOf<typeof HwgwBatchVizRequest, T>;
-export function isHwgwBatchVizRequest(x: unknown): x is HwgwBatchVizRequest {
-  return isOfVariant(x, HwgwBatchVizRequest) && x.service === SERVICE_ID;
-}
-export function toHwgwBatchVizRequest(x: unknown): HwgwBatchVizRequest | null {
-  if (isHwgwBatchVizRequest(x)) {
-    return x;
-  } else {
-    return null;
-  }
-}

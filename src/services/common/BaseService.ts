@@ -1,9 +1,12 @@
 import { NS } from '@ns';
 
+import { VariantModule } from 'variant';
 import { Identity } from 'variant/lib/util';
+import { SumType } from 'variant/lib/variant';
 
 import { Fmt } from '/fmt';
 import { Log } from '/log';
+import { PORTS } from '/ports';
 
 import { TimerManager } from '../TimerManager';
 import { ClientPort } from './ClientPort';
@@ -11,29 +14,35 @@ import { ServerPort } from './ServerPort';
 
 export type HandleRequestResult = "continue" | "exit";
 
-export abstract class BaseService<Request, Response> {
+export abstract class BaseService<
+  RequestVariantModule extends VariantModule,
+  Response
+> {
   private lastYield = Date.now();
   protected readonly log: Log;
-  protected readonly listenPort: ServerPort<Identity<Request>>;
+  protected readonly listenPort: ServerPort<RequestVariantModule>;
   protected readonly fmt: Fmt;
   private readonly timers = new TimerManager();
 
-  constructor(protected readonly ns: NS, log?: Log) {
+  constructor(
+    RequestType: RequestVariantModule,
+    protected readonly ns: NS,
+    log?: Log
+  ) {
     this.log = log ?? new Log(ns, this.constructor.name);
     this.listenPort = new ServerPort(
       ns,
       this.log,
-      this.listenPortNumber(),
-      this.parseRequest
+      this.serviceId(),
+      RequestType
     );
     this.fmt = new Fmt(ns);
     this.registerTimers(this.timers);
   }
 
-  protected abstract listenPortNumber(): number;
-  protected abstract parseRequest(message: unknown): Identity<Request> | null;
+  protected abstract serviceId(): keyof typeof PORTS;
   protected abstract handleRequest(
-    request: Identity<Request> | null
+    request: Identity<SumType<RequestVariantModule>> | null
   ): Promise<HandleRequestResult> | HandleRequestResult;
   protected listenReadTimeout(): number {
     return Infinity;
@@ -46,9 +55,13 @@ export abstract class BaseService<Request, Response> {
     // Override to register timers at construction time
   }
 
+  protected listenPortNumber(): number {
+    return PORTS[this.serviceId()];
+  }
+
   async listen(): Promise<void> {
     this.log.info("Listening", { port: this.listenPort.portNumber });
-    const buffer = new Array<Identity<Request>>();
+    const buffer = [];
     let exit = false;
     while (!exit) {
       await this.timers.invoke();

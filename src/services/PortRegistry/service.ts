@@ -1,15 +1,15 @@
 import { match } from 'variant';
 
-import { freePorts, PORTS } from '/ports';
+import { NS } from '/../NetscriptDefinitions';
+import { Log } from '/log';
+import { freePorts } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { TimerManager } from '../TimerManager';
-import {
-    PortRegistryRequest, PortRegistryResponse, SERVICE_ID, toPortRegistryRequest
-} from './types';
+import { PortRegistryRequest, PortRegistryResponse, SERVICE_ID } from './types';
 
 export class PortRegistryService extends BaseService<
-  PortRegistryRequest,
+  typeof PortRegistryRequest,
   PortRegistryResponse
 > {
   // Ports taken by running processes
@@ -22,13 +22,11 @@ export class PortRegistryService extends BaseService<
   // Lowest port number never taken
   private freeHigh = 1024;
 
-  protected override listenPortNumber(): number {
-    return PORTS[SERVICE_ID];
+  constructor(ns: NS, log?: Log) {
+    super(PortRegistryRequest, ns, log);
   }
-  protected override parseRequest(
-    message: unknown
-  ): PortRegistryRequest | null {
-    return toPortRegistryRequest(message);
+  protected override serviceId(): typeof SERVICE_ID {
+    return SERVICE_ID;
   }
   protected override listenReadTimeout(): number {
     return 1000;

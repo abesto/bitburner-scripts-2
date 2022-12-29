@@ -1,6 +1,4 @@
-import {
-    augmented, fields, isOfVariant, payload, TypeNames, variantModule, VariantOf
-} from 'variant';
+import { augmented, fields, payload, TypeNames, variantModule, VariantOf } from 'variant';
 
 export const SERVICE_ID = "Database";
 export type ServiceTag = { service: typeof SERVICE_ID };
@@ -39,33 +37,9 @@ export const DatabaseResponse = variantModule(
 );
 
 /* -- Boilerplate below -- */
-
 export type DatabaseRequest<
   T extends TypeNames<typeof DatabaseRequest> = undefined
 > = VariantOf<typeof DatabaseRequest, T>;
-export function isDatabaseRequest(x: unknown): x is DatabaseRequest {
-  return isOfVariant(x, DatabaseRequest) && x.service === SERVICE_ID;
-}
-export function toDatabaseRequest(x: unknown): DatabaseRequest | null {
-  if (isDatabaseRequest(x)) {
-    return x;
-  } else {
-    return null;
-  }
-}
-
 export type DatabaseResponse<
   T extends TypeNames<typeof DatabaseResponse> = undefined
 > = VariantOf<typeof DatabaseResponse, T>;
-
-export function isDatabaseResponse(x: unknown): x is DatabaseResponse {
-  return isOfVariant(x, DatabaseResponse) && x.service === SERVICE_ID;
-}
-
-export function toDatabaseResponse(x: unknown): DatabaseResponse | null {
-  if (isDatabaseResponse(x)) {
-    return x;
-  } else {
-    return null;
-  }
-}

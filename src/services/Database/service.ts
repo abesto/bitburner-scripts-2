@@ -3,14 +3,14 @@ import { NS } from '@ns';
 import { match } from 'variant';
 
 import { DB, DB_PATH } from '/database';
+import { Log } from '/log';
 import { PORTS } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { TimerManager } from '../TimerManager';
 import { dbSync } from './client';
 import {
-    DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
-    toDatabaseRequest
+    DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE
 } from './types';
 
 function arrayEquals(a: unknown[], b: unknown[]): boolean {
@@ -25,9 +25,9 @@ function arrayEquals(a: unknown[], b: unknown[]): boolean {
   return true;
 }
 
-export class DatabaseService extends BaseService<Request, Response> {
-  constructor(ns: NS) {
-    super(ns);
+export class DatabaseService extends BaseService<typeof Request, Response> {
+  constructor(ns: NS, log?: Log) {
+    super(Request, ns, log);
     if (this.ns.getHostname() !== "home") {
       throw new Error("DatabaseService must be run on home");
     }
@@ -36,11 +36,8 @@ export class DatabaseService extends BaseService<Request, Response> {
   protected override registerTimers(timers: TimerManager): void {
     timers.setInterval(() => this.breakStaleLock(), 1000);
   }
-  protected override listenPortNumber(): number {
-    return PORTS[DATABASE];
-  }
-  protected override parseRequest(message: unknown): Request | null {
-    return toDatabaseRequest(message);
+  protected override serviceId(): keyof typeof PORTS {
+    return DATABASE;
   }
   protected override handleRequest(
     request: Request | null

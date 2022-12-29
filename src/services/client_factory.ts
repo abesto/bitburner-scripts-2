@@ -4,46 +4,23 @@ import { Log } from '/log';
 import { BaseClient } from './common/BaseClient';
 import { PortRegistryClient } from './PortRegistry/client';
 
-export async function reservingNewPort<
-  Request extends { type: string },
-  Response extends { type: string },
-  C extends BaseClient<Request, Response>
->(
+export async function withClient<C, R>(
   cls: {
     new (
       ns: NS,
       log: Log,
-      responsePortNumber: number,
+      responsePortNumber?: number,
       portRegistryClient?: PortRegistryClient
-    ): C;
-  },
-  ns: NS,
-  log: Log
-): Promise<C> {
-  const portRegistryClient = new PortRegistryClient(ns, log);
-  const responsePortNumber = await portRegistryClient.reservePort();
-  return new cls(ns, log, responsePortNumber, portRegistryClient);
-}
-
-export async function withClient<
-  Request extends { type: string },
-  Response extends { type: string },
-  C extends BaseClient<Request, Response>,
-  R
->(
-  cls: {
-    new (
-      ns: NS,
-      log: Log,
-      responsePortNumber: number,
-      portRegistryClient?: PortRegistryClient
-    ): C;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    ): C extends BaseClient<infer Request, infer Response> ? C : never;
   },
   ns: NS,
   log: Log,
   callback: (client: C) => Promise<R>
 ): Promise<R> {
-  const client = await reservingNewPort(cls, ns, log);
+  const portRegistryClient = new PortRegistryClient(ns, log);
+  const responsePortNumber = await portRegistryClient.reservePort();
+  const client = new cls(ns, log, responsePortNumber, portRegistryClient);
   let retval;
   try {
     retval = await callback(client);

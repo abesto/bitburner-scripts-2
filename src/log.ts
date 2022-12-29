@@ -13,7 +13,7 @@ export enum LogLevel {
 
 export class Log {
   constructor(private readonly ns: NS, private readonly name: string) {
-    this.ns.disableLog("ALL");
+    ns.disableLog("ALL");
   }
 
   scope(name: string): Log {

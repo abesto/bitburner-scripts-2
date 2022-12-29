@@ -1,15 +1,14 @@
-import { NS } from '@ns';
+import { NetscriptPort, NS } from '@ns';
 
 import { Log } from '/log';
 import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
 
 import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
-import { ServerPort } from '../common/ServerPort';
 import { PortRegistryRequest as Request, SERVICE_ID } from './types';
 
-export class PortRegistryClient extends BaseNoResponseClient<Request> {
-  private readonly freePortsPort: ServerPort<number>;
+export class PortRegistryClient extends BaseNoResponseClient<typeof Request> {
+  private readonly freePortsPort: NetscriptPort;
 
   requestPortNumber(): number {
     return PORTS[SERVICE_ID];
@@ -17,19 +16,16 @@ export class PortRegistryClient extends BaseNoResponseClient<Request> {
 
   constructor(ns: NS, log: Log) {
     super(ns, log);
-    this.freePortsPort = new ServerPort(ns, log, PORTS.FreePorts, (data) => {
-      if (typeof data === "number") {
-        return data;
-      } else {
-        return null;
-      }
-    });
+    this.freePortsPort = ns.getPortHandle(PORTS.FreePorts);
   }
 
   public async reservePort(): Promise<number> {
-    const port = await this.freePortsPort.read();
-    if (port === null) {
+    const port = this.freePortsPort.read();
+    if (port === "NULL PORT DATA") {
       throw new Error("Failed to parse port");
+    }
+    if (typeof port !== "number") {
+      throw new Error(`Failed to parse port: ${port}`);
     }
 
     this.ns.clearPort(port);

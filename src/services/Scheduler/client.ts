@@ -4,7 +4,7 @@ import minimist from 'minimist';
 
 import { Log } from '/log';
 import { PORTS } from '/ports';
-import { JobId, JobSpec, SERVICE_ID as SCHEDULER, TaskId } from '/services/Scheduler/types';
+import { JobId, JobSpec, SERVICE_ID, TaskId } from '/services/Scheduler/types';
 
 import { BaseClient } from '../common/BaseClient';
 import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
@@ -26,9 +26,11 @@ function schedulerParent(ns: NS): { jobId: JobId; taskId: TaskId } | undefined {
   return undefined;
 }
 
-export class NoResponseSchedulerClient extends BaseNoResponseClient<Request> {
+export class NoResponseSchedulerClient extends BaseNoResponseClient<
+  typeof Request
+> {
   requestPortNumber(): number {
-    return PORTS[SCHEDULER];
+    return PORTS[SERVICE_ID];
   }
 
   taskFinished(jobId: JobId, taskId: TaskId, crash = false): Promise<void> {
@@ -53,25 +55,27 @@ export class NoResponseSchedulerClient extends BaseNoResponseClient<Request> {
   }
 }
 
-export class SchedulerClient extends BaseClient<Request, Response> {
+export class SchedulerClient extends BaseClient<
+  typeof Request,
+  typeof Response
+> {
   private readonly schedulerParent?: { jobId: JobId; taskId: TaskId };
 
   constructor(
     ns: NS,
     log: Log,
-    responsePortNumber: number,
+    responsePortNumber?: number,
     portRegistryClient?: PortRegistryClient
   ) {
     super(ns, log, responsePortNumber, portRegistryClient);
     this.schedulerParent = schedulerParent(ns);
   }
 
-  requestPortNumber(): number {
-    return PORTS[SCHEDULER];
+  protected override serviceId(): typeof SERVICE_ID {
+    return SERVICE_ID;
   }
-
-  parseResponse(response: unknown): Response | null {
-    return toSchedulerResponse(response);
+  protected override ResponseMessageType(): typeof Response {
+    return Response;
   }
 
   start(

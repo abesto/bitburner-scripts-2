@@ -4,26 +4,22 @@ import { deepmerge } from 'deepmerge-ts';
 
 import { DB, DB_PATH, DEFAULT_DB } from '/database';
 import { Log } from '/log';
-import { PORTS } from '/ports';
 import { getProcessInfo } from '/procinfo';
 
 import { withClient } from '../client_factory';
 import { BaseClient } from '../common/BaseClient';
 import { id } from '../common/Result';
-import {
-    DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, toDatabaseResponse, UnlockResult
-} from './types';
+import { DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, UnlockResult } from './types';
 
 export class DatabaseClient extends BaseClient<
-  DatabaseRequest,
-  DatabaseResponse
+  typeof DatabaseRequest,
+  typeof DatabaseResponse
 > {
-  requestPortNumber(): number {
-    return PORTS[SERVICE_ID];
+  protected override serviceId(): typeof SERVICE_ID {
+    return SERVICE_ID;
   }
-
-  parseResponse(response: unknown): DatabaseResponse | null {
-    return toDatabaseResponse(response);
+  protected override ResponseMessageType(): typeof DatabaseResponse {
+    return DatabaseResponse;
   }
 
   read(): Promise<DB> {

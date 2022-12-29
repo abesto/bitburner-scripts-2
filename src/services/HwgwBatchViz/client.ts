@@ -3,7 +3,9 @@ import { PORTS } from '/ports';
 import { BaseNoResponseClient } from '../common/BaseNoResponseClient';
 import { HwgwBatchVizRequest, JobKind, SERVICE_ID } from './types';
 
-export class HwgwBatchVizClient extends BaseNoResponseClient<HwgwBatchVizRequest> {
+export class HwgwBatchVizClient extends BaseNoResponseClient<
+  typeof HwgwBatchVizRequest
+> {
   protected requestPortNumber(): number {
     return PORTS[SERVICE_ID];
   }

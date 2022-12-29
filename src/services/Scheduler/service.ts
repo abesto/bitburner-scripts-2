@@ -8,17 +8,15 @@ import { autonuke } from '/autonuke';
 import { DB } from '/database';
 import { discoverServers } from '/discoverServers';
 import { Log } from '/log';
-import { PORTS } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { DatabaseClient, dbSync } from '../Database/client';
 import { PortRegistryClient } from '../PortRegistry/client';
 import { TimerManager } from '../TimerManager';
 import {
-    Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID as SCHEDULER, ServiceSpec,
-    ServiceStatus, TaskId
+    Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID, ServiceSpec, ServiceStatus, TaskId
 } from './types';
-import { SchedulerRequest as Request, toSchedulerRequest } from './types/request';
+import { SchedulerRequest as Request } from './types/request';
 import { SchedulerResponse as Response } from './types/response';
 
 function arrayEqual(a: unknown[], b: unknown[]): boolean {
@@ -33,15 +31,15 @@ function arrayEqual(a: unknown[], b: unknown[]): boolean {
   return true;
 }
 
-export class SchedulerService extends BaseService<Request, Response> {
+export class SchedulerService extends BaseService<typeof Request, Response> {
   constructor(
     ns: NS,
-    log: Log,
     private readonly portRegistry: PortRegistryClient,
     private readonly dbResponsePort: number,
-    private readonly db: DatabaseClient
+    private readonly db: DatabaseClient,
+    log?: Log
   ) {
-    super(ns, log);
+    super(Request, ns, log);
     if (this.ns.getHostname() !== "home") {
       throw new Error("SchedulerService must be run on home");
     }
@@ -52,14 +50,11 @@ export class SchedulerService extends BaseService<Request, Response> {
     const portRegistry = new PortRegistryClient(ns, log);
     const dbResponsePort = await portRegistry.reservePort();
     const db = new DatabaseClient(ns, log, dbResponsePort);
-    return new SchedulerService(ns, log, portRegistry, dbResponsePort, db);
+    return new SchedulerService(ns, portRegistry, dbResponsePort, db, log);
   }
 
-  protected override listenPortNumber(): number {
-    return PORTS[SCHEDULER];
-  }
-  protected override parseRequest(message: unknown): Request | null {
-    return toSchedulerRequest(message);
+  protected override serviceId(): typeof SERVICE_ID {
+    return SERVICE_ID;
   }
   protected override registerTimers(timers: TimerManager): void {
     timers.setInterval(() => {

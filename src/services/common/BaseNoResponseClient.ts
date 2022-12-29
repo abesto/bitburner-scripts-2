@@ -1,10 +1,13 @@
 import { NS } from '@ns';
 
+import { VariantModule } from 'variant';
+import { SumType } from 'variant/lib/variant';
+
 import { Log } from '/log';
 
 import { ClientPort, ClientWriteOptions } from '../common/ClientPort';
 
-export abstract class BaseNoResponseClient<Request extends { type: string }> {
+export abstract class BaseNoResponseClient<Request extends VariantModule> {
   protected readonly requestPort: ClientPort<Request>;
 
   constructor(protected readonly ns: NS, protected readonly log: Log) {
@@ -14,13 +17,13 @@ export abstract class BaseNoResponseClient<Request extends { type: string }> {
   protected abstract requestPortNumber(): number;
 
   protected async send(
-    request: Request,
+    request: SumType<Request>,
     options?: ClientWriteOptions
   ): Promise<void> {
     await this.requestPort.write(request, options);
   }
 
-  protected sendSync(request: Request): Request | null {
+  protected sendSync(request: SumType<Request>): SumType<Request> | null {
     return this.requestPort.writeSync(request);
   }
 }

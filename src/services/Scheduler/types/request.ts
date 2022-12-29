@@ -1,6 +1,6 @@
-import { augmented, fields, isOfVariant, TypeNames, variantModule, VariantOf } from 'variant';
+import { augmented, fields, TypeNames, variantModule, VariantOf } from 'variant';
 
-import { JobId, JobSpec, SERVICE_ID, SERVICE_TAG, TaskId } from './';
+import { JobId, JobSpec, SERVICE_TAG, TaskId } from './';
 
 export const SchedulerRequest = variantModule(
   augmented(() => SERVICE_TAG, {
@@ -42,13 +42,3 @@ export const SchedulerRequest = variantModule(
 export type SchedulerRequest<
   T extends TypeNames<typeof SchedulerRequest> = undefined
 > = VariantOf<typeof SchedulerRequest, T>;
-export function isSchedulerRequest(obj: unknown): obj is SchedulerRequest {
-  return isOfVariant(obj, SchedulerRequest) && obj.service === SERVICE_ID;
-}
-export function toSchedulerRequest(obj: unknown): SchedulerRequest | null {
-  if (isSchedulerRequest(obj)) {
-    return obj;
-  } else {
-    return null;
-  }
-}

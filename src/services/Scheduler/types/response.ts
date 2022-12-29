@@ -1,10 +1,8 @@
-import {
-    augmented, fields, isOfVariant, payload, TypeNames, variantModule, VariantOf
-} from 'variant';
+import { augmented, fields, payload, TypeNames, variantModule, VariantOf } from 'variant';
 
 import { result } from '/services/common/Result';
 
-import { Capacity, Job, JobId, SERVICE_ID, SERVICE_TAG, ServiceState, ServiceStatus } from './';
+import { Capacity, Job, JobId, SERVICE_TAG, ServiceState, ServiceStatus } from './';
 
 export const SchedulerResponse = variantModule(
   augmented(() => SERVICE_TAG, {
@@ -41,14 +39,3 @@ export const SchedulerResponse = variantModule(
 export type SchedulerResponse<
   T extends TypeNames<typeof SchedulerResponse> = undefined
 > = VariantOf<typeof SchedulerResponse, T>;
-
-export function isSchedulerResponse(obj: unknown): obj is SchedulerResponse {
-  return isOfVariant(obj, SchedulerResponse) && obj.service === SERVICE_ID;
-}
-export function toSchedulerResponse(obj: unknown): SchedulerResponse | null {
-  if (isSchedulerResponse(obj)) {
-    return obj;
-  } else {
-    return null;
-  }
-}

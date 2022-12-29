@@ -1,25 +1,34 @@
 import { NetscriptPort, NS } from '@ns';
 
+import { VariantModule } from 'variant';
+import { SumType } from 'variant/lib/variant';
+
 import { Log } from '/log';
+import { PORTS } from '/ports';
+
+import { toMessage } from './types';
 
 export type ReadOptions = {
   timeout?: number;
   throwOnTimeout?: boolean;
 };
 
-export class ServerPort<T> {
+export class ServerPort<T extends VariantModule> {
   private readonly port: NetscriptPort;
+  private readonly parse: (message: unknown) => SumType<T> | null;
 
   constructor(
     private readonly ns: NS,
     private readonly log: Log,
-    readonly portNumber: number,
-    private readonly parse: (message: unknown) => T | null
+    serviceId: keyof typeof PORTS,
+    MessageType: T,
+    readonly portNumber: number = PORTS[serviceId]
   ) {
     this.port = ns.getPortHandle(portNumber);
+    this.parse = toMessage(MessageType, serviceId);
   }
 
-  async read(options?: ReadOptions): Promise<T | null> {
+  async read(options?: ReadOptions): Promise<SumType<T> | null> {
     const timeout = options?.timeout ?? 5000;
     const throwOnTimeout = options?.throwOnTimeout ?? true;
     if (this.port.empty() && timeout > 0) {
@@ -53,8 +62,8 @@ export class ServerPort<T> {
     }
   }
 
-  drain(): T[] {
-    const messages: T[] = [];
+  drain(): SumType<T>[] {
+    const messages = [];
     while (!this.port.empty()) {
       const data = this.port.read();
       if (data === "NULL PORT DATA") {

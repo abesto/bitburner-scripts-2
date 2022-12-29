@@ -1,12 +1,15 @@
 import { NetscriptPort, NS } from '@ns';
 
+import { VariantModule } from 'variant';
+import { SumType } from 'variant/lib/variant';
+
 import { Log } from '/log';
 
 export interface ClientWriteOptions {
   backoff?: boolean;
 }
 
-export class ClientPort<T> {
+export class ClientPort<T extends VariantModule> {
   private readonly port: NetscriptPort | null;
 
   constructor(
@@ -21,7 +24,7 @@ export class ClientPort<T> {
     }
   }
 
-  writeSync(data: T): T | null {
+  writeSync(data: SumType<T>): SumType<T> | null {
     if (this.port === null) {
       return null;
     }

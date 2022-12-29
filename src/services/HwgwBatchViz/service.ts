@@ -1,13 +1,15 @@
+import { NS } from '@ns';
+
 import { fields, match, TypeNames, variantModule, VariantOf } from 'variant';
 
 import * as colors from '/colors';
-import { PORTS } from '/ports';
+import { Log } from '/log';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { db } from '../Database/client';
 import { JobId } from '../Scheduler/types';
 import { TimerManager } from '../TimerManager';
-import { HwgwBatchVizRequest, JobKind, SERVICE_ID, toHwgwBatchVizRequest } from './types';
+import { HwgwBatchVizRequest, JobKind, SERVICE_ID } from './types';
 
 const JobState = variantModule({
   planned: fields<{
@@ -109,7 +111,7 @@ function charToPartial(
 }
 
 export class HwgwBatchVizService extends BaseService<
-  HwgwBatchVizRequest,
+  typeof HwgwBatchVizRequest,
   void
 > {
   private readonly batches: Map<JobId, Map<JobKind, JobState>> = new Map();
@@ -118,11 +120,11 @@ export class HwgwBatchVizService extends BaseService<
 
   private lastUpdate = 0;
 
-  protected listenPortNumber(): number {
-    return PORTS[SERVICE_ID];
+  constructor(ns: NS, log?: Log) {
+    super(HwgwBatchVizRequest, ns, log);
   }
-  protected parseRequest(message: unknown): HwgwBatchVizRequest | null {
-    return toHwgwBatchVizRequest(message);
+  protected override serviceId(): typeof SERVICE_ID {
+    return SERVICE_ID;
   }
   protected override registerTimers(timers: TimerManager): void {
     timers.setInterval(this.doUI.bind(this), 1000);
