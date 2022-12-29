@@ -5,6 +5,7 @@ import { Identity } from 'variant/lib/util';
 import { Fmt } from '/fmt';
 import { Log } from '/log';
 
+import { TimerManager } from '../TimerManager';
 import { ClientPort } from './ClientPort';
 import { ServerPort } from './ServerPort';
 
@@ -15,6 +16,7 @@ export abstract class BaseService<Request, Response> {
   protected readonly log: Log;
   protected readonly listenPort: ServerPort<Identity<Request>>;
   protected readonly fmt: Fmt;
+  private readonly timers = new TimerManager();
 
   constructor(protected readonly ns: NS, log?: Log) {
     this.log = log ?? new Log(ns, this.constructor.name);
@@ -25,6 +27,7 @@ export abstract class BaseService<Request, Response> {
       this.parseRequest
     );
     this.fmt = new Fmt(ns);
+    this.registerTimers(this.timers);
   }
 
   protected abstract listenPortNumber(): number;
@@ -38,17 +41,25 @@ export abstract class BaseService<Request, Response> {
   protected maxTimeSlice(): number {
     return 100;
   }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected registerTimers(timers: TimerManager): void {
+    // Override to register timers at construction time
+  }
 
   async listen(): Promise<void> {
     this.log.info("Listening", { port: this.listenPort.portNumber });
     const buffer = new Array<Identity<Request>>();
     let exit = false;
     while (!exit) {
+      await this.timers.invoke();
       buffer.push(...this.listenPort.drain());
       const request =
         buffer.shift() ??
         (await this.listenPort.read({
-          timeout: this.listenReadTimeout(),
+          timeout: Math.min(
+            this.listenReadTimeout(),
+            this.timers.getTimeUntilNextEvent()
+          ),
           throwOnTimeout: false,
         }));
       const result = await this.handleRequest(request);

@@ -6,7 +6,7 @@ import { Log } from '/log';
 
 import { PortRegistryClient } from '../PortRegistry/client';
 import { BaseNoResponseClient } from './BaseNoResponseClient';
-import { ServerPort } from './ServerPort';
+import { ReadOptions, ServerPort } from './ServerPort';
 
 export abstract class BaseClient<
   Request extends { type: string },
@@ -53,23 +53,17 @@ export abstract class BaseClient<
   async receive<
     Ret,
     M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
-  >(matcher: M, options: { readTimeout?: number } = {}): Promise<Ret> {
-    const response = await this.responsePort.read({
-      timeout: options.readTimeout,
-    });
+  >(matcher: M, options?: ReadOptions): Promise<Ret> {
+    const response = await this.responsePort.read(options);
     return this.handleResponse(response, matcher);
   }
 
   async sendReceive<
     Ret,
     M extends Partial<Handler<VariantsOfUnion<Response, "type">, Ret>>
-  >(
-    request: Request,
-    matcher: M,
-    options: { readTimeout?: number } = {}
-  ): Promise<Ret> {
+  >(request: Request, matcher: M, readOptions?: ReadOptions): Promise<Ret> {
     await this.send(request);
-    return await this.receive(matcher, options);
+    return await this.receive(matcher, readOptions);
   }
 
   protected rp(): { responsePort: number } {

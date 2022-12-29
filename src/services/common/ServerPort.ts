@@ -37,6 +37,7 @@ export class ServerPort<T> {
     }
     const data = this.port.read();
     if (data === "NULL PORT DATA") {
+      this.log.warn("Read NULL PORT DATA from port", { port: this.portNumber });
       return null;
     }
     try {

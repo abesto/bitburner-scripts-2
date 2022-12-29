@@ -2,9 +2,6 @@
   "PortRegistry": {
     "enableWhenDiscovered": true
   },
-  "CrashWatcher": {
-    "enableWhenDiscovered": true
-  },
   "BuyWorkers": {},
   "Database": {
     "enableWhenDiscovered": true,

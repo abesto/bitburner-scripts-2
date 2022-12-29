@@ -6,6 +6,7 @@ import { DB, DB_PATH } from '/database';
 import { PORTS } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
+import { TimerManager } from '../TimerManager';
 import { dbSync } from './client';
 import {
     DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE,
@@ -32,6 +33,9 @@ export class DatabaseService extends BaseService<Request, Response> {
     }
   }
 
+  protected override registerTimers(timers: TimerManager): void {
+    timers.setInterval(() => this.breakStaleLock(), 1000);
+  }
   protected override listenPortNumber(): number {
     return PORTS[DATABASE];
   }
@@ -41,7 +45,6 @@ export class DatabaseService extends BaseService<Request, Response> {
   protected override handleRequest(
     request: Request | null
   ): HandleRequestResult {
-    this.breakStaleLock();
     if (request !== null) {
       match(request, {
         read: (request) => this.read(request),

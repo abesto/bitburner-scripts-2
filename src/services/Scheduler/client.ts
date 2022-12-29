@@ -114,15 +114,28 @@ export class SchedulerClient extends BaseClient<Request, Response> {
     jobId?: JobId,
     options?: ReadOptions
   ): Promise<Response<"jobFinished">> {
-    const response = await this.responsePort.read(options);
-    return await this.handleResponse(response, {
-      jobFinished: (data) => {
-        if (jobId !== undefined && data.jobId !== jobId) {
-          throw new Error(`Unexpected jobId: ${data.jobId}`);
-        }
-        return data;
+    return await this.receive(
+      {
+        jobFinished: (data) => {
+          if (jobId !== undefined && data.jobId !== jobId) {
+            throw new Error(`Unexpected jobId: ${data.jobId}`);
+          }
+          return data;
+        },
       },
-    });
+      {
+        timeout: Infinity,
+        ...options,
+      }
+    );
+  }
+
+  async pollNextJobFinished(): Promise<Response<"jobFinished"> | null> {
+    try {
+      return await this.waitForJobFinished(undefined, { timeout: 0 });
+    } catch (e) {
+      return null;
+    }
   }
 
   status(): Promise<Response<"status">> {

@@ -6,6 +6,7 @@ import { PORTS } from '/ports';
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { db } from '../Database/client';
 import { JobId } from '../Scheduler/types';
+import { TimerManager } from '../TimerManager';
 import { HwgwBatchVizRequest, JobKind, SERVICE_ID, toHwgwBatchVizRequest } from './types';
 
 const JobState = variantModule({
@@ -120,20 +121,17 @@ export class HwgwBatchVizService extends BaseService<
   protected listenPortNumber(): number {
     return PORTS[SERVICE_ID];
   }
-
   protected parseRequest(message: unknown): HwgwBatchVizRequest | null {
     return toHwgwBatchVizRequest(message);
   }
-
-  protected listenReadTimeout(): number {
-    return 1000;
+  protected override registerTimers(timers: TimerManager): void {
+    timers.setInterval(this.doUI.bind(this), 1000);
   }
 
   handleRequest(request: HwgwBatchVizRequest | null): HandleRequestResult {
     if (request !== null) {
       this.doHandleRequest(request);
     }
-    this.doUI();
     return "continue";
   }
 

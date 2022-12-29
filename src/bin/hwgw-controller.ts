@@ -95,10 +95,7 @@ export async function main(ns: NS): Promise<void> {
   while (true) {
     // Consume job finished notifications
     while (true) {
-      const response = await jobFinished.waitForJobFinished(undefined, {
-        timeout: 0,
-        throwOnTimeout: false,
-      });
+      const response = await jobFinished.pollNextJobFinished();
       if (response !== null) {
         jobs.splice(jobs.indexOf(response.jobId), 1);
       } else {

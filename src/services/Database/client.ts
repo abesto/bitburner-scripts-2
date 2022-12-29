@@ -59,7 +59,7 @@ export class DatabaseClient extends BaseClient<
         {
           lockDeferred: (response) => JSON.parse(response.payload) as DB,
         },
-        { readTimeout: Infinity }
+        { timeout: Infinity }
       );
     }
   }

@@ -3,6 +3,7 @@ import { match } from 'variant';
 import { freePorts, PORTS } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
+import { TimerManager } from '../TimerManager';
 import {
     PortRegistryRequest, PortRegistryResponse, SERVICE_ID, toPortRegistryRequest
 } from './types';
@@ -32,12 +33,14 @@ export class PortRegistryService extends BaseService<
   protected override listenReadTimeout(): number {
     return 1000;
   }
+  protected override registerTimers(timers: TimerManager): void {
+    timers.setInterval(this.freeLeakedPorts.bind(this), 1000);
+  }
 
   protected handleRequest(
     request: PortRegistryRequest | null
   ): HandleRequestResult {
     this.populateFreePorts();
-    this.freeLeakedPorts();
     if (request === null) {
       return "continue";
     }

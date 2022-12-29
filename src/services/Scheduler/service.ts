@@ -13,6 +13,7 @@ import { PORTS } from '/ports';
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { DatabaseClient, dbSync } from '../Database/client';
 import { PortRegistryClient } from '../PortRegistry/client';
+import { TimerManager } from '../TimerManager';
 import {
     Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID as SCHEDULER, ServiceSpec,
     ServiceStatus, TaskId
@@ -20,9 +21,19 @@ import {
 import { SchedulerRequest as Request, toSchedulerRequest } from './types/request';
 import { SchedulerResponse as Response } from './types/response';
 
-export class SchedulerService extends BaseService<Request, Response> {
-  private lastReview = Date.now();
+function arrayEqual(a: unknown[], b: unknown[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 
+export class SchedulerService extends BaseService<Request, Response> {
   constructor(
     ns: NS,
     log: Log,
@@ -50,14 +61,21 @@ export class SchedulerService extends BaseService<Request, Response> {
   protected override parseRequest(message: unknown): Request | null {
     return toSchedulerRequest(message);
   }
+  protected override registerTimers(timers: TimerManager): void {
+    timers.setInterval(() => {
+      return this.db.withLock(async (memdb) => {
+        let save = this.reviewServices(memdb);
+        save = this.reviewJobs(memdb) || save;
+        if (save) {
+          return memdb;
+        }
+        return;
+      });
+    }, 1000);
+  }
   protected override async handleRequest(
     request: Identity<Request> | null
   ): Promise<HandleRequestResult> {
-    if (Date.now() - this.lastReview > 1000) {
-      await this.reviewServices();
-      this.lastReview = Date.now();
-    }
-
     if (request === null) {
       return "continue";
     }
@@ -166,54 +184,71 @@ export class SchedulerService extends BaseService<Request, Response> {
     this.respond(request.responsePort, Response.tailTask("ok"));
   }
 
-  async reviewServices(): Promise<void> {
-    await this.db.withLock(async (memdb) => {
-      const services = memdb.scheduler.services;
-      let save = false;
+  reviewServices(memdb: DB): boolean {
+    const services = memdb.scheduler.services;
+    let save = false;
 
-      for (const name of Object.keys(services)) {
-        const service = services[name];
-        if (service.status.type === "running") {
-          const pid = service.status.pid;
-          const process = this.ns.getRunningScript(pid);
-          if (
-            process === null ||
-            process.filename !== this.serviceScript(name) ||
-            process.server !== service.status.hostname
-          ) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { type, ...status } = service.status;
-            service.status = ServiceStatus.crashed({
-              crashedAt: Date.now(),
-              ...status,
-            });
-            save = true;
-            if (service.enabled) {
-              if (this.doStartService(service.spec, memdb) === null) {
-                this.log.terror("Service crashed, restart failed", {
-                  service: name,
-                });
-              } else {
-                this.log.twarn("Service crashed, restart successful", {
-                  service: name,
-                });
-              }
+    for (const name of Object.keys(services)) {
+      const service = services[name];
+      if (service.status.type === "running") {
+        const pid = service.status.pid;
+        const process = this.ns.getRunningScript(pid);
+        if (
+          process === null ||
+          process.filename !== this.serviceScript(name) ||
+          process.server !== service.status.hostname
+        ) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { type, ...status } = service.status;
+          service.status = ServiceStatus.crashed({
+            crashedAt: Date.now(),
+            ...status,
+          });
+          save = true;
+          if (service.enabled) {
+            if (this.doStartService(service.spec, memdb) === null) {
+              this.log.terror("Service crashed, restart failed", {
+                service: name,
+              });
             } else {
-              this.log.terror(
-                "Service crashed, not restarting because it's disabled",
-                { service: name }
-              );
+              this.log.twarn("Service crashed, restart successful", {
+                service: name,
+              });
             }
+          } else {
+            this.log.terror(
+              "Service crashed, not restarting because it's disabled",
+              { service: name }
+            );
           }
         }
       }
+    }
 
-      if (save) {
-        return memdb;
-      } else {
-        return;
+    return save;
+  }
+
+  reviewJobs(memdb: DB): boolean {
+    let save = false;
+    const jobs = memdb.scheduler.jobs;
+    for (const job of Object.values(jobs)) {
+      for (const task of Object.values(job.tasks)) {
+        const process = this.ns.getRunningScript(task.pid);
+        if (process === null) {
+          this.log.warn("Task crashed", { job, task });
+          this.doTaskFinished(memdb, job.id, task.id, true);
+          save = true;
+        } else if (
+          process.filename !== job.spec.script ||
+          arrayEqual(process.args, task.args)
+        ) {
+          this.log.warn("Task changed script or args", { job, task, process });
+          this.doTaskFinished(memdb, job.id, task.id, true);
+          save = true;
+        }
       }
-    });
+    }
+    return save;
   }
 
   async startService(request: Request<"startService">): Promise<void> {
@@ -494,7 +529,6 @@ export class SchedulerService extends BaseService<Request, Response> {
   }
 
   async status(request: Request<"status">): Promise<void> {
-    await this.reviewServices();
     const memdb = dbSync(this.ns, true);
     const jobs = memdb.scheduler.jobs;
     const services = memdb.scheduler.services;
@@ -562,66 +596,75 @@ export class SchedulerService extends BaseService<Request, Response> {
 
   async taskFinished(request: Request<"taskFinished">): Promise<void> {
     const { jobId, taskId, crash } = request;
-    const log = this.log.scope("taskFinished");
-    await this.db.withLock(async (memdb) => {
-      this.killChildren(jobId, taskId, memdb);
-      const job = memdb.scheduler.jobs[jobId];
-      if (job === undefined) {
-        if (!crash) {
-          log.warn("Could not find job", { jobId });
-        }
-        return;
-      }
-      if (job.id !== jobId) {
-        log.terror("Job ID mismatch", { jobId, onObject: job.id });
-        return;
-      }
+    await this.db.withLock(async (memdb) =>
+      this.doTaskFinished(memdb, jobId, taskId, crash)
+    );
+  }
 
-      const task = job.tasks[taskId];
-      if (task === undefined) {
-        if (!crash) {
-          log.twarn("Could not find task", { jobId, taskId });
-        }
-        return;
+  doTaskFinished(
+    memdb: DB,
+    jobId: JobId,
+    taskId: TaskId,
+    crash: boolean
+  ): DB | undefined {
+    const log = this.log.scope(crash ? "taskCrashed" : "taskFinished");
+    this.killChildren(jobId, taskId, memdb);
+    const job = memdb.scheduler.jobs[jobId];
+    if (job === undefined) {
+      if (!crash) {
+        log.warn("Could not find job", { jobId });
       }
-      if (task.id !== taskId) {
-        log.terror("Task ID mismatch", { taskId, onObject: task.id });
-        return;
-      }
+      return;
+    }
+    if (job.id !== jobId) {
+      log.terror("Job ID mismatch", { jobId, onObject: job.id });
+      return;
+    }
 
-      log.info("Task finished", {
+    const task = job.tasks[taskId];
+    if (task === undefined) {
+      if (!crash) {
+        log.twarn("Could not find task", { jobId, taskId });
+      }
+      return;
+    }
+    if (task.id !== taskId) {
+      log.terror("Task ID mismatch", { taskId, onObject: task.id });
+      return;
+    }
+
+    log.info("Task finished", {
+      job: job.id,
+      task: task.id,
+      hostname: task.hostname,
+      pid: task.pid,
+      script: job.spec.script,
+      args: job.spec.args,
+      threads: task.threads,
+    });
+    delete job.tasks[taskId];
+
+    if (Object.keys(job.tasks).length === 0) {
+      log.info("Job finished", {
         job: job.id,
-        task: task.id,
-        hostname: task.hostname,
-        pid: task.pid,
         script: job.spec.script,
         args: job.spec.args,
-        threads: task.threads,
+        threads: job.spec.threads,
       });
-      delete job.tasks[taskId];
+      delete memdb.scheduler.jobs[jobId];
 
-      if (Object.keys(job.tasks).length === 0) {
-        log.info("Job finished", {
-          job: job.id,
-          script: job.spec.script,
-          args: job.spec.args,
-          threads: job.spec.threads,
-        });
-        delete memdb.scheduler.jobs[jobId];
-
-        const { finishNotificationPort } = job;
-        if (
-          finishNotificationPort !== undefined &&
-          finishNotificationPort !== null
-        ) {
-          this.respond(
-            finishNotificationPort,
-            Response.jobFinished({ jobId: job.id })
-          );
-        }
+      const { finishNotificationPort } = job;
+      if (
+        finishNotificationPort !== undefined &&
+        finishNotificationPort !== null
+      ) {
+        this.respond(
+          finishNotificationPort,
+          Response.jobFinished({ jobId: job.id })
+        );
       }
-      return memdb;
-    });
+    }
+    return memdb;
   }
 
   protected hostCandidates(
