@@ -1,13 +1,33 @@
 import { NS } from '@ns';
 
-import { Formulas } from '/Formulas';
 import { Log } from '/log';
 import { withClient } from '/services/client_factory';
 import { DatabaseClient, dbLock } from '/services/Database/client';
+import { StatsClient } from '/services/Stats/client';
 
 export async function main(ns: NS): Promise<void> {
-  const formulas = new Formulas(ns);
-  ns.tprint(formulas.haveFormulas);
+  const log = new Log(ns, "test");
+  await withClient(StatsClient, ns, log, async (client) => {
+    const start = Date.now();
+    log.tdebug("Sending");
+    await client.record("a", 1);
+    await client.record("a", 2);
+    log.tdebug("Sleeping 1.5s");
+    await ns.sleep(1500);
+    log.tdebug("Sending more");
+    await client.record("a", 3);
+    await client.record("a.b", 1);
+    await client.record("a.b", 40, "add");
+
+    log.tdebug("Reading");
+    log.tinfo("test!", {
+      a: await client.getRaw("a"),
+      b: await client.getRaw("a.b"),
+      aSince: await client.getRaw("a", start),
+      series: await client.listSeries(),
+      seriesADot: await client.listSeries("a."),
+    });
+  });
 }
 
 export async function withoutClient(ns: NS): Promise<void> {

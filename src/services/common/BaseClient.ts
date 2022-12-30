@@ -28,7 +28,7 @@ export abstract class BaseClient<
       ns,
       log,
       this.serviceId(),
-      this.ResponseMessageType(),
+      this.ResponseType(),
       responsePortNumber
     );
     this.portRegistryClient =
@@ -36,7 +36,7 @@ export abstract class BaseClient<
   }
 
   protected abstract serviceId(): keyof typeof PORTS;
-  protected abstract ResponseMessageType(): Response;
+  protected abstract ResponseType(): Response;
 
   protected override requestPortNumber(): number {
     return PORTS[this.serviceId()];

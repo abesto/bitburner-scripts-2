@@ -11,7 +11,7 @@ export class PortRegistryStatusClient extends BaseClient<
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
   }
-  protected override ResponseMessageType(): typeof Response {
+  protected override ResponseType(): typeof Response {
     return Response;
   }
   async status(): Promise<Response<"status">> {

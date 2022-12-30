@@ -18,7 +18,7 @@ export class DatabaseClient extends BaseClient<
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
   }
-  protected override ResponseMessageType(): typeof DatabaseResponse {
+  protected override ResponseType(): typeof DatabaseResponse {
     return DatabaseResponse;
   }
 

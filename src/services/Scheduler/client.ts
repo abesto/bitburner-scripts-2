@@ -12,7 +12,7 @@ import { id } from '../common/Result';
 import { ReadOptions } from '../common/ServerPort';
 import { PortRegistryClient } from '../PortRegistry/client';
 import { SchedulerRequest as Request } from './types/request';
-import { SchedulerResponse as Response, toSchedulerResponse } from './types/response';
+import { SchedulerResponse as Response } from './types/response';
 
 function schedulerParent(ns: NS): { jobId: JobId; taskId: TaskId } | undefined {
   // minimist because `ns.flags` throws on unexpected flags
@@ -74,7 +74,7 @@ export class SchedulerClient extends BaseClient<
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
   }
-  protected override ResponseMessageType(): typeof Response {
+  protected override ResponseType(): typeof Response {
     return Response;
   }
 

@@ -14,35 +14,29 @@ import { ServerPort } from './ServerPort';
 
 export type HandleRequestResult = "continue" | "exit";
 
-export abstract class BaseService<
-  RequestVariantModule extends VariantModule,
-  Response
-> {
+export abstract class BaseService<Request extends VariantModule, Response> {
   private lastYield = Date.now();
   protected readonly log: Log;
-  protected readonly listenPort: ServerPort<RequestVariantModule>;
+  protected readonly listenPort: ServerPort<Request>;
   protected readonly fmt: Fmt;
   private readonly timers = new TimerManager();
 
-  constructor(
-    RequestType: RequestVariantModule,
-    protected readonly ns: NS,
-    log?: Log
-  ) {
+  constructor(protected readonly ns: NS, log?: Log) {
     this.log = log ?? new Log(ns, this.constructor.name);
     this.listenPort = new ServerPort(
       ns,
       this.log,
       this.serviceId(),
-      RequestType
+      this.RequestType()
     );
     this.fmt = new Fmt(ns);
     this.registerTimers(this.timers);
   }
 
   protected abstract serviceId(): keyof typeof PORTS;
+  protected abstract RequestType(): Request;
   protected abstract handleRequest(
-    request: Identity<SumType<RequestVariantModule>> | null
+    request: Identity<SumType<Request>> | null
   ): Promise<HandleRequestResult> | HandleRequestResult;
   protected listenReadTimeout(): number {
     return Infinity;

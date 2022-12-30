@@ -39,7 +39,7 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     private readonly db: DatabaseClient,
     log?: Log
   ) {
-    super(Request, ns, log);
+    super(ns, log);
     if (this.ns.getHostname() !== "home") {
       throw new Error("SchedulerService must be run on home");
     }
@@ -53,6 +53,9 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     return new SchedulerService(ns, portRegistry, dbResponsePort, db, log);
   }
 
+  protected override RequestType(): typeof Request {
+    return Request;
+  }
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
   }

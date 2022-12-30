@@ -27,12 +27,15 @@ function arrayEquals(a: unknown[], b: unknown[]): boolean {
 
 export class DatabaseService extends BaseService<typeof Request, Response> {
   constructor(ns: NS, log?: Log) {
-    super(Request, ns, log);
+    super(ns, log);
     if (this.ns.getHostname() !== "home") {
       throw new Error("DatabaseService must be run on home");
     }
   }
 
+  protected override RequestType(): typeof Request {
+    return Request;
+  }
   protected override registerTimers(timers: TimerManager): void {
     timers.setInterval(() => this.breakStaleLock(), 1000);
   }

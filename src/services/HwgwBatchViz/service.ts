@@ -1,9 +1,6 @@
-import { NS } from '@ns';
-
 import { fields, match, TypeNames, variantModule, VariantOf } from 'variant';
 
 import * as colors from '/colors';
-import { Log } from '/log';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { db } from '../Database/client';
@@ -120,8 +117,8 @@ export class HwgwBatchVizService extends BaseService<
 
   private lastUpdate = 0;
 
-  constructor(ns: NS, log?: Log) {
-    super(HwgwBatchVizRequest, ns, log);
+  protected override RequestType(): typeof HwgwBatchVizRequest {
+    return HwgwBatchVizRequest;
   }
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;

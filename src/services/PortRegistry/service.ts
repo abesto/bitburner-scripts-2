@@ -1,7 +1,5 @@
 import { match } from 'variant';
 
-import { NS } from '/../NetscriptDefinitions';
-import { Log } from '/log';
 import { freePorts } from '/ports';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
@@ -22,8 +20,8 @@ export class PortRegistryService extends BaseService<
   // Lowest port number never taken
   private freeHigh = 1024;
 
-  constructor(ns: NS, log?: Log) {
-    super(PortRegistryRequest, ns, log);
+  protected override RequestType(): typeof PortRegistryRequest {
+    return PortRegistryRequest;
   }
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
