@@ -38,9 +38,6 @@ export abstract class BaseService<Request extends VariantModule, Response> {
   protected abstract handleRequest(
     request: Identity<SumType<Request>> | null
   ): Promise<HandleRequestResult> | HandleRequestResult;
-  protected listenReadTimeout(): number {
-    return Infinity;
-  }
   protected maxTimeSlice(): number {
     return 100;
   }
@@ -63,13 +60,13 @@ export abstract class BaseService<Request extends VariantModule, Response> {
       const request =
         buffer.shift() ??
         (await this.listenPort.read({
-          timeout: Math.min(
-            this.listenReadTimeout(),
-            this.timers.getTimeUntilNextEvent()
-          ),
+          timeout: this.timers.getTimeUntilNextEvent(),
           throwOnTimeout: false,
         }));
-      const result = await this.handleRequest(request);
+      let result = "continue";
+      if (request !== null) {
+        result = await this.handleRequest(request);
+      }
       if (result === "exit") {
         exit = true;
       } else if (Date.now() - this.lastYield > this.maxTimeSlice()) {

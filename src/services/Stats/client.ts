@@ -1,5 +1,5 @@
 import { BaseClient } from '../common/BaseClient';
-import { SERVICE_ID, StatsRequest, StatsResponse, TSEvent, Value } from './types';
+import { GetAgg, SERVICE_ID, StatsRequest, StatsResponse, Time, TSEvent, Value } from './types';
 
 export class StatsClient extends BaseClient<
   typeof StatsRequest,
@@ -12,14 +12,8 @@ export class StatsClient extends BaseClient<
     return StatsResponse;
   }
 
-  record(
-    series: string,
-    value: Value,
-    action: "overwrite" | "add" = "overwrite"
-  ): Promise<void> {
-    return this.send(
-      StatsRequest.record({ series, event: [Date.now(), value], action })
-    );
+  record(series: string, value: Value): void {
+    this.sendSync(StatsRequest.record({ series, event: [Date.now(), value] }));
   }
 
   listSeries(prefix?: string): Promise<string[]> {
@@ -28,11 +22,15 @@ export class StatsClient extends BaseClient<
     });
   }
 
-  getRaw(series: string, since?: number): Promise<TSEvent[] | "not-found"> {
+  get(
+    series: string,
+    agg: GetAgg,
+    since?: Time
+  ): Promise<TSEvent[] | "not-found"> {
     return this.sendReceive(
-      StatsRequest.getRaw({ series, since, ...this.rp() }),
+      StatsRequest.get({ series, agg, since, ...this.rp() }),
       {
-        getRaw: (list) => list.payload,
+        get: (resp) => resp.payload,
       }
     );
   }

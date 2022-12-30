@@ -22,5 +22,8 @@
       "type": "preferToRunOn",
       "host": "home"
     }
+  },
+  "Stats": {
+    "enableWhenDiscovered": true
   }
 }

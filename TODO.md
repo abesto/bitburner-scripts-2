@@ -8,9 +8,8 @@
   * Replace / extend `hwgw-controller`
   * Optimize `config.hwgw.maxDepth`
   * Spawn / stop `HwgwBatchViz` for each running target
-* Create `Stats` service
+* `Stats` service
   * chart used/total capacity
-  * charts per hwgw controller
   * charts for income per income source
 * `Database` service
   * config cache class on top of `DatabaseClient` (with configurable TTL)
@@ -18,7 +17,6 @@
   * turn into key-value database instead of a glorified file lock (Redis query syntax?)
 * `Scheduler` service
   * add `status <job-id>`
-  * monitor / alert on scheduling latency
   * monitor / alert on job finish notification latency?
   * extend `CrashWatcher` to alert if the `Scheduler` dies
   * include core count in 1. scheduling decisions 2. thread count accounting

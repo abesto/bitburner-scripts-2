@@ -46,7 +46,10 @@ export async function main(ns: NS): Promise<void> {
         threads: targetThreads,
       });
       log.info("Started", { jobId, threads, targetThreads });
-      await client.waitForJobFinished(jobId);
+      await client.waitForJobFinished(jobId, {
+        timeout: 30000,
+        throwOnTimeout: false,
+      });
       log.info("Finished", { jobId });
     }
   });

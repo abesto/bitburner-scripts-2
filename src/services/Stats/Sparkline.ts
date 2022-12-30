@@ -85,19 +85,20 @@ export class Sparkline {
   }
 
   private applyThresholds(value: Value, s: string): string {
+    let ret = s;
     for (const threshold of this.thresholds) {
       if (threshold.isViolated(value)) {
-        return threshold.color(s);
+        ret = threshold.color(s);
       }
     }
-    return s;
+    return ret;
   }
 
   render(
     series: Series,
     renderConfig?: Partial<
       Exclude<SparklineConfig, { format: (n: number) => string }>
-    >
+    > & { timeMin?: Time; timeMax?: Time }
   ): string {
     const config = { ...this.config, ...renderConfig };
 
@@ -107,8 +108,12 @@ export class Sparkline {
     const events = series.events;
 
     const times = events.map(eventTime);
-    const timeMin = Math.min(...times);
-    const timeMax = Math.max(...times);
+    const timeMax = config.timeMax ?? Math.max(...times);
+    const timeMin =
+      config.timeMin ??
+      (config?.resolution
+        ? timeMax - config.width * config.resolution
+        : Math.min(...times));
     const timeRange = timeMax - timeMin;
 
     const values = events.map(eventValue);
@@ -118,22 +123,25 @@ export class Sparkline {
 
     const charLength = config.resolution ?? Math.ceil(timeRange / config.width);
     const buckets = rebucket(events, config.agg, charLength);
-    while (buckets.length < config.width) {
-      buckets.unshift([eventTime(buckets[0]) - charLength, -Infinity]);
-    }
 
-    const sparkline = buckets
-      .map((bucket) => {
-        const value = eventValue(bucket);
-        if (value === -Infinity) {
-          return " ";
-        }
-        const index = Math.floor(
-          ((value - valueMin) / valueRange) * (CHARS.length - 1)
-        );
-        return this.applyThresholds(value, CHARS[index] || " ");
-      })
-      .join("");
+    let sparkline = new Array(config.width).fill(" ");
+    for (const bucket of buckets) {
+      const value = eventValue(bucket);
+      const time = eventTime(bucket);
+      const timeIndex = Math.round((time - timeMin) / charLength);
+      const charIndex = Math.floor(
+        ((value - valueMin) / valueRange) * (CHARS.length - 1)
+      );
+      sparkline[timeIndex] = this.applyThresholds(
+        value,
+        CHARS[charIndex] || " "
+      );
+    }
+    if (sparkline.length < config.width) {
+      sparkline = new Array(config.width - sparkline.length)
+        .fill(" ")
+        .concat(...sparkline);
+    }
 
     const stats = formatKeyvalue({
       min: this.format(min(values)),
@@ -157,6 +165,6 @@ export class Sparkline {
       colors.white(series.name) +
       " ".repeat(Math.max(1, Math.ceil(tsSpace / 2))) +
       tsEnd;
-    return sparkline + "   " + stats + "\n" + tsLine + "   " + scale;
+    return sparkline.join("") + "   " + stats + "\n" + tsLine + "   " + scale;
   }
 }

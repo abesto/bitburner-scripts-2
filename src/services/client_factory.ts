@@ -9,7 +9,7 @@ export async function withClient<C, R>(
     new (
       ns: NS,
       log: Log,
-      responsePortNumber?: number,
+      responsePortNumber: number,
       portRegistryClient?: PortRegistryClient
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     ): C extends BaseClient<infer Request, infer Response> ? C : never;

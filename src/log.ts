@@ -2,7 +2,7 @@ import { NS } from '@ns';
 
 import * as colors from '/colors';
 
-import { formatKeyvalue, highlightValue } from './fmt';
+import { formatKeyvalue } from './fmt';
 
 export enum LogLevel {
   DEBUG = "DEBUG",

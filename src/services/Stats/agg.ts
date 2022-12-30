@@ -7,15 +7,15 @@ export function sum(values: Value[]): Value {
 }
 
 export function avg(values: Value[]): Value {
-  return sum(values) / values.length;
+  return sum(values) / values.length || 0;
 }
 
 export function min(values: Value[]): Value {
-  return Math.min(...values);
+  return Math.min(...values) || 0;
 }
 
 export function max(values: Value[]): Value {
-  return Math.max(...values);
+  return Math.max(...values) || 0;
 }
 
 export function count(values: Value[]): Value {
@@ -27,9 +27,9 @@ export function last(values: Value[]): Value {
 }
 
 export function percentile(p: number, values: Value[]): Value {
-  const sorted = values.sort();
-  const index = Math.floor(p * sorted.length);
-  return sorted[index];
+  values.sort();
+  const index = Math.floor(p * values.length);
+  return values[index] || 0;
 }
 
 export const p99 = percentile.bind(null, 0.99);
@@ -40,9 +40,36 @@ export function rebucket(
   agg: Agg,
   bucketLength: Time
 ): TSEvent[] {
+  if (!events.length) return [];
   const buckets: TSEvent[] = [];
-  let bucketStart = 0;
-  let bucketEnd = 0;
+  const timeMin = eventTime(events[0]);
+  const timeMax = eventTime(events[events.length - 1]);
+  let eventIndex = 0;
+  for (let time = timeMin; time <= timeMax; time += bucketLength) {
+    const bucketValues: Value[] = [];
+    while (
+      eventIndex < events.length &&
+      Math.abs(eventTime(events[eventIndex]) - time) <
+        Math.abs(eventTime(events[eventIndex]) - (time + bucketLength))
+    ) {
+      bucketValues.push(eventValue(events[eventIndex]));
+      eventIndex++;
+    }
+    buckets.push([time, agg(bucketValues)]);
+  }
+  return buckets;
+}
+
+/*
+export function rebucket(
+  events: TSEvent[],
+  agg: Agg,
+  bucketLength: Time
+): TSEvent[] {
+  if (!events.length) return [];
+  const buckets: TSEvent[] = [];
+  let bucketStart = eventTime(events[0]) - bucketLength / 2;
+  let bucketEnd = bucketStart + bucketLength;
   const bucketValues: Value[] = [];
   for (const event of events) {
     const time = eventTime(event);
@@ -61,3 +88,4 @@ export function rebucket(
   }
   return buckets;
 }
+*/

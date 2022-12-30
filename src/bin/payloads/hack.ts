@@ -2,6 +2,7 @@ import { NS } from '@ns';
 
 import { Log } from '/log';
 import { NoResponseSchedulerClient } from '/services/Scheduler/client';
+import { StatsClient } from '/services/Stats/client';
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "grow");

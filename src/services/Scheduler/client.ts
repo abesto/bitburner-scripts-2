@@ -64,7 +64,7 @@ export class SchedulerClient extends BaseClient<
   constructor(
     ns: NS,
     log: Log,
-    responsePortNumber?: number,
+    responsePortNumber: number,
     portRegistryClient?: PortRegistryClient
   ) {
     super(ns, log, responsePortNumber, portRegistryClient);
@@ -103,6 +103,7 @@ export class SchedulerClient extends BaseClient<
 
     return this.sendReceive(
       Request.start({
+        timestamp: Date.now(),
         spec,
         tail,
         finishNotificationPort,

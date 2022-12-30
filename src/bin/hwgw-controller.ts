@@ -2,7 +2,6 @@
 import { AutocompleteData, NS } from '@ns';
 
 import { autonuke } from '/autonuke';
-import { DB } from '/database';
 import { Fmt } from '/fmt';
 import { Formulas, stalefish } from '/Formulas';
 import HwgwEstimator from '/HwgwEstimator';
@@ -10,10 +9,7 @@ import { Log } from '/log';
 import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient } from '/services/Scheduler/client';
-import { HostAffinity, JobId, jobThreads } from '/services/Scheduler/types';
-import { max, min, sum } from '/services/Stats/agg';
-import { Sparkline } from '/services/Stats/Sparkline';
-import { eventTime, Series, Time, Value } from '/services/Stats/types';
+import { HostAffinity, JobId } from '/services/Scheduler/types';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
@@ -57,6 +53,13 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
+  // Start monitor
+  await schedulerClient.start({
+    script: "/bin/hwgw-monitor.js",
+    args: [host],
+    threads: 1,
+  });
+
   autonuke(ns, host);
   if (!ns.hasRootAccess(host)) {
     log.terror("Need root access to host", { host });
@@ -72,9 +75,8 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   ns.tail();
   await ns.sleep(0);
-  ns.moveTail(1413, 350);
-  ns.resizeTail(1145, 890);
-  const monitor = await Monitor.new(ns, log, args.job as JobId, host);
+  ns.resizeTail(1000, 400);
+  ns.moveTail(1413, 0);
 
   const memdb = await db(ns, log);
   const t0 = memdb.config.hwgw.spacing;
@@ -92,146 +94,49 @@ export async function main(ns: NS): Promise<void> {
   const jobFinished = new SchedulerClient(ns, log, jobFinishedPortNumber);
   let stalefishResult: { period: number; depth: number } | undefined =
     undefined;
+
   while (true) {
-    // Consume job finished notifications
-    while (true) {
-      const response = await jobFinished.pollNextJobFinished();
-      if (response !== null) {
-        jobs.splice(jobs.indexOf(response.jobId), 1);
-      } else {
-        break;
-      }
-    }
-
+    await consumeFinishedJobs();
     if (ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
-      // TODO make this a persistent banner
-      log.warn(
-        "Hacking skill increased, waiting for jobs to finish and recalculating"
-      );
-
-      try {
-        let remainingTimeout =
-          stalefishResult === undefined
-            ? 5000
-            : stalefishResult.depth * stalefishResult.period * 2;
-        while (jobs.length > 0 && remainingTimeout > 0) {
-          log.info("Waiting for jobs to finish", {
-            jobs: jobs.length,
-            remainingTimeout: fmt.time(remainingTimeout),
-          });
-          const waitStart = Date.now();
-          const response = await jobFinished.pollNextJobFinished({
-            timeout: remainingTimeout,
-          });
-          if (response !== null) {
-            jobs.splice(jobs.indexOf(response.jobId), 1);
-            remainingTimeout -= Date.now() - waitStart;
-          } else {
-            break;
-          }
-        }
-      } finally {
-        if (jobs.length > 0) {
-          log.error("Failed to wait for jobs to finish, killing them", {
-            jobs,
-          });
-          while (jobs.length > 0) {
-            const jobId = jobs.shift();
-            if (jobId !== undefined) {
-              await schedulerClient.killJob(jobId);
-            }
-          }
-        }
-      }
-      if (shouldWeaken() || (await shouldGrow())) {
-        await prepare();
-      }
-
-      jobs.splice(0, jobs.length);
-      validFrom.skills.hacking = ns.getPlayer().skills.hacking;
-      const memdb = await db(ns, log);
-      validUpTo.skills.hacking = Math.ceil(
-        validUpTo.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
-      );
-      stalefishResult = undefined;
+      await handleHackSkillGoingOutOfRange();
     }
-
-    let maxDepth = memdb.config.hwgw.maxDepth;
-    try {
-      const memdb = await db(ns, log);
-      const { depth: etaMaxDepth } = await estimator.stableMaxDepth(
-        host,
-        memdb.config.hwgw.moneyThreshold,
-        memdb.config.simpleHack.moneyThreshold
-      );
-      if (etaMaxDepth < maxDepth) {
-        maxDepth = etaMaxDepth;
-      }
-    } catch (e) {
-      // Ignore
-    }
-
+    const maxDepth = await calculateMaxDepth();
     const hack_time = formulas.getHackTime(host);
     const weak_time = formulas.getWeakenTime(host);
     const grow_time = formulas.getGrowTime(host);
 
+    recalculateStalefish(weak_time, grow_time, hack_time, maxDepth);
     if (stalefishResult === undefined) {
-      stalefishResult = stalefish({
-        weak_time_max: formulas.haveFormulas
-          ? ns.formulas.hacking.weakenTime(server, validFrom)
-          : weak_time,
-        weak_time_min: formulas.haveFormulas
-          ? ns.formulas.hacking.weakenTime(server, validUpTo)
-          : weak_time,
-        grow_time_max: formulas.haveFormulas
-          ? ns.formulas.hacking.growTime(server, validFrom)
-          : grow_time,
-        grow_time_min: formulas.haveFormulas
-          ? ns.formulas.hacking.growTime(server, validUpTo)
-          : grow_time,
-        hack_time_max: formulas.haveFormulas
-          ? ns.formulas.hacking.hackTime(server, validFrom)
-          : hack_time,
-        hack_time_min: formulas.haveFormulas
-          ? ns.formulas.hacking.hackTime(server, validUpTo)
-          : hack_time,
-        t0,
-        max_depth: maxDepth <= 0 ? Infinity : maxDepth,
-      });
-      if (stalefishResult === undefined) {
-        log.terror("Stalefish failed", { host, t0 });
-        return;
-      }
+      log.terror("Stalefish failed", { host, t0 });
+      return;
     }
     const { period, depth } = stalefishResult;
-
-    try {
-      await monitor.report({
-        t0,
-        period,
-        depth,
-        hackMin: validFrom.skills.hacking,
-        hackMax: validUpTo.skills.hacking,
-        moneyThreshold: memdb.config.hwgw.moneyThreshold,
-      });
-    } catch (e) {
-      if (e instanceof Error) {
-        log.warn("Monitor failed", { reason: e.message });
-      } else {
-        log.warn("Monitor failed", { reason: e });
-      }
-    }
 
     const periodStart = period * Math.floor(Date.now() / period);
     if (periodStart <= lastPeriodStart) {
       const nextPeriodStart = periodStart + period;
-      const updateResolution = 10;
-      const updateInterval = (nextPeriodStart - periodStart) / updateResolution;
-      await ns.sleep(updateInterval);
+      await ns.sleep(Date.now() - nextPeriodStart);
       continue;
     }
     lastPeriodStart = periodStart;
+    await scheduleBatch(
+      depth,
+      period,
+      hack_time,
+      weak_time,
+      grow_time,
+      periodStart
+    );
+  }
 
+  async function scheduleBatch(
+    depth: never,
+    period: never,
+    hack_time: number,
+    weak_time: number,
+    grow_time: number,
+    periodStart: number
+  ) {
     const hack_delay = depth * period - 4 * t0 - hack_time;
     const weak_delay_1 = depth * period - 3 * t0 - weak_time;
     const grow_delay = depth * period - 2 * t0 - grow_time;
@@ -270,6 +175,123 @@ export async function main(ns: NS): Promise<void> {
       jobs.push(jobId);
     } catch (e) {
       log.terror("Failed to start batch", { host, e });
+    }
+  }
+
+  function recalculateStalefish(
+    weak_time: number,
+    grow_time: number,
+    hack_time: number,
+    maxDepth: number
+  ) {
+    if (stalefishResult === undefined) {
+      stalefishResult = stalefish({
+        weak_time_max: formulas.haveFormulas
+          ? ns.formulas.hacking.weakenTime(server, validFrom)
+          : weak_time,
+        weak_time_min: formulas.haveFormulas
+          ? ns.formulas.hacking.weakenTime(server, validUpTo)
+          : weak_time,
+        grow_time_max: formulas.haveFormulas
+          ? ns.formulas.hacking.growTime(server, validFrom)
+          : grow_time,
+        grow_time_min: formulas.haveFormulas
+          ? ns.formulas.hacking.growTime(server, validUpTo)
+          : grow_time,
+        hack_time_max: formulas.haveFormulas
+          ? ns.formulas.hacking.hackTime(server, validFrom)
+          : hack_time,
+        hack_time_min: formulas.haveFormulas
+          ? ns.formulas.hacking.hackTime(server, validUpTo)
+          : hack_time,
+        t0,
+        max_depth: maxDepth <= 0 ? Infinity : maxDepth,
+      });
+      log.info("Stalefish result", { host, stalefishResult });
+    }
+  }
+
+  async function calculateMaxDepth() {
+    let maxDepth = memdb.config.hwgw.maxDepth;
+    try {
+      const memdb = await db(ns, log);
+      const { depth: etaMaxDepth } = await estimator.stableMaxDepth(
+        host,
+        memdb.config.hwgw.moneyThreshold,
+        memdb.config.simpleHack.moneyThreshold
+      );
+      if (etaMaxDepth < maxDepth) {
+        maxDepth = etaMaxDepth;
+      }
+    } catch (e) {
+      // Ignore
+    }
+    return maxDepth;
+  }
+
+  async function handleHackSkillGoingOutOfRange() {
+    log.warn(
+      "Hacking skill increased, waiting for jobs to finish and recalculating"
+    );
+    await waitForAllJobsToFinish();
+    if (shouldWeaken() || (await shouldGrow())) {
+      await prepare();
+    }
+
+    jobs.splice(0, jobs.length);
+    validFrom.skills.hacking = ns.getPlayer().skills.hacking;
+    const memdb = await db(ns, log);
+    validUpTo.skills.hacking = Math.ceil(
+      validUpTo.skills.hacking * memdb.config.hwgw.hackSkillRangeMult
+    );
+    stalefishResult = undefined;
+  }
+
+  async function waitForAllJobsToFinish() {
+    try {
+      let remainingTimeout =
+        stalefishResult === undefined
+          ? 5000
+          : stalefishResult.depth * stalefishResult.period * 2;
+      while (jobs.length > 0 && remainingTimeout > 0) {
+        log.info("Waiting for jobs to finish", {
+          jobs: jobs.length,
+          remainingTimeout: fmt.time(remainingTimeout),
+        });
+        const waitStart = Date.now();
+        const response = await jobFinished.pollNextJobFinished({
+          timeout: remainingTimeout,
+        });
+        if (response !== null) {
+          jobs.splice(jobs.indexOf(response.jobId), 1);
+          remainingTimeout -= Date.now() - waitStart;
+        } else {
+          break;
+        }
+      }
+    } finally {
+      if (jobs.length > 0) {
+        log.error("Failed to wait for jobs to finish, killing them", {
+          jobs,
+        });
+        while (jobs.length > 0) {
+          const jobId = jobs.shift();
+          if (jobId !== undefined) {
+            await schedulerClient.killJob(jobId);
+          }
+        }
+      }
+    }
+  }
+
+  async function consumeFinishedJobs() {
+    while (true) {
+      const response = await jobFinished.pollNextJobFinished();
+      if (response !== null) {
+        jobs.splice(jobs.indexOf(response.jobId), 1);
+      } else {
+        break;
+      }
     }
   }
 
@@ -342,225 +364,4 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
     return data.servers.filter((server) => server.startsWith(args[0]));
   }
   return [];
-}
-
-type ThreadMetrics = { started: Series; running: Series; finished: Series };
-
-interface Metrics {
-  money: Series;
-  security: Series;
-  hack: ThreadMetrics;
-  grow: ThreadMetrics;
-  weaken: ThreadMetrics;
-}
-
-class Monitor {
-  private readonly fmt: Fmt;
-  private metrics: Metrics = {
-    money: { name: "Server Money", events: [] },
-    security: { name: "Server Security", events: [] },
-    hack: {
-      started: { name: "Hack Started", events: [] },
-      running: { name: "Hack Running", events: [] },
-      finished: { name: "Hack Finished", events: [] },
-    },
-    grow: {
-      started: { name: "Grow Started", events: [] },
-      running: { name: "Grow Running", events: [] },
-      finished: { name: "Grow Finished", events: [] },
-    },
-    weaken: {
-      started: { name: "Weaken Started", events: [] },
-      running: { name: "Weaken Running", events: [] },
-      finished: { name: "Weaken Finished", events: [] },
-    },
-  };
-  private readonly last: {
-    hack: Map<JobId, number>;
-    grow: Map<JobId, number>;
-    weaken: Map<JobId, number>;
-  } = {
-    hack: new Map(),
-    grow: new Map(),
-    weaken: new Map(),
-  };
-
-  private readonly sparklines: {
-    money: Sparkline;
-    security: Sparkline;
-    threads: Sparkline;
-  };
-
-  constructor(
-    private readonly ns: NS,
-    private readonly log: Log,
-    private readonly jobId: JobId,
-    private readonly host: string,
-    private readonly maxMoney: number,
-    private readonly minSecurity: number,
-    private readonly sparklineWidth = 70
-  ) {
-    this.log = log;
-    this.fmt = new Fmt(ns);
-
-    this.sparklines = {
-      money: new Sparkline(this.ns, {
-        width: sparklineWidth,
-        agg: min,
-        format: this.fmt.moneyShort.bind(this.fmt),
-        valueMin: 0,
-        valueMax: this.maxMoney,
-      }),
-
-      security: new Sparkline(this.ns, {
-        width: sparklineWidth,
-        agg: max,
-        valueMin: this.minSecurity,
-        valueMax: 100,
-        format: this.fmt.int.bind(this.fmt),
-      }).warn
-        .ge(this.minSecurity + 10)
-        .crit.gt(this.minSecurity + 30),
-
-      threads: new Sparkline(this.ns, {
-        width: sparklineWidth,
-        agg: sum,
-        valueMin: 0,
-        format: this.fmt.int.bind(this.fmt),
-      }),
-    };
-  }
-
-  static async new(
-    ns: NS,
-    log: Log,
-    jobId: JobId,
-    host: string
-  ): Promise<Monitor> {
-    const maxMoney = ns.getServerMaxMoney(host);
-    const minSecurity = ns.getServerMinSecurityLevel(host);
-    return new Monitor(ns, log, jobId, host, maxMoney, minSecurity);
-  }
-
-  protected recordOne(series: Series, value: Value, time: Time): void {
-    series.events.push([time, value]);
-  }
-
-  protected dropBefore(series: Series, before: number): void {
-    while (series.events.length > 0 && eventTime(series.events[0]) < before) {
-      series.events.shift();
-    }
-  }
-
-  protected recordThreads(memdb: DB, time: Time): void {
-    for (const kind of ["hack", "grow", "weaken"] as const) {
-      const last = this.last[kind];
-      const current = new Map(
-        Object.values(memdb.scheduler.jobs)
-          .filter((job) => {
-            return (
-              job.spec.script === `/bin/payloads/${kind}.js` &&
-              job.spec.args[0] === this.host
-            );
-          })
-          .map((job) => {
-            return [job.id as JobId, jobThreads(job)];
-          })
-      );
-
-      let started = 0,
-        running = 0,
-        finished = 0;
-      for (const [jobId, threads] of current) {
-        if (!last.has(jobId)) {
-          started += threads;
-        } else {
-          running += threads;
-        }
-      }
-      for (const [jobId, threads] of last) {
-        if (!current.has(jobId)) {
-          finished += threads;
-        }
-      }
-
-      this.recordOne(this.metrics[kind].started, started, time);
-      this.recordOne(this.metrics[kind].running, running, time);
-      this.recordOne(this.metrics[kind].finished, finished, time);
-      this.last[kind] = current;
-    }
-  }
-
-  protected async record(now: Time): Promise<void> {
-    const memdb = await db(this.ns, this.log);
-    this.recordOne(
-      this.metrics.money,
-      this.ns.getServerMoneyAvailable(this.host),
-      now
-    );
-    this.recordOne(
-      this.metrics.security,
-      this.ns.getServerSecurityLevel(this.host),
-      now
-    );
-    this.recordThreads(memdb, now);
-  }
-
-  async report(input: {
-    t0: number;
-    period: number;
-    depth: number;
-    hackMin: number;
-    hackMax: number;
-    moneyThreshold: number;
-  }) {
-    const now = Date.now();
-    await this.record(now);
-    this.ns.clearLog();
-
-    const dropBefore = now - input.t0 * this.sparklineWidth;
-
-    this.log.info("About", { job: this.jobId, targetHost: this.host });
-    const kw: { [key: string]: string | number } = {
-      t0: this.fmt.timeSeconds(input.t0),
-      period: this.fmt.timeSeconds(input.period),
-      depth: input.depth,
-      hackMin: input.hackMin,
-      hackMax: input.hackMax,
-    };
-    this.log.info("Stalefish", kw);
-
-    // Money
-    this.ns.printf(
-      "%s\n\n",
-      this.sparklines.money.warn
-        .lt(this.maxMoney * (1 - input.moneyThreshold))
-        .crit.le(this.maxMoney * (1 - input.moneyThreshold ** 2))
-        .render(this.metrics.money, { resolution: input.t0 })
-    );
-    this.dropBefore(this.metrics.money, dropBefore);
-
-    // Security
-    this.ns.printf(
-      "%s\n\n",
-      this.sparklines.security.render(this.metrics.security, {
-        resolution: input.t0,
-      })
-    );
-    this.dropBefore(this.metrics.security, dropBefore);
-
-    // Threads
-    for (const state of ["started", "finished", "running"] as const) {
-      for (const kind of ["hack", "weaken", "grow"] as const) {
-        this.ns.printf(
-          "%s",
-          this.sparklines.threads.render(this.metrics[kind][state], {
-            resolution: input.t0,
-          })
-        );
-        this.dropBefore(this.metrics[kind][state], dropBefore);
-      }
-      this.ns.printf("\n\n");
-    }
-  }
 }

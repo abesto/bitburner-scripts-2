@@ -20,7 +20,7 @@ export abstract class BaseClient<
   constructor(
     ns: NS,
     log: Log,
-    responsePortNumber?: number,
+    responsePortNumber: number,
     portRegistryClient?: PortRegistryClient
   ) {
     super(ns, log);

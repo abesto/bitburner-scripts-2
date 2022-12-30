@@ -1,13 +1,20 @@
 import { match } from 'variant';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
-import { SERVICE_ID, StatsRequest, StatsResponse, Time, Value } from './types';
+import { TimerManager } from '../TimerManager';
+import { rebucket } from './agg';
+import {
+    AGG_MAP, eventValue, SERVICE_ID, StatsRequest, StatsResponse, Time, TSEvent
+} from './types';
+
+// TODO degrade resolution over time
+const RETENTION_MS = 10 * 60 * 1000;
 
 export class StatsService extends BaseService<
   typeof StatsRequest,
   StatsResponse
 > {
-  private readonly data: Map<string, Map<Time, Value>> = new Map();
+  private readonly data: Map<string, TSEvent[]> = new Map();
 
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
@@ -15,60 +22,61 @@ export class StatsService extends BaseService<
   protected override RequestType(): typeof StatsRequest {
     return StatsRequest;
   }
+  protected override registerTimers(timers: TimerManager): void {
+    timers.setInterval(this.maintain.bind(this), 1000);
+  }
+
+  protected maintain() {
+    const now = Date.now();
+    for (const [, events] of this.data) {
+      const index = this.indexOfTime(events, now - RETENTION_MS);
+      if (index > 0) {
+        events.splice(0, index);
+      }
+    }
+  }
 
   protected handleRequest(
     request: StatsRequest
   ): HandleRequestResult | Promise<HandleRequestResult> {
     match(request, {
       record: (request) => this.record(request),
-      getRaw: (request) => this.getRaw(request),
+      get: (request) => this.get(request),
       listSeries: (request) => this.listSeries(request),
     });
     return "continue";
   }
 
   private record(request: StatsRequest<"record">): void {
-    const { series, event, action } = request;
-    const [timestamp, value] = event;
-    const timeBucket = Math.floor(timestamp / 1000);
+    const { series, event } = request;
+    if (eventValue(event) === null) {
+      return;
+    }
 
     let s = this.data.get(series);
     if (s === undefined) {
-      s = new Map();
+      s = [event];
       this.data.set(series, s);
-    }
-    if (action === "overwrite") {
-      s.set(timeBucket, value);
-    } else if (action === "add") {
-      const existing = s.get(timeBucket);
-      if (existing === undefined) {
-        s.set(timeBucket, value);
-      } else {
-        s.set(timeBucket, existing + value);
-      }
     } else {
-      throw new Error(`unknown action: ${action}`);
+      s.push(event);
     }
   }
 
-  private getRaw(request: StatsRequest<"getRaw">): void {
-    const { series, since, responsePort } = request;
-    const s = this.data.get(series);
-
-    let response = StatsResponse.getRaw("not-found");
-    if (s !== undefined) {
-      if (since === undefined) {
-        response = StatsResponse.getRaw(Array.from(s.entries()));
+  private indexOfTime(events: TSEvent[], time: Time): number {
+    let lo = 0;
+    let hi = events.length - 1;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const [timeBucket] = events[mid];
+      if (timeBucket < time) {
+        lo = mid + 1;
+      } else if (timeBucket > time) {
+        hi = mid - 1;
       } else {
-        const sinceBucket = Math.floor(since / 1000);
-        response = StatsResponse.getRaw(
-          Array.from(s.entries()).filter(
-            ([timeBucket]) => timeBucket >= sinceBucket
-          )
-        );
+        return mid;
       }
     }
-    this.respond(responsePort, response);
+    return lo;
   }
 
   private listSeries(request: StatsRequest<"listSeries">): void {
@@ -82,5 +90,22 @@ export class StatsService extends BaseService<
         StatsResponse.listSeries(series.filter((s) => s.startsWith(prefix)))
       );
     }
+  }
+
+  private get(request: StatsRequest<"get">): void {
+    const { series, since, responsePort, agg } = request;
+    const s = this.data.get(series);
+
+    let payload: TSEvent[] | "not-found" = "not-found";
+    if (s !== undefined) {
+      payload = s;
+      if (since !== undefined) {
+        payload = payload.slice(this.indexOfTime(payload, since));
+      }
+      if (agg !== "none") {
+        payload = rebucket(payload, AGG_MAP[agg.agg], agg.bucketLength);
+      }
+    }
+    this.respond(responsePort, StatsResponse.get(payload));
   }
 }

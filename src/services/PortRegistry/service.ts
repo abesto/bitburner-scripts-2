@@ -26,16 +26,14 @@ export class PortRegistryService extends BaseService<
   protected override serviceId(): typeof SERVICE_ID {
     return SERVICE_ID;
   }
-  protected override listenReadTimeout(): number {
-    return 1000;
-  }
   protected override registerTimers(timers: TimerManager): void {
-    timers.setInterval(this.freeLeakedPorts.bind(this), 1000);
+    timers.setInterval(() => {
+      this.freeLeakedPorts();
+      this.populateFreePorts();
+    }, 1000);
   }
 
-  protected handleRequest(
-    request: PortRegistryRequest | null
-  ): HandleRequestResult {
+  protected handleRequest(request: PortRegistryRequest): HandleRequestResult {
     this.populateFreePorts();
     if (request === null) {
       return "continue";

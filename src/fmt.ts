@@ -5,7 +5,7 @@ import * as colors from '/colors';
 const FORMATS = {
   float: "0.000",
   money: "$0.000a",
-  moneyShort: "$0a",
+  moneyShort: "$0.0a",
   memory: "0.00 b",
 };
 
@@ -45,6 +45,10 @@ export class Fmt {
 
   timeSeconds(t: number): string {
     return this.ns.nFormat(t / 1000, "0.000") + "s";
+  }
+
+  timeMs(t: number): string {
+    return this.int(t) + "ms";
   }
 
   timestamp(ms: number): string {

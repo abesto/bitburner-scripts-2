@@ -8,10 +8,13 @@ import { autonuke } from '/autonuke';
 import { DB } from '/database';
 import { discoverServers } from '/discoverServers';
 import { Log } from '/log';
+import * as agg from '/services/Stats/agg';
 
 import { BaseService, HandleRequestResult } from '../common/BaseService';
 import { DatabaseClient, dbSync } from '../Database/client';
 import { PortRegistryClient } from '../PortRegistry/client';
+import { StatsClient } from '../Stats/client';
+import { Value } from '../Stats/types';
 import { TimerManager } from '../TimerManager';
 import {
     Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID, ServiceSpec, ServiceStatus, TaskId
@@ -32,11 +35,12 @@ function arrayEqual(a: unknown[], b: unknown[]): boolean {
 }
 
 export class SchedulerService extends BaseService<typeof Request, Response> {
+  private latency: Value[] = [];
+
   constructor(
     ns: NS,
-    private readonly portRegistry: PortRegistryClient,
-    private readonly dbResponsePort: number,
     private readonly db: DatabaseClient,
+    private readonly stats: StatsClient,
     log?: Log
   ) {
     super(ns, log);
@@ -48,9 +52,14 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
   static async new(ns: NS): Promise<SchedulerService> {
     const log = new Log(ns, "SchedulerService");
     const portRegistry = new PortRegistryClient(ns, log);
+
     const dbResponsePort = await portRegistry.reservePort();
     const db = new DatabaseClient(ns, log, dbResponsePort);
-    return new SchedulerService(ns, portRegistry, dbResponsePort, db, log);
+
+    const statsResponsePort = await portRegistry.reservePort();
+    const stats = new StatsClient(ns, log, statsResponsePort);
+
+    return new SchedulerService(ns, db, stats, log);
   }
 
   protected override RequestType(): typeof Request {
@@ -60,6 +69,7 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     return SERVICE_ID;
   }
   protected override registerTimers(timers: TimerManager): void {
+    // Notice / restart any crashed jobs
     timers.setInterval(() => {
       return this.db.withLock(async (memdb) => {
         let save = this.reviewServices(memdb);
@@ -69,6 +79,13 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
         }
         return;
       });
+    }, 1000);
+
+    // Report latency
+    timers.setInterval(() => {
+      const latency = this.latency.splice(0, this.latency.length);
+      this.stats.record("scheduler.latency.avg", agg.avg(latency));
+      this.stats.record("scheduler.latency.p95", agg.p95(latency));
     }, 1000);
   }
   protected override async handleRequest(
@@ -81,9 +98,10 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     await match(request, {
       status: (request) => this.status(request),
       capacity: (request) => this.capacity(request),
-      exit: () => {
+      exit: async () => {
         result = "exit";
-        return this.portRegistry.releasePort(this.dbResponsePort);
+        await this.db.release();
+        await this.stats.release();
       },
 
       start: (request) => this.start(request),
@@ -826,6 +844,8 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
         Response.jobFinished({ jobId: job.id })
       );
     }
+
+    this.latency.push(Date.now() - request.timestamp);
 
     const tasks = Object.values(job.tasks);
     if (tasks.length === 1 && request.tail) {

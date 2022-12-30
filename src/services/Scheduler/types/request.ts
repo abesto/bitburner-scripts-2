@@ -11,6 +11,7 @@ export const SchedulerRequest = variantModule(
 
     // Job management
     start: fields<{
+      timestamp: number;
       spec: JobSpec;
       tail: boolean;
       responsePort: number | null;
