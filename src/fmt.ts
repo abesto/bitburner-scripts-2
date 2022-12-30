@@ -5,6 +5,7 @@ import * as colors from '/colors';
 const FORMATS = {
   float: "0.000",
   money: "$0.000a",
+  moneyShort: "$0a",
   memory: "0.00 b",
 };
 
@@ -22,8 +23,16 @@ export class Fmt {
     return this.ns.nFormat(n, FORMATS.money);
   }
 
+  moneyShort(n: number): string {
+    return this.ns.nFormat(n, FORMATS.moneyShort);
+  }
+
   float(n: number): string {
     return this.ns.nFormat(n, FORMATS.float);
+  }
+
+  int(n: number): string {
+    return this.ns.nFormat(n, "0");
   }
 
   intShort(n: number): string {
@@ -149,4 +158,12 @@ export function highlightJSON(value: unknown): string {
     return "{" + parts.join(",") + "}";
   }
   throw new Error(`unreachable: ${value}`);
+}
+
+export function formatKeyvalue(keyvalue: { [key: string]: unknown }): string {
+  const parts = [];
+  for (const [key, value] of Object.entries(keyvalue)) {
+    parts.push(`${colors.cyan(key)}=${highlightValue(value)}`);
+  }
+  return parts.join(" ");
 }

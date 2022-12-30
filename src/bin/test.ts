@@ -1,33 +1,28 @@
 import { NS } from '@ns';
 
+import { Fmt } from '/fmt';
 import { Log } from '/log';
 import { withClient } from '/services/client_factory';
 import { DatabaseClient, dbLock } from '/services/Database/client';
-import { StatsClient } from '/services/Stats/client';
+import { avg } from '/services/Stats/agg';
+import { Sparkline } from '/services/Stats/Sparkline';
+import { TSEvent } from '/services/Stats/types';
 
 export async function main(ns: NS): Promise<void> {
-  const log = new Log(ns, "test");
-  await withClient(StatsClient, ns, log, async (client) => {
-    const start = Date.now();
-    log.tdebug("Sending");
-    await client.record("a", 1);
-    await client.record("a", 2);
-    log.tdebug("Sleeping 1.5s");
-    await ns.sleep(1500);
-    log.tdebug("Sending more");
-    await client.record("a", 3);
-    await client.record("a.b", 1);
-    await client.record("a.b", 40, "add");
+  const width = 60;
+  const resolution = 1000;
+  const sparkline = new Sparkline(ns, { width, agg: avg, resolution });
+  sparkline.warn.gt(80);
+  sparkline.crit.le(20);
 
-    log.tdebug("Reading");
-    log.tinfo("test!", {
-      a: await client.getRaw("a"),
-      b: await client.getRaw("a.b"),
-      aSince: await client.getRaw("a", start),
-      series: await client.listSeries(),
-      seriesADot: await client.listSeries("a."),
-    });
-  });
+  const events: TSEvent[] = [];
+  const now = Date.now();
+  for (let i = 0; i < width; i++) {
+    events.push([now + i * resolution, Math.random() * 100]);
+  }
+  const ts = { name: "Test Series", events };
+
+  ns.tprintf("%s", sparkline.render(ts));
 }
 
 export async function withoutClient(ns: NS): Promise<void> {

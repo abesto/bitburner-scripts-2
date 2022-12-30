@@ -1,10 +1,7 @@
 /* eslint-disable no-constant-condition */
 import { AutocompleteData, NS } from '@ns';
 
-import * as asciichart from 'asciichart';
-
 import { autonuke } from '/autonuke';
-import * as colors from '/colors';
 import { DB } from '/database';
 import { Fmt } from '/fmt';
 import { Formulas, stalefish } from '/Formulas';
@@ -14,6 +11,9 @@ import { db } from '/services/Database/client';
 import { PortRegistryClient } from '/services/PortRegistry/client';
 import { SchedulerClient } from '/services/Scheduler/client';
 import { HostAffinity, JobId, jobThreads } from '/services/Scheduler/types';
+import { max, min, sum } from '/services/Stats/agg';
+import { Sparkline } from '/services/Stats/Sparkline';
+import { eventTime, Series, Time, Value } from '/services/Stats/types';
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
@@ -75,9 +75,9 @@ export async function main(ns: NS): Promise<void> {
   ns.moveTail(1413, 350);
   ns.resizeTail(1145, 890);
   const monitor = await Monitor.new(ns, log, args.job as JobId, host);
+
   const memdb = await db(ns, log);
   const t0 = memdb.config.hwgw.spacing;
-
   const estimator = new HwgwEstimator(ns);
 
   let lastPeriodStart = 0;
@@ -212,6 +212,7 @@ export async function main(ns: NS): Promise<void> {
         depth,
         hackMin: validFrom.skills.hacking,
         hackMax: validUpTo.skills.hacking,
+        moneyThreshold: memdb.config.hwgw.moneyThreshold,
       });
     } catch (e) {
       if (e instanceof Error) {
@@ -343,12 +344,11 @@ export function autocomplete(data: AutocompleteData, args: string[]): string[] {
   return [];
 }
 
-type ThreadMetrics = [started: number[], running: number[], finished: number[]];
-type SimpleMetrics = [min: number[], max: number[], current: number[]];
+type ThreadMetrics = { started: Series; running: Series; finished: Series };
 
 interface Metrics {
-  money: SimpleMetrics;
-  security: SimpleMetrics;
+  money: Series;
+  security: Series;
   hack: ThreadMetrics;
   grow: ThreadMetrics;
   weaken: ThreadMetrics;
@@ -357,11 +357,23 @@ interface Metrics {
 class Monitor {
   private readonly fmt: Fmt;
   private metrics: Metrics = {
-    money: [[], [], []],
-    security: [[], [], []],
-    hack: [[], [], []],
-    grow: [[], [], []],
-    weaken: [[], [], []],
+    money: { name: "Server Money", events: [] },
+    security: { name: "Server Security", events: [] },
+    hack: {
+      started: { name: "Hack Started", events: [] },
+      running: { name: "Hack Running", events: [] },
+      finished: { name: "Hack Finished", events: [] },
+    },
+    grow: {
+      started: { name: "Grow Started", events: [] },
+      running: { name: "Grow Running", events: [] },
+      finished: { name: "Grow Finished", events: [] },
+    },
+    weaken: {
+      started: { name: "Weaken Started", events: [] },
+      running: { name: "Weaken Running", events: [] },
+      finished: { name: "Weaken Finished", events: [] },
+    },
   };
   private readonly last: {
     hack: Map<JobId, number>;
@@ -373,6 +385,12 @@ class Monitor {
     weaken: new Map(),
   };
 
+  private readonly sparklines: {
+    money: Sparkline;
+    security: Sparkline;
+    threads: Sparkline;
+  };
+
   constructor(
     private readonly ns: NS,
     private readonly log: Log,
@@ -380,28 +398,37 @@ class Monitor {
     private readonly host: string,
     private readonly maxMoney: number,
     private readonly minSecurity: number,
-    private readonly history = 105
+    private readonly sparklineWidth = 70
   ) {
     this.log = log;
     this.fmt = new Fmt(ns);
 
-    this.metrics.money[0] = new Array(history).fill(0);
-    this.metrics.money[1] = new Array(history).fill(maxMoney);
+    this.sparklines = {
+      money: new Sparkline(this.ns, {
+        width: sparklineWidth,
+        agg: min,
+        format: this.fmt.moneyShort.bind(this.fmt),
+        valueMin: 0,
+        valueMax: this.maxMoney,
+      }),
 
-    this.metrics.security[0] = new Array(history).fill(minSecurity);
-    this.metrics.security[1] = new Array(history).fill(100);
+      security: new Sparkline(this.ns, {
+        width: sparklineWidth,
+        agg: max,
+        valueMin: this.minSecurity,
+        valueMax: 100,
+        format: this.fmt.int.bind(this.fmt),
+      }).warn
+        .ge(this.minSecurity + 10)
+        .crit.gt(this.minSecurity + 30),
 
-    this.metrics.hack[0] = new Array(history).fill(0);
-    this.metrics.hack[1] = new Array(history).fill(0);
-    this.metrics.hack[2] = new Array(history).fill(0);
-
-    this.metrics.grow[0] = new Array(history).fill(0);
-    this.metrics.grow[1] = new Array(history).fill(0);
-    this.metrics.grow[2] = new Array(history).fill(0);
-
-    this.metrics.weaken[0] = new Array(history).fill(0);
-    this.metrics.weaken[1] = new Array(history).fill(0);
-    this.metrics.weaken[2] = new Array(history).fill(0);
+      threads: new Sparkline(this.ns, {
+        width: sparklineWidth,
+        agg: sum,
+        valueMin: 0,
+        format: this.fmt.int.bind(this.fmt),
+      }),
+    };
   }
 
   static async new(
@@ -415,92 +442,68 @@ class Monitor {
     return new Monitor(ns, log, jobId, host, maxMoney, minSecurity);
   }
 
-  protected recordOne<T, M extends T[]>(metrics: M, value: T): void {
-    metrics.push(value);
-    if (metrics.length > this.history) {
-      metrics.shift();
+  protected recordOne(series: Series, value: Value, time: Time): void {
+    series.events.push([time, value]);
+  }
+
+  protected dropBefore(series: Series, before: number): void {
+    while (series.events.length > 0 && eventTime(series.events[0]) < before) {
+      series.events.shift();
     }
   }
 
-  protected recordSimple(
-    metrics: SimpleMetrics,
-    min: number,
-    current: number,
-    max: number
-  ): void {
-    this.recordOne(metrics[0], min);
-    this.recordOne(metrics[1], max);
-    this.recordOne(metrics[2], current);
-  }
+  protected recordThreads(memdb: DB, time: Time): void {
+    for (const kind of ["hack", "grow", "weaken"] as const) {
+      const last = this.last[kind];
+      const current = new Map(
+        Object.values(memdb.scheduler.jobs)
+          .filter((job) => {
+            return (
+              job.spec.script === `/bin/payloads/${kind}.js` &&
+              job.spec.args[0] === this.host
+            );
+          })
+          .map((job) => {
+            return [job.id as JobId, jobThreads(job)];
+          })
+      );
 
-  protected recordThreads(memdb: DB, kind: "hack" | "grow" | "weaken"): void {
-    const last = this.last[kind];
-    const current = new Map(
-      Object.values(memdb.scheduler.jobs)
-        .filter((job) => {
-          return (
-            job.spec.script === `/bin/payloads/${kind}.js` &&
-            job.spec.args[0] === this.host
-          );
-        })
-        .map((job) => {
-          return [job.id as JobId, jobThreads(job)];
-        })
-    );
-
-    let started = 0,
-      running = 0,
-      finished = 0;
-    for (const [jobId, threads] of current) {
-      if (!last.has(jobId)) {
-        started += threads;
-      } else {
-        running += threads;
+      let started = 0,
+        running = 0,
+        finished = 0;
+      for (const [jobId, threads] of current) {
+        if (!last.has(jobId)) {
+          started += threads;
+        } else {
+          running += threads;
+        }
       }
-    }
-    for (const [jobId, threads] of last) {
-      if (!current.has(jobId)) {
-        finished += threads;
+      for (const [jobId, threads] of last) {
+        if (!current.has(jobId)) {
+          finished += threads;
+        }
       }
-    }
 
-    this.recordOne(this.metrics[kind][0], started);
-    this.recordOne(this.metrics[kind][1], running);
-    this.recordOne(this.metrics[kind][2], finished);
-    this.last[kind] = current;
+      this.recordOne(this.metrics[kind].started, started, time);
+      this.recordOne(this.metrics[kind].running, running, time);
+      this.recordOne(this.metrics[kind].finished, finished, time);
+      this.last[kind] = current;
+    }
   }
 
-  protected async record(): Promise<void> {
+  protected async record(now: Time): Promise<void> {
     const memdb = await db(this.ns, this.log);
-    this.recordSimple(
+    this.recordOne(
       this.metrics.money,
-      0,
       this.ns.getServerMoneyAvailable(this.host),
-      this.maxMoney
+      now
     );
-    this.recordSimple(
+    this.recordOne(
       this.metrics.security,
-      this.minSecurity,
       this.ns.getServerSecurityLevel(this.host),
-      100
+      now
     );
-    this.recordThreads(memdb, "hack");
-    this.recordThreads(memdb, "grow");
-    this.recordThreads(memdb, "weaken");
-  }
-
-  currentThreadCount(
-    kind: "hack" | "grow" | "weaken",
-    state: "started" | "running" | "finished"
-  ): number {
-    const metrics = this.metrics[kind];
-    const series =
-      metrics[state === "started" ? 0 : state === "running" ? 1 : 2];
-    return series[series.length - 1];
-  }
-
-  currentSimpleMetric(metrics: SimpleMetrics): number {
-    return metrics[2][metrics[2].length - 1] || 0;
+    this.recordThreads(memdb, now);
   }
 
   async report(input: {
@@ -509,33 +512,13 @@ class Monitor {
     depth: number;
     hackMin: number;
     hackMax: number;
+    moneyThreshold: number;
   }) {
-    await this.record();
+    const now = Date.now();
+    await this.record(now);
     this.ns.clearLog();
 
-    const moneyConfig: asciichart.PlotConfig = {
-      format: (x) => this.fmt.money(x).padStart(10, " "),
-      height: 6,
-      max: this.maxMoney,
-      min: 0,
-      // 1. `asciichart.white` isn't actually white, it seems to be the default color
-      // 2. later series are on top, we want the value on top
-      colors: [asciichart.red, asciichart.green, colors.WHITE],
-    };
-
-    const securityConfig: asciichart.PlotConfig = {
-      format: (x) => this.fmt.float(x).padStart(10, " "),
-      height: 6,
-      max: 100,
-      min: 0,
-      colors: [asciichart.green, asciichart.red, colors.WHITE],
-    };
-
-    const threadsConfig: asciichart.PlotConfig = {
-      height: 3,
-      format: (x) => this.fmt.intShort(x).padStart(10, " "),
-      colors: [asciichart.green, asciichart.red, asciichart.blue],
-    };
+    const dropBefore = now - input.t0 * this.sparklineWidth;
 
     this.log.info("About", { job: this.jobId, targetHost: this.host });
     const kw: { [key: string]: string | number } = {
@@ -547,57 +530,37 @@ class Monitor {
     };
     this.log.info("Stalefish", kw);
 
-    this.ns.printf("%s", asciichart.plot(this.metrics.money, moneyConfig));
-    this.log.info("money", {
-      [colors.red("min")]: this.fmt.money(0),
-      [colors.white("current")]: this.fmt.money(
-        this.currentSimpleMetric(this.metrics.money)
-      ),
-      [colors.green("max")]: this.fmt.money(this.maxMoney),
-    });
-    this.ns.printf("\n");
-
+    // Money
     this.ns.printf(
-      "%s",
-      asciichart.plot(this.metrics.security, securityConfig)
+      "%s\n\n",
+      this.sparklines.money.warn
+        .lt(this.maxMoney * (1 - input.moneyThreshold))
+        .crit.le(this.maxMoney * (1 - input.moneyThreshold ** 2))
+        .render(this.metrics.money, { resolution: input.t0 })
     );
-    this.log.info("security", {
-      [colors.green("min")]: this.minSecurity,
-      [colors.white("current")]: this.fmt.float(
-        this.currentSimpleMetric(this.metrics.security)
-      ),
-      [colors.red("max")]: 100,
-    });
-    this.ns.printf("\n");
+    this.dropBefore(this.metrics.money, dropBefore);
 
-    for (const kind of ["hack", "weaken", "grow"] as const) {
-      //this.log.tdebug("plotting", { kind, metrics: this.metrics[kind] });
-      this.ns.printf(
-        "%s",
-        asciichart.plot(
-          [this.metrics[kind][0], this.metrics[kind][2]],
-          threadsConfig
-        )
-      );
-      this.log.info(kind, {
-        [colors.green("started")]: this.currentThreadCount(kind, "started"),
-        [colors.black("running")]: this.currentThreadCount(kind, "running"),
-        [colors.red("finished")]: this.currentThreadCount(kind, "finished"),
-      });
-      this.ns.printf("\n");
+    // Security
+    this.ns.printf(
+      "%s\n\n",
+      this.sparklines.security.render(this.metrics.security, {
+        resolution: input.t0,
+      })
+    );
+    this.dropBefore(this.metrics.security, dropBefore);
+
+    // Threads
+    for (const state of ["started", "finished", "running"] as const) {
+      for (const kind of ["hack", "weaken", "grow"] as const) {
+        this.ns.printf(
+          "%s",
+          this.sparklines.threads.render(this.metrics[kind][state], {
+            resolution: input.t0,
+          })
+        );
+        this.dropBefore(this.metrics[kind][state], dropBefore);
+      }
+      this.ns.printf("\n\n");
     }
-
-    this.ns.printf(
-      "%s",
-      asciichart.plot(
-        [this.metrics.hack[1], this.metrics.grow[1], this.metrics.weaken[1]],
-        { ...threadsConfig, height: 6 }
-      )
-    );
-    this.log.info("running", {
-      [colors.green("hack")]: this.currentThreadCount("hack", "running"),
-      [colors.red("grow")]: this.currentThreadCount("grow", "running"),
-      [colors.blue("weaken")]: this.currentThreadCount("weaken", "running"),
-    });
   }
 }

@@ -7,14 +7,16 @@ export const SERVICE_TAG: ServiceTag = { service: SERVICE_ID };
 export type Time = number;
 export type Value = number;
 
-export type Event = [timestamp: Time, value: Value];
-export type Series = { name: string; events: Event[] };
+export type TSEvent = [timestamp: Time, value: Value];
+export const eventTime = (e: TSEvent) => e[0];
+export const eventValue = (e: TSEvent) => e[1];
+export type Series = { name: string; events: TSEvent[] };
 
 export const StatsRequest = variantModule(
   augmented(() => SERVICE_TAG, {
     record: fields<{
       series: string;
-      event: Event;
+      event: TSEvent;
       action: "overwrite" | "add";
     }>(),
     listSeries: fields<{ responsePort: number; prefix?: string }>(),
@@ -25,7 +27,7 @@ export const StatsRequest = variantModule(
 export const StatsResponse = variantModule(
   augmented(() => SERVICE_TAG, {
     listSeries: payload<string[]>(),
-    getRaw: payload<Event[] | "not-found">(),
+    getRaw: payload<TSEvent[] | "not-found">(),
   })
 );
 

@@ -1,5 +1,5 @@
 import { BaseClient } from '../common/BaseClient';
-import { Event, SERVICE_ID, StatsRequest, StatsResponse, Value } from './types';
+import { SERVICE_ID, StatsRequest, StatsResponse, TSEvent, Value } from './types';
 
 export class StatsClient extends BaseClient<
   typeof StatsRequest,
@@ -28,7 +28,7 @@ export class StatsClient extends BaseClient<
     });
   }
 
-  getRaw(series: string, since?: number): Promise<Event[] | "not-found"> {
+  getRaw(series: string, since?: number): Promise<TSEvent[] | "not-found"> {
     return this.sendReceive(
       StatsRequest.getRaw({ series, since, ...this.rp() }),
       {

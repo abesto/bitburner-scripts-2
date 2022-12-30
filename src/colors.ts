@@ -37,3 +37,5 @@ export const fg256 = (r: number, g: number, b: number) => (text: string) => {
   const color = 16 + r * 36 + g * 6 + b;
   return `\u001b[38;5;${color}m` + text + RESET;
 };
+
+export const darkYellow = fg256(4, 3, 0);

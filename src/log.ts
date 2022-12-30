@@ -2,7 +2,7 @@ import { NS } from '@ns';
 
 import * as colors from '/colors';
 
-import { highlightValue } from './fmt';
+import { formatKeyvalue, highlightValue } from './fmt';
 
 export enum LogLevel {
   DEBUG = "DEBUG",
@@ -45,14 +45,6 @@ export class Log {
     }
   }
 
-  keyvalueField(keyvalue: { [key: string]: unknown }): string {
-    const parts = [];
-    for (const [key, value] of Object.entries(keyvalue)) {
-      parts.push(`${colors.cyan(key)}=${highlightValue(value)}`);
-    }
-    return parts.join(" ");
-  }
-
   nameField(): string {
     return "[" + this.name.padStart(10, " ") + "]";
   }
@@ -64,7 +56,7 @@ export class Log {
   ): string {
     return `${this.timestampField()} ${this.levelField(
       level
-    )} ${this.nameField()} ${colors.white(message)} ${this.keyvalueField(
+    )} ${this.nameField()} ${colors.white(message)} ${formatKeyvalue(
       keyvalue
     )}`;
   }
