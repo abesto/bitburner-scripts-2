@@ -17,6 +17,8 @@
 
 * [bin/boot](other-binaries/bin-boot.md)
 * [bin/aliases](other-binaries/bin-aliases.md)
+* [bin/sc](other-binaries/bin-sc.md)
+* [bin/config](other-binaries/bin-config.md)
 * [bin/hwgw-controller](other-binaries/bin-hwgw-controller.md)
 * [bin/hwgw-batch](other-binaries/bin-hwgw-batch.md)
 * [bin/hwgw-monitor](other-binaries/bin-hwgw-monitor.md)

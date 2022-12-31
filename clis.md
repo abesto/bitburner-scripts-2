@@ -48,6 +48,42 @@ The only real alternative I found is [https://github.com/minimistjs/minimist](ht
 
 And you can forget about auto-generated `--help` (unless you write the code for it yourself, which I didn't, but kinda want to).
 
+## Autocompletion
+
+Bitburner provides a way to define tab completions for your programs. It's very manual, but it gets the job done. Documentation for it lives here: [https://bitburner.readthedocs.io/en/latest/netscript/advancedfunctions/autocomplete.html](https://bitburner.readthedocs.io/en/latest/netscript/advancedfunctions/autocomplete.html)
+
+The most notable limitation is that you don't have an `NS` object in your `autocomplete` function, so you cannot inspect the state of the system at runtime. This leads to interesting puzzles like: how do you do tab completion for something like `config get`, where config keys should be completed? In my case, I happen to have a `const` default database object, so I can inspect _that_. It won't have the current _values_, but that's fine! This is probably my most complex `autocomplete` function, and even so it's just a couple of lines long. Reproduced here fully to provide a real-world example.
+
+```typescript
+export function autocomplete(data: AutocompleteData, args: string[]): string[] {
+  if (args.length <= 1) {
+    return ["get", "set"];
+  } else if (args.length === 2) {
+    const shape = DEFAULT_DB.config;
+    const parts = args[1].split(".");
+    const matched: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let obj = shape as any;
+    for (const part of parts) {
+      if (obj[part] === undefined) {
+        const options = [];
+        for (const key of Object.keys(obj)) {
+          let option = matched.concat(key).join(".");
+          if (typeof obj[key] === "object") {
+            option += ".";
+          }
+          options.push(option);
+        }
+        return options;
+      }
+      obj = obj[part];
+      matched.push(part);
+    }
+  }
+  return [];
+}
+```
+
 ## ... a thin wrapper ...
 
 Here's a thing worth calling out: try to avoid putting much logic into a CLI beyond input / output formatting. This is a good rule of thumb to ensure that anything _you_ can do, any services can also do. That's the way towards composable services taking you to ever higher levels of abstraction and enlightenment.
