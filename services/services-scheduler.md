@@ -53,9 +53,9 @@ From here, we schedule as many threads as we can on the first host in the list, 
 
 ## Workload Management
 
-One important thing the `Scheduler` schedules is processes with vast amounts of threads across any number of hosts. Think about when you want to `grow` or `weaken` or `hack` a server. You can submit a request to the `Scheduler` to run 20k `grow` jobs with a given (host) argument, and let it take care of the rest.
+One important thing the `Scheduler` schedules is processes with vast amounts of threads across any number of hosts. Think about when you want to `grow` or `weaken` or `hack` a server. You can submit a request to the `Scheduler` to run 20k `grow` threads with a given (host) argument, and let it take care of the rest.
 
-In this part of the Scheduler, we have two concepts: Jobs and Tasks. A Job is one workload submitted by a client; 20k `grow` threads in our example. This job may have one or many Tasks. Each task represents one process running on a host (with some number of threads).
+In this part of the Scheduler, we have two concepts: Jobs and Tasks. A Job is one workload submitted by a client; 20k `grow` threads in our example. This job may have one or many Tasks. Each task represents one process running on a host (with some number of threads). Generally a job will only have at most one task per job on any given host (because why would you have more).
 
 Such workloads are submitted using the `SchedulerRequest.start` request. The response to such a request includes the number of threads that were successfully started; this may be zero! It's up to the client to check this and figure out what to do about it.
 
