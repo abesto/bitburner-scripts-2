@@ -46,18 +46,30 @@ In the real world, services are sometimes a good idea for a wide variety of reas
 
 This section provides a walk-through of the various components, and how they fit together. Click through to the links for more detailed descriptions of each one.
 
-* Step zero: a [development-environment.md](development-environment.md "mention"). We need a way to write code in an actual IDE, and have it be reflected in-game with no clicks.
-* There are some pieces of common functionality that all services share: listening on a port, sending responses, periodic tasks specific to the service, that kind of stuff. All this is implemented in [services-common-baseservice.md](libraries/services-common-baseservice.md "mention").
-* There's also some amount of shared logic between all clients of services. No surprises: that's encapsulated in [services-common-baseclient.md](libraries/services-common-baseclient.md "mention").
-* There are distinct pieces of the implementation of a service that are useful to break out into a standard structure. This is documented in [service-conventions.md](service-conventions.md "mention").
-* Providing an API is in any definition of a service. "Providing" an API means: there must be a way for other processes to invoke functionality. Bitburner "Ports" don't trivially provide this capability; [services-portregistry.md](services/services-portregistry.md "mention")does.
-* Some services need to persist state between restarts. Some services also consume configuration. I decided to chuck all this into a single JSON file, with [services-database.md](services/services-database.md "mention") managing access to it.
-  * I did this mainly as an experiment to see if I could. It does have one benefit: it means higher-level services can run on any host, since they don't depend on having the config / database file locally.
-* Running huge amounts of processes across many servers is a core piece of the Bitburner puzzle. While we're at it, we may as well throw in managing the lifecycle of other services. [services-scheduler.md](services/services-scheduler.md "mention") does all this and more.
-* [Observability](https://en.wikipedia.org/wiki/Software\_observability) in any software-oriented architecture is paramount. You have many components doing their thing; you need a way to understand what happens when and why.
-  * The [log.md](libraries/log.md "mention") library provides logging. Main features: timestamps and key-value support.
-  * [services-stats.md](services/services-stats.md "mention") is a simple time-series database. Yes, really. Over-engineering, you say? THAT'S THE POINT!
-* A well-documented approach to the "hacking servers for money" challenge in Bitburner is referred to as HWGW. My implementation of this (at the time of writing) lives in [bin-hwgw-controller.md](other-binaries/bin-hwgw-controller.md "mention") and [bin-hwgw-batch.md](other-binaries/bin-hwgw-batch.md "mention").
-  * While developing a "HWGW Batcher", a good visualizer is super useful. I built [services-hwgwbatchviz.md](services/services-hwgwbatchviz.md "mention") for this purpose.
-  * [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
-* Turn-up of any complex set of services requires some coordination. In our case: The Scheduler manages all services, but it needs to talk to the Database. That's a circular dependency that needs to be handled _somehow_. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of that.
+Step zero: a [development-environment.md](development-environment.md "mention"). We need a way to write code in an actual IDE, and have it be reflected in-game with no clicks.
+
+Providing an API is in any definition of a service. "Providing" an API means: there must be a way for other processes to invoke functionality. Bitburner "Ports" don't trivially provide this capability; [services-portregistry.md](services/services-portregistry.md "mention")does.
+
+There are some pieces of common functionality that all services share: listening on a port, sending responses, periodic tasks specific to the service, that kind of stuff. All this is implemented in [services-common-baseservice.md](libraries/services-common-baseservice.md "mention").
+
+There are distinct pieces of the implementation of a service that are useful to break out into a standard structure. This is documented in [service-conventions.md](service-conventions.md "mention").
+
+There's also some amount of shared logic between all clients of services. No surprises: that's encapsulated in [services-common-baseclient.md](libraries/services-common-baseclient.md "mention").
+
+Some services need to persist state between restarts. Some services also consume configuration. I decided to chuck all this into a single JSON file, with [services-database.md](services/services-database.md "mention") managing access to it.
+
+* I did this mainly as an experiment to see if I could. It does have one benefit: it means higher-level services can run on any host, since they don't depend on having the config / database file locally.
+
+Running huge amounts of processes across many servers is a core piece of the Bitburner puzzle. While we're at it, we may as well throw in managing the lifecycle of other services. [services-scheduler.md](services/services-scheduler.md "mention") does all this and more.
+
+[Observability](https://en.wikipedia.org/wiki/Software\_observability) in any software-oriented architecture is paramount. You have many components doing their thing; you need a way to understand what happens when and why.
+
+* The [log.md](libraries/log.md "mention") library provides logging. Main features: timestamps and key-value support.
+* [services-stats.md](services/services-stats.md "mention") is a simple time-series database. Yes, really. Over-engineering, you say? THAT'S THE POINT!
+
+A well-documented approach to the "hacking servers for money" challenge in Bitburner is referred to as HWGW. My implementation of this (at the time of writing) lives in [bin-hwgw-controller.md](other-binaries/bin-hwgw-controller.md "mention") and [bin-hwgw-batch.md](other-binaries/bin-hwgw-batch.md "mention").
+
+* While developing a "HWGW Batcher", a good visualizer is super useful. I built [services-hwgwbatchviz.md](services/services-hwgwbatchviz.md "mention") for this purpose.
+* [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
+
+Turn-up of any complex set of services requires some coordination. In our case: The Scheduler manages all services, but it needs to talk to the Database. That's a circular dependency that needs to be handled _somehow_. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of that.
