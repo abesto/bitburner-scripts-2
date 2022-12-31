@@ -72,7 +72,7 @@ A well-documented approach to the "hacking servers for money" challenge in Bitbu
 * While developing a "HWGW Batcher", a good visualizer is super useful. I built [services-hwgwbatchviz.md](services/services-hwgwbatchviz.md "mention") for this purpose.
 * [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
 
-Turn-up of any complex set of services requires some coordination. In our case: The Scheduler manages all services, but it needs to talk to the Database. That's a circular dependency that needs to be handled _somehow_. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of that.
+Turn-up of any complex set of services requires some coordination. In our case: the `Scheduler` manages all services (including the `Database`), but it needs to talk to the `Database` to manage its own state. Plus, it needs `PortRegistry` to talk to `Database` in the first place. That's a circular dependency that needs to be handled _somehow_. And after startup, `Scheduler` needs to be be told about the processes of those services so it can manage them. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of this.
 
 ## Future Improvements
 
