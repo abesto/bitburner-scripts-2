@@ -8,7 +8,7 @@
 ## 🎁 Services
 
 * [services/PortRegistry](services/services-portregistry.md)
-* [🚧 services/Database](services/services-database.md)
+* [services/Database](services/services-database.md)
 * [🚧 services/Scheduler](services/services-scheduler.md)
 * [🚧 services/HwgwBatchViz](services/services-hwgwbatchviz.md)
 * [🚧 services/Stats](services/services-stats.md)
