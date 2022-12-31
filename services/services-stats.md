@@ -52,7 +52,7 @@ Consider: if we have second resolution data about scheduler latency, but only wa
 
 ## Visualizing Data
 
-To be honest, this is the tricky part, and I didn't realize just how tricky it would be. Mapping a value range to one of the 8 partial vertical blocks is easy. That part lives in That's not the hard part. The actual visualization lives in [services-stats-sparklines.md](../libraries/services-stats-sparklines.md "mention").&#x20;
+To be honest, this is the tricky part, and I didn't realize just how tricky it would be. Mapping a value range to one of the 8 partial vertical blocks is easy. That's not the hard part. The actual visualization lives in [services-stats-sparklines.md](../libraries/services-stats-sparklines.md "mention").&#x20;
 
 The hard part is displaying data that has 1-second resolution on a graph that has `0.750ms` resolution. And doing that without telling lies (too badly), and doing that without leaving gaps in the chart. It may be possible (or even a great idea) to look at how well-established open-source time series storage solutions deal with this problem. What did I do instead? I fiddled with ideas until I got charts that look roughly good enough maybe.
 
