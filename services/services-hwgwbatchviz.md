@@ -8,7 +8,7 @@ description: ASCII Art is Great
 * Dependencies: [services-database.md](services-database.md "mention") for some configuration options
 * In-game RAM: 2.30GB
 
-<figure><img src="../.gitbook/assets/image (4).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (2).png" alt=""><figcaption></figcaption></figure>
 
 The Bitburner manual describes the basics of HWGW batching at [https://bitburner.readthedocs.io/en/latest/advancedgameplay/hackingalgorithms.html#batch-algorithms-hgw-hwgw-or-cycles](https://bitburner.readthedocs.io/en/latest/advancedgameplay/hackingalgorithms.html#batch-algorithms-hgw-hwgw-or-cycles), so I don't consider this spoilery.
 

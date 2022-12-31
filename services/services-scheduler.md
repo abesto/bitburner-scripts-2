@@ -11,7 +11,7 @@ description: The Beating Heart of the Machine
 * In-game RAM: 5.55GB
 * Related CLIs: [bin-sc.md](../other-binaries/bin-sc.md "mention")
 
-<figure><img src="../.gitbook/assets/image (3).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
 
 A service-oriented architecture needs _services_ to be _running_. Bitburner in general also needs you to run a large number of in-game processes with a large number of in-game "threads". This is where it all happens.
 
@@ -152,5 +152,5 @@ First off, the scheduler must know that a service exists. The list of services, 
 
 Scheduler exposes APIs to start, stop, enable, and disable services, to reload the above spec file, and to query the state (including logs) of an individual service. Here's a screenshot of what happens when I bully it a bit. Don't worry, it won't get offended.
 
-<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (3).png" alt=""><figcaption></figcaption></figure>
 

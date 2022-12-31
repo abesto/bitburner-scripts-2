@@ -8,4 +8,4 @@ description: Who Likes Typing Anyway
 
 This is a very simple script that saves me _so much time_. It scans the folder at runtime where binaries live, and prints commands to create aliases for running each. I copy-paste the whole thing when adding a new binary (or just the one I care about at the moment), and move on with life.
 
-<figure><img src="../.gitbook/assets/image (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (1) (2).png" alt=""><figcaption></figcaption></figure>

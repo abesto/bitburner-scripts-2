@@ -11,7 +11,7 @@
 * [services/Database](services/services-database.md)
 * [services/Scheduler](services/services-scheduler.md)
 * [services/HwgwBatchViz](services/services-hwgwbatchviz.md)
-* [🚧 services/Stats](services/services-stats.md)
+* [services/Stats](services/services-stats.md)
 
 ## 💽 Other Binaries
 
@@ -27,5 +27,6 @@
 
 * [🚧 services/common/BaseService](libraries/services-common-baseservice.md)
 * [🚧 services/common/BaseClient](libraries/services-common-baseclient.md)
+* [🚧 services/Stats/Sparklines](libraries/services-stats-sparklines.md)
 * [🚧 log](libraries/log.md)
 * [🚧 fmt](libraries/fmt.md)
