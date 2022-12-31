@@ -1,8 +1,10 @@
 ---
-description: TODO!
+description: Abstract All The Things
 ---
 
-# libraries/BaseService
+# services/common/BaseService
+
+I'll write this soon, promise!
 
 ## Performance
 
