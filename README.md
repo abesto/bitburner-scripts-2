@@ -15,6 +15,10 @@ This document **does NOT contain story spoilers**. However, the code in the repo
 
 Most pages in the document correspond to a directory or file in the source tree. These pages contain a link to the file near the top, and are named accordingly.
 
+{% hint style="info" %}
+Pages whose title in the sidebar have a :construction: icon don't have any real content yet
+{% endhint %}
+
 ## What's Bitburner?
 
 > Bitburner is a programming-based [incremental game](https://en.wikipedia.org/wiki/Incremental\_game) that revolves around hacking and cyberpunk themes. The game is currently in the early beta stage of development. It [can be played here](https://danielyxie.github.io/bitburner/).
