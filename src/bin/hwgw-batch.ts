@@ -51,7 +51,7 @@ async function _main(ns: NS): Promise<void> {
   if (initial) {
     ns.tail();
     await ns.sleep(0);
-    ns.moveTail(1413, 350);
+    ns.moveTail(1413, 0);
     ns.resizeTail(930, 345);
   }
 

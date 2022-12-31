@@ -54,11 +54,16 @@ export async function main(ns: NS): Promise<void> {
   }
 
   // Start monitor
-  await schedulerClient.start({
-    script: "/bin/hwgw-monitor.js",
-    args: [host],
-    threads: 1,
-  });
+  await schedulerClient.start(
+    {
+      script: "/bin/hwgw-monitor.js",
+      args: [host],
+      threads: 1,
+    },
+    {
+      finishNotificationPort: null,
+    }
+  );
 
   autonuke(ns, host);
   if (!ns.hasRootAccess(host)) {
@@ -75,7 +80,7 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   ns.tail();
   await ns.sleep(0);
-  ns.resizeTail(1000, 400);
+  ns.resizeTail(930, 345);
   ns.moveTail(1413, 0);
 
   const memdb = await db(ns, log);

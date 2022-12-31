@@ -235,6 +235,7 @@ class Monitor {
     const kw: { [key: string]: string | number } = {
       t0: this.fmt.timeSeconds(input.t0),
       moneyThreshold: this.fmt.float(input.moneyThreshold),
+      maxMoney: this.fmt.money(this.maxMoney),
     };
     this.log.info("Stalefish", kw);
 
