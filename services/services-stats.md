@@ -9,6 +9,7 @@ description: Distributed ASCII Art is Great
   * None for the service
   * None for sending data points to the service
   * [services-portregistry.md](services-portregistry.md "mention") for the client when reading data from the service
+* In-game RAM: 1.60GB
 
 <figure><img src="../.gitbook/assets/image (4).png" alt=""><figcaption><p>As Used in <a data-mention href="../other-binaries/bin-hwgw-monitor.md">bin-hwgw-monitor.md</a></p></figcaption></figure>
 
