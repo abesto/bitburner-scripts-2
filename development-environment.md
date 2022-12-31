@@ -22,7 +22,7 @@ There exists an evolving ecosystem of tools around making this process painless.
 
 My current approach goes like this, adopted and tweaked from [https://github.com/bitburner-official/typescript-template](https://github.com/bitburner-official/typescript-template):
 
-* `npm run watch:transpile`: `esbuild` watches `.ts` files and compiles them to `.js` ([code](https://github.com/abesto/bitburner-scripts-2/blob/742bfb15223377239eed3be2a726dbc2b1b5e664/build/transpile.js)). Note that
+* `npm run watch:transpile`: `esbuild` watches `.ts` files under `src/bin` and compiles them to `.js` ([code](https://github.com/abesto/bitburner-scripts-2/blob/742bfb15223377239eed3be2a726dbc2b1b5e664/build/transpile.js)). Note that
   * `esbuild` bundles everything needed for a Netburner "binary" into a single JS file
   * It understands dependencies, so a change in a library will trigger a rebuild of all the binaries that import it
   * `chokidar` is used to notice newly created files. This probably means we're paying some extra performance cost, since `esbuild` is invoked separately for each binary.
