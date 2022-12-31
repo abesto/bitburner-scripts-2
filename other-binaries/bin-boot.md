@@ -2,6 +2,6 @@
 description: The Gnarly Bits
 ---
 
-# bin/boot
+# 🚧 bin/boot
 
 I'll write this soon, promise!

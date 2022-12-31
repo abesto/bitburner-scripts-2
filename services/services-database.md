@@ -8,6 +8,7 @@ description: A Glorified Global Lock
 * Dependencies:
   * Must run on `home` (more specifically: needs filesystem access to the database file)
   * The client requires [services-portregistry.md](services-portregistry.md "mention") to be running
+* In-game RAM: 1.95GB
 
 Normal usage won't touch a `DatabaseClient` directly, but instead use the `db`, `dbSync`, and `dbLock` functions from the same file.
 
@@ -51,6 +52,8 @@ So instead let's create `Database` service that exclusively manages access to th
 
 Very simple: read the database, serialize it to JSON, and pass it to the client. The fact that the serialization format is JSON is encoded in exactly two places (one in the server, one in `DatabaseClient`), so changeg that detail would be trivial if it turned out to be a performance / memory bottleneck.
 
+Notably, the `db()` and `dbSync()` functions mentioned above sit add a bit of optimization: if we're on the `home` host, then we don't talk to the `Database` service at all, but instead read the file directly from disk. `dbSync` exists so you can say: I know I'm on `home`, don't even _think_ about yielding control, just read the file from disk please thank you.
+
 ### `lock`
 
 The request includes information about the calling process (pid, hostname, filename, and arguments). The service uses this for two purposes:
@@ -74,4 +77,8 @@ If the request is a `writeAndUnlock`, then it updates the database on disk with 
 * Client B sends a `writeAndUnlock`. The DB contents in this request don't contain the lock request of client B.
 
 In either case, after a successful unlock request (or after breaking a stale lock), the service shifts the next item from the lock queue, and notifies its client that it now has the lock (passing along a brand-new DB snapshot). This message travels in a special `DatabaseResponse.lockDeferred` message.
+
+## Room for Improvement
+
+This is fairly basic, as far as databases go. Ideally I'd replace the API with something similar to the API of Redis. That said, the actual database is _tiny_, and in practice it's all in memory on the real computer, so performance is fine.
 
