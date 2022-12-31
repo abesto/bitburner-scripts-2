@@ -15,6 +15,7 @@
   * config cache class on top of `DatabaseClient` (with configurable TTL)
   * compress the data put on the port with `lz-string`? (we're more CPU bottlenecked though I think)
   * turn into key-value database instead of a glorified file lock (Redis query syntax?)
+* Create `Config` service with subscriptions to fields
 * `Scheduler` service
   * add `status <job-id>`
   * monitor / alert on job finish notification latency?
