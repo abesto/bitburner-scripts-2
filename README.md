@@ -1,3 +1,8 @@
+---
+cover: .gitbook/assets/Screenshot 2022-12-31 124510 (1).jpg
+coverY: 0
+---
+
 # Overview and Introduction
 
 ## About This Gitbook
@@ -55,3 +60,4 @@ This section provides a walk-through of the various components, and how they fit
 * A well-documented approach to the "hacking servers for money" challenge in Bitburner is referred to as HWGW. My implementation of this (at the time of writing) lives in [bin-hwgw-controller.md](other-binaries/bin-hwgw-controller.md "mention") and [bin-hwgw-batch.md](other-binaries/bin-hwgw-batch.md "mention").
   * While developing a "HWGW Batcher", a good visualizer is super useful. I built [services-hwgwbatchviz.md](services/services-hwgwbatchviz.md "mention") for this purpose.
   * [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
+* Turn-up of any complex set of services requires some coordination. In our case: The Scheduler manages all services, but it needs to talk to the Database. That's a circular dependency that needs to be handled _somehow_. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of that.
