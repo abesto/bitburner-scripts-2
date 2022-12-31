@@ -1,11 +1,51 @@
-# Page 1
+# Overview and Introduction
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Blandit massa enim nec dui nunc. Eget nunc scelerisque viverra mauris in aliquam sem fringilla. Eget duis at tellus at urna condimentum mattis pellentesque id. Risus nec feugiat in fermentum posuere urna nec. Blandit volutpat maecenas volutpat blandit aliquam. Condimentum id venenatis a condimentum vitae sapien. Justo donec enim diam vulputate ut pharetra sit amet aliquam. Ac placerat vestibulum lectus mauris ultrices. Augue lacus viverra vitae congue eu consequat ac felis. Egestas egestas fringilla phasellus faucibus scelerisque eleifend donec. Quis auctor elit sed vulputate.
+## About This Gitbook
 
-Placerat orci nulla pellentesque dignissim enim sit amet. Sed nisi lacus sed viverra. Faucibus vitae aliquet nec ullamcorper sit amet risus. Est velit egestas dui id. Eleifend donec pretium vulputate sapien. Suspendisse potenti nullam ac tortor vitae purus faucibus ornare suspendisse. Faucibus ornare suspendisse sed nisi lacus sed viverra tellus in. Tortor at risus viverra adipiscing at in tellus integer. Egestas pretium aenean pharetra magna. Mattis enim ut tellus elementum sagittis vitae. Consequat semper viverra nam libero justo laoreet sit. Fermentum leo vel orci porta non pulvinar neque laoreet suspendisse. Eget mauris pharetra et ultrices neque ornare aenean. Iaculis at erat pellentesque adipiscing commodo elit at imperdiet. Pellentesque habitant morbi tristique senectus et. Tincidunt praesent semper feugiat nibh. Tristique senectus et netus et malesuada fames ac turpis egestas.
+In this document I describe my approach to doing things in Bitburner with a service-oriented approach. There's no strict reading order, feel free to jump around. This page serves as an overview and introduction.
 
-Vulputate sapien nec sagittis aliquam. Vitae proin sagittis nisl rhoncus. Amet aliquam id diam maecenas. Sed risus pretium quam vulputate dignissim suspendisse in est ante. Amet consectetur adipiscing elit ut aliquam purus. Ultricies tristique nulla aliquet enim tortor at. Pellentesque diam volutpat commodo sed egestas egestas fringilla phasellus faucibus. Lorem sed risus ultricies tristique. Venenatis tellus in metus vulputate. Id porta nibh venenatis cras sed. Et ligula ullamcorper malesuada proin libero nunc consequat interdum varius. Nisl tincidunt eget nullam non nisi est sit amet facilisis. Proin sed libero enim sed faucibus turpis in.
+Said approach lives in [gh:abesto/bitburner-scripts-2](https://github.com/abesto/bitburner-scripts-2). Watch out: this is _not_ intended as up-to-date documentation on the code in the repo. I may or may not update it, as the fancy takes me.
 
-Vitae auctor eu augue ut lectus arcu. Tellus cras adipiscing enim eu turpis egestas. Morbi tristique senectus et netus et malesuada fames ac turpis. Ornare aenean euismod elementum nisi quis eleifend quam. Ipsum dolor sit amet consectetur adipiscing. Eget mi proin sed libero enim sed faucibus turpis. Mauris nunc congue nisi vitae suscipit tellus mauris a. Egestas sed sed risus pretium. Semper eget duis at tellus. Faucibus ornare suspendisse sed nisi lacus sed viverra. Arcu vitae elementum curabitur vitae nunc sed velit dignissim. Iaculis urna id volutpat lacus. Lectus magna fringilla urna porttitor. Lorem ipsum dolor sit amet consectetur. Eget nunc scelerisque viverra mauris in. Id velit ut tortor pretium viverra. Aliquet risus feugiat in ante metus dictum at tempor. Sit amet tellus cras adipiscing enim eu turpis egestas.
+This document **does NOT contain story spoilers**. However, the code in the repository may, so be advised of that if you go looking. Further, you may consider this whole thing a spoiler in that a lot of the fun of Bitburner is figuring out how to solve problems.
 
-Sit amet dictum sit amet. Vitae tempus quam pellentesque nec. Id consectetur purus ut faucibus pulvinar elementum integer enim. In metus vulputate eu scelerisque felis imperdiet proin fermentum leo. Pellentesque eu tincidunt tortor aliquam nulla. In cursus turpis massa tincidunt. Ac turpis egestas sed tempus urna et pharetra pharetra massa. At in tellus integer feugiat scelerisque. Leo integer malesuada nunc vel. Consectetur adipiscing elit duis tristique sollicitudin nibh. Quis lectus nulla at volutpat diam ut venenatis tellus. Eu volutpat odio facilisis mauris sit amet massa. Turpis nunc eget lorem dolor sed viverra ipsum. Eget sit amet tellus cras adipiscing enim eu turpis egestas. Pharetra sit amet aliquam id diam maecenas. Purus non enim praesent elementum facilisis leo vel. Erat nam at lectus urna duis convallis convallis tellus. Amet volutpat consequat mauris nunc.
+Most pages in the document correspond to a directory or file in the source tree. These pages contain a link to the file near the top, and are named accordingly.
+
+## What's Bitburner?
+
+> Bitburner is a programming-based [incremental game](https://en.wikipedia.org/wiki/Incremental\_game) that revolves around hacking and cyberpunk themes. The game is currently in the early beta stage of development. It [can be played here](https://danielyxie.github.io/bitburner/).
+
+There's also a [Steam release](https://store.steampowered.com/app/1812820/Bitburner/) which is also free. If you're here somehow, and not familiar with Bitburner, you may want to stop reading here and check it out - it's tons of fun! Also the rest of this probably won't make too much sense if you haven't messed around with it before.
+
+## About Services
+
+### What's a Service?
+
+In the context of Bitburner, what I mean by a "service" is a long-running process that
+
+* implements a single, useful piece of functionality (yes "single piece of functionality" has a lot of room for bending the definition, and that's fine)
+* May be configured using a config file. If it is, it should _very_ frequently respond to configuration changes
+* May expose an API to trigger some action / behavior
+
+You may think that's a bit vague, but it's enough to motivate this approach, and also enough to constrain the design space from "dunno, write some scripts I guess" to something quite specific.
+
+### Why Services?
+
+In the real world, services are sometimes a good idea for a wide variety of reasons, and they're sometimes a bad idea for an also wide variety of reasons. The world of Bitburner is _much_ simpler, so it's also easier to reason about why / whether you should take a service-oriented approach. Here's why I did it:
+
+* Bitburner pretends to be multiple computers that can run processes, and there exist something called "ports" (which, watch out, have nothing to do with real-world network ports). That means it pretends to be a _distributed computing environment_. And if I see one of those, then I can't help by try to apply my decade of experience working with distributed systems to it!
+* APIs are great. In particular: they allow exposing functionality in a way that both you (via [clis.md](clis.md "mention")) and other services can invoke the same functionalities. This means you can build a pyramid of services with ever higher levels of functionality, and also manually interact with any piece of your "infrastructure". This bit in particular is not possible (or at least not as clean) if you structure your approach primarily using libraries.
+* The only in-game computing resource is RAM. Memory usage of a script is calculated by the game by looking at what game-API functions the script invokes. Services allow you to centralize and de-duplicate the memory cost of calling API functions.
+  * At its most extreme, you could implement services _just_ to wrap game-API functions in a way to minimize RAM usage. I consider that a bit more cheeky than I want in _my_ play-through, but you do you! Also, the [#performance](libraries/libraries-baseservice.md#performance "mention") overhead may be prohibitive.
+
+## Overview
+
+This section provides a walk-through of the various components, and how they fit together. Click through to the links for more detailed descriptions of each one.
+
+* Step zero: a [development-environment.md](development-environment.md "mention"). We need a way to write code in an actual IDE, and have it be reflected in-game with no clicks.
+* There are some pieces of common functionality that all services share: listening on a port, sending responses, periodic tasks specific to the service, that kind of stuff. All this is implemented in [libraries-baseservice.md](libraries/libraries-baseservice.md "mention").
+* There are distinct pieces of the implementation of a service that are useful to break out into a standard structure. This is documented in [service-conventions.md](service-conventions.md "mention").
+* Providing an API is in any definition of a service. "Providing" an API means: there must be a way for other processes to invoke functionality. Bitburner "Ports" don't trivially provide this capability; [services-portregistry.md](services/services-portregistry.md "mention")does.
+* Some services need to persist state between restarts. Some services also consume configuration. I decided to chuck all this into a single JSON file, with [services-database.md](services/services-database.md "mention")managing access to it.
+  * I did this mainly as an experiment to see if I could. It does have one benefit: it means higher-level services can run on any host, since they don't depend on having the config / database file locally.
+* Running huge amounts of processes across many servers is a core piece of the Bitburner puzzle. While we're at it, we may as well throw in managing the lifecycle of other services. [services-scheduler.md](services/services-scheduler.md "mention")does all this and more.
+* &#x20;
