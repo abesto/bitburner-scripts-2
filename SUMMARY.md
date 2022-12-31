@@ -11,8 +11,18 @@
 * [services/PortRegistry](services/services-portregistry.md)
 * [services/Database](services/services-database.md)
 * [services/Scheduler](services/services-scheduler.md)
+* [services/HwgwBatchViz](services/services-hwgwbatchviz.md)
+* [services/Stats](services/services-stats.md)
+
+## 💽 Other Binaries
+
+* [bin/hwgw-controller](other-binaries/bin-hwgw-controller.md)
+* [bin/hwgw-batch](other-binaries/bin-hwgw-batch.md)
+* [bin/hwgw-monitor](other-binaries/bin-hwgw-monitor.md)
 
 ## 📚 Libraries
 
-* [libraries/BaseService](libraries/libraries-baseservice.md)
-* [libraries/BaseClient](libraries/libraries-baseclient.md)
+* [services/common/BaseService](libraries/services-common-baseservice.md)
+* [services/common/BaseClient](libraries/services-common-baseclient.md)
+* [log](libraries/log.md)
+* [fmt](libraries/fmt.md)
