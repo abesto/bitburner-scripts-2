@@ -132,7 +132,11 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
   }
 
   unlock(request: Request<"unlock">, newDb: DB | null = null): void {
-    const memdb = newDb || this.loadFromDisk();
+    const dbOnDisk = this.loadFromDisk();
+    const memdb = newDb || dbOnDisk;
+    if (newDb !== null) {
+      memdb.meta = dbOnDisk.meta;
+    }
 
     if (memdb.meta.currentLock === null) {
       this.log.warn(
