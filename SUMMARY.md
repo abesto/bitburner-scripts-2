@@ -4,7 +4,6 @@
 * [Development Environment](development-environment.md)
 * [CLIs](clis.md)
 * [Service Conventions](service-conventions.md)
-* [TODO](todo.md)
 
 ## 🎁 Services
 

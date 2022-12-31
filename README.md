@@ -73,3 +73,7 @@ A well-documented approach to the "hacking servers for money" challenge in Bitbu
 * [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
 
 Turn-up of any complex set of services requires some coordination. In our case: The Scheduler manages all services, but it needs to talk to the Database. That's a circular dependency that needs to be handled _somehow_. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of that.
+
+## Future Improvements
+
+I track stuff I want to take care of in [https://github.com/abesto/bitburner-scripts-2/blob/main/TODO.md](https://github.com/abesto/bitburner-scripts-2/blob/main/TODO.md). This is _not_ spoiler-free territory!
