@@ -46,10 +46,10 @@ Pretend we get to the point where we know we need to run a script with N threads
 * Start with the full set of hosts where we can run scripts
 * Throw away any hosts that don't have enough free RAM to run even a single thread of the script
 * Randomly shuffle the list of hosts
-* Bring hosts to the frint that have enough memory to run all requested threads, and between them, bring forward even more those hosts that have the least free memory ("best fit")
+* Bring hosts to the front that have enough memory to run all requested threads, and between them, bring forward even more those hosts that have the least free memory ("best fit")
 * Each request to run things may optionally contain a `HostAffinity`. This can either say that the process _prefers_ to run on a host, or that it _must_ run on a host. Apply this: drop other hosts if it _must_ run on one, or bring to the front of the list those that it prefers.
 
-From here, we schedule as many threads as we can on the first host in the list, and repeat until we're done. This is not optimal, but it's been Good Enough for me.
+From here, we schedule as many threads as we can on the first host in the list, move on to the next, and repeat until we've scheduled all requested threads, or we're out of capacity. This is not optimal, but it's been Good Enough for me.
 
 ## Workload Management
 
