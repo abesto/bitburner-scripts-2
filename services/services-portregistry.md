@@ -7,6 +7,31 @@ description: Network Connections for Bitburners
 * Code: [https://github.com/abesto/bitburner-scripts-2/tree/main/src/services/PortRegistry](https://github.com/abesto/bitburner-scripts-2/tree/main/src/services/PortRegistry)
 * Dependencies: none
 
+## Usage Example
+
+```typescript
+const log = new Log(ns, "example");
+const fmt = new Fmt(ns);
+const portRegistryClient = new PortRegistryClient(ns, log);
+const responsePort = await portRegistryClient.reservePort();
+// Use `responsePort` to construct another client and use it. Then later:
+await portRegistryClient.releasePort(responsePort);
+```
+
+There's also a helper to avoid having to deal with all this:
+
+```typescript
+import { withClient } from '/services/client_factory';
+
+// ...
+
+await withClient(SchedulerClient, ns, log, async (client) => {
+  log.tinfo("Scheduler services", {
+    services: (await client.status()).services,
+  });
+});
+```
+
 ## What's a Port?
 
 In a real networking environment the operating system / standard libraries provide ports as an abstraction over the wire coming out the back of the server. For Bitburner, you need to forget all about that. There exist ports in Bitburner, and they have nothing to do with real-world ports. Here's what a port is in Bitburner:
@@ -38,6 +63,7 @@ Here's what the complete workflow looks like:
 
 * `PortRegistry` pushes free port numbers into `PORTS.FreePorts` at the start of handling every request, and also every second
   * Initially, free ports start at port number 1024
+  * `PortRegistry` also clears `PORTS.FreePorts` at startup to prevent _confusion_, see [#limitations-of-the-current-implementation](services-portregistry.md#limitations-of-the-current-implementation "mention")
 * A client reads (shifts) a free port number out of `PORTS.FreePorts`
 * The client sends a `PortRegistryRequest.reserve({port, hostname, pid})` to `PortRegistry`. `PortRegistry` takes note of this, and checks every second to see if the process is still running; if not, then it marks the port as available for reuse: next time it pushes ports into `PORTS.FreePorts`, it can push this.
   * The service also checks whether the port is already reserved. If it is, then it kills the process trying to make the new reservation, and prints an error to the Bitburner terminal.
@@ -54,3 +80,5 @@ Injecting this port is made easy by [services-common-baseclient.md](../libraries
 ## Limitations of the Current Implementation
 
 My current implementation of `PortRegistry` stores everything in memory. This means that if `PortRegistry` is restarted, then things will get very confused for a while. There are safeguards in place in low-level libraries used by [services-common-baseservice.md](../libraries/services-common-baseservice.md "mention") and [services-common-baseclient.md](../libraries/services-common-baseclient.md "mention") that shout if they receive messages not intended for them, so it won't be _too_ bad, but a safe restart mechanism would be good to implement. Or better yet, persisting the state on disk, but without introducing a dependency on [services-database.md](services-database.md "mention").
+
+`releasePort` in the client is currently an `async` function: it uses `BaseClient.send` instead of `BaseClient.sendSync`. The difference is that `BaseClient.send` does a few backoffs-and-retries if the destination port happens to be full. Since `releasePort` is `async`, it can't be used in `ns.atExit`, which is a bit of a bummer. I could drop use `sendSync` in it instead, and use it in `atExit` all the time, at the cost of possibly losing some release requests. Ultimately it doesn't matter: `PortRegistry` notices when the process exits _anyway_.
