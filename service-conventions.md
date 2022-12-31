@@ -44,3 +44,10 @@ This enables some pretty amazing magic, like:
 * `PortRegistryRequest<"status">` is a type, and it expands to `{ service: "PortRegistry"; responsePort: number }`
 * You can create new instances super easily: `PortRegistryRequest.status({ responsePort: 123 })`.
 * `variant.match` is a great tool for pattern-matching against a variant
+
+## Small Services
+
+There are a few small binaries that are technically services, but are simple enough to not deserve the full `services/NAME/...` treatment. In particular, ones that just run in a loop, read some configs, and don't take any requests. Currently these are:
+
+* `bin/services/Share`: uses a configurable perentage of free capacity to share RAM with the faction you're working for, to increase reputation gain
+* `bin/services/BuyWorkers`: buy and upgrade servers, with configurable thresholds for money used.
