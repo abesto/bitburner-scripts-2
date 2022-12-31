@@ -9,6 +9,7 @@ description: A Glorified Global Lock
   * Must run on `home` (more specifically: needs filesystem access to the database file)
   * The client requires [services-portregistry.md](services-portregistry.md "mention") to be running
 * In-game RAM: 1.95GB
+* Related CLIs: `bin/db`
 
 Normal usage won't touch a `DatabaseClient` directly, but instead use the `db`, `dbSync`, and `dbLock` functions from the same file.
 

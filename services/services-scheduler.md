@@ -9,8 +9,9 @@ description: The Beating Heart of the Machine
   * [services-portregistry.md](services-portregistry.md "mention") and [services-stats.md](services-stats.md "mention") for reporting scheduling latency
   * [services-portregistry.md](services-portregistry.md "mention") for `SchedulerClient`
 * In-game RAM: 5.55GB
+* Related CLIs: [bin-sc.md](../other-binaries/bin-sc.md "mention")
 
-<figure><img src="../.gitbook/assets/image (2).png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
 
 A service-oriented architecture needs _services_ to be _running_. Bitburner in general also needs you to run a large number of in-game processes with a large number of in-game "threads". This is where it all happens.
 
@@ -65,6 +66,8 @@ await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
 ```
 
 Note the `NoResponse` prefix on the client class; this just means that requests on this client will never have a response. This separation is useful to allow more powerful abstract client classes.
+
+The scheduler exposes APIs to start and stop jobs, and to query information about running jobs/tasks.
 
 ## Process Trees
 
@@ -122,4 +125,32 @@ Unfortunately this only works when the parent process is started by the schedule
 
 Note the `nohup` option; that just means: don't shut down the process you're about to start even when I exit (not that you could realize I exited, but don't even try please)
 
-## :construction: Service Management
+## Service Management
+
+The other kind of "thing" you want the Scheduler to manage (besides workloads like `grow`) is other services.
+
+First off, the scheduler must know that a service exists. The list of services, and some metadata about them, is stored in the source tree (and consequently deployed into the game) in `bin/services/specs.json.txt`. It looks something like this:
+
+```json
+{
+  "PortRegistry": {
+    "enableWhenDiscovered": true
+  },
+  "BuyWorkers": {},
+  "Database": {
+    "enableWhenDiscovered": true,
+    "hostAffinity": {
+      "type": "mustRunOn",
+      "host": "home"
+    }
+  },
+  [...]
+}
+```
+
+"Enabled" here means the same thing it means in Systemd: should the scheduler start this service at boot? And should it restart it, should the service crash?
+
+Scheduler exposes APIs to start, stop, enable, and disable services, to reload the above spec file, and to query the state (including logs) of an individual service. Here's a screenshot of what happens when I bully it a bit. Don't worry, it won't get offended.
+
+<figure><img src="../.gitbook/assets/image (3).png" alt=""><figcaption></figcaption></figure>
+

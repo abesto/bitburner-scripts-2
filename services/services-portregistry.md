@@ -7,6 +7,7 @@ description: Network Connections for Bitburners
 * Code: [https://github.com/abesto/bitburner-scripts-2/tree/main/src/services/PortRegistry](https://github.com/abesto/bitburner-scripts-2/tree/main/src/services/PortRegistry)
 * Dependencies: none
 * In-game RAM: 2.30GB
+* Related CLIs: `bin/port`, `bin/portc`
 
 ## Usage Example
 

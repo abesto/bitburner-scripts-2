@@ -32,5 +32,5 @@ My current approach goes like this, adopted and tweaked from [https://github.com
 
 Remember that in Remote API, the _game_ is the network client, so `npm watch` must be running before the game can connect to it. You can un/reconnect to the API under Options / Remote API in-game.
 
-<figure><img src=".gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+<figure><img src=".gitbook/assets/image (2).png" alt=""><figcaption></figcaption></figure>
 
