@@ -79,6 +79,15 @@ So far we have a server port, and a client port, but no concept of a connection.
 
 Injecting this port is made easy by [services-common-baseclient.md](../libraries/services-common-baseclient.md "mention"), and is completely hidden away by the client library for each service. This means "user code" can just do `const response = await client.method(params)`, as you'd expect in any sane system.
 
+### Room for Improvement
+
+There's room for improvement in safeguards around "is this the message I was expecting". This technically nothing to do with `PortRegistry`, but this seems like a good place to mention it. Currently clients, when they receive a response, they check
+
+* whether the response is from the right service
+* whether the response has the right `type` (e.g. a `status` response to a `status` request)
+
+They do _not_ check whether it's a response to the right specific request. This means if we fire off three requests of the same kind, we just silently assume that responses come in in the same order. this is ... mosty correct, for most services, and doesn't lead to big badness, but clients _could_ inject a randomized request ID, which services could send back, and clients could then perform an even better verification.
+
 ## Limitations of the Current Implementation
 
 My current implementation of `PortRegistry` stores everything in memory. This means that if `PortRegistry` is restarted, then things will get very confused for a while. There are safeguards in place in low-level libraries used by [services-common-baseservice.md](../libraries/services-common-baseservice.md "mention") and [services-common-baseclient.md](../libraries/services-common-baseclient.md "mention") that shout if they receive messages not intended for them, so it won't be _too_ bad, but a safe restart mechanism would be good to implement. Or better yet, persisting the state on disk, but without introducing a dependency on [services-database.md](services-database.md "mention").
