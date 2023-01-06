@@ -33,7 +33,7 @@ export class PortRegistryClient extends BaseNoResponseClient<typeof Request> {
       Request.reserve({
         port,
         hostname: this.ns.getHostname(),
-        pid: getProcessInfo(this.ns).pid,
+        pid: this.ns.pid,
       })
     );
     return port;
