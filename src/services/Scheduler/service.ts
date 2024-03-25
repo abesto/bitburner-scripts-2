@@ -696,6 +696,7 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     scriptRam: number,
     threads: number
   ): Capacity[] {
+    this.log.debug("Exploring capacity", { hostAffinity, scriptRam, threads });
     let capacity = this.exploreCapacity();
     // Only want hosts that have enough memory for at least one thread
     capacity = capacity.filter((c) => c.freeMem >= scriptRam);
@@ -713,8 +714,10 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
       }
       return a.freeMem - b.freeMem;
     });
+    this.log.debug("Host candidates before host affinity", { capacity });
     // Apply host affinity
     capacity = this.applyHostAffinity(capacity, hostAffinity);
+    this.log.debug("Host candidates after host affinity", { capacity });
     return capacity;
   }
 
@@ -741,13 +744,34 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
       scriptRam: this.fmt.memory(scriptRam),
     });
     const capacity = this.hostCandidates(spec.hostAffinity, scriptRam, threads);
+    this.log.debug("Capacity chunks", { capacity });
+
+    if (capacity.length === 0) {
+      this.log.terror("No hosts available", { script, args, threads });
+      if (
+        spec.hostAffinity !== undefined &&
+        spec.hostAffinity.type === "mustRunOn"
+      ) {
+        this.log.terror(
+          "Hint: job was configured with strict host affinity",
+          spec.hostAffinity
+        );
+      }
+    }
 
     for (const { hostname, freeMem, cores } of capacity) {
+      this.log.debug("Trying to schedule on host", {
+        hostname,
+        freeMem,
+        cores,
+      });
       if (jobThreads(job) >= threads) {
+        this.log.debug("Job already fully scheduled");
         break;
       }
       const availableThreads = Math.max(0, Math.floor(freeMem / scriptRam));
       if (availableThreads < 1) {
+        this.log.debug("Host doesn't have enough memory", { hostname });
         continue;
       }
       if (!this.ns.scp(script, hostname)) {
@@ -766,6 +790,17 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
         threadsThisHost,
         ...argsThisHost
       );
+      this.log.debug("Started task", {
+        job: job.id,
+        task: taskId,
+        hostname,
+        script,
+        argsThisHost,
+        pid,
+        threads: threadsThisHost,
+        cores,
+        remaining: threads - jobThreads(job),
+      });
       if (pid === 0) {
         this.log.twarn("Failed to start task", {
           job: job.id,

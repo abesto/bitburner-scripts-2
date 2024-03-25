@@ -1,10 +1,10 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { discoverServers } from '/discoverServers';
-import { Fmt } from '/fmt';
-import HwgwEstimator from '/HwgwEstimator';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
+import { discoverServers } from "/discoverServers";
+import { Fmt } from "/fmt";
+import HwgwEstimator from "/HwgwEstimator";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "target");
@@ -68,9 +68,11 @@ function Weight(ns: NS, server: string) {
   so.hackDifficulty = so.minDifficulty;
 
   // We cannot hack a server that has more than our hacking skill so these have no value
+  if (so.requiredHackingSkill === undefined) return 0;
   if (so.requiredHackingSkill > player.skills.hacking) return 0;
 
   // Default pre-Formulas.exe weight. minDifficulty directly affects times, so it substitutes for min security times
+  if (so.moneyMax === undefined || so.minDifficulty === undefined) return 0;
   let weight = so.moneyMax / so.minDifficulty;
 
   // If we have formulas, we can refine the weight calculation
