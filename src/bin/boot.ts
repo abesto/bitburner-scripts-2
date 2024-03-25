@@ -92,6 +92,9 @@ export async function main(ns: NS): Promise<void> {
   }
   await ns.sleep(0);
   await withClient(SchedulerClient, ns, log, async (client) => {
+    const { discovered, removed, updated } = await client.reload();
+    log.tinfo("Service specs reloaded", { discovered, updated, removed });
+
     log.tinfo("Scheduler services", {
       services: (await client.status()).services,
     });

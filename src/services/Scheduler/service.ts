@@ -1,26 +1,34 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import arrayShuffle from 'array-shuffle';
-import { match } from 'variant';
-import { Identity } from 'variant/lib/util';
+import arrayShuffle from "array-shuffle";
+import { match } from "variant";
+import { Identity } from "variant/lib/util";
 
-import { autonuke } from '/autonuke';
-import { DB } from '/database';
-import { discoverServers } from '/discoverServers';
-import { Log } from '/log';
-import * as agg from '/services/Stats/agg';
+import { autonuke } from "/autonuke";
+import { DB } from "/database";
+import { discoverServers } from "/discoverServers";
+import { Log } from "/log";
+import * as agg from "/services/Stats/agg";
 
-import { BaseService, HandleRequestResult } from '../common/BaseService';
-import { DatabaseClient, dbSync } from '../Database/client';
-import { PortRegistryClient } from '../PortRegistry/client';
-import { StatsClient } from '../Stats/client';
-import { Value } from '../Stats/types';
-import { TimerManager } from '../TimerManager';
+import { BaseService, HandleRequestResult } from "../common/BaseService";
+import { DatabaseClient, dbSync } from "../Database/client";
+import { PortRegistryClient } from "../PortRegistry/client";
+import { StatsClient } from "../Stats/client";
+import { Value } from "../Stats/types";
+import { TimerManager } from "../TimerManager";
 import {
-    Capacity, HostAffinity, Job, JobId, jobThreads, SERVICE_ID, ServiceSpec, ServiceStatus, TaskId
-} from './types';
-import { SchedulerRequest as Request } from './types/request';
-import { SchedulerResponse as Response } from './types/response';
+  Capacity,
+  HostAffinity,
+  Job,
+  JobId,
+  jobThreads,
+  SERVICE_ID,
+  ServiceSpec,
+  ServiceStatus,
+  TaskId,
+} from "./types";
+import { SchedulerRequest as Request } from "./types/request";
+import { SchedulerResponse as Response } from "./types/response";
 
 function arrayEqual(a: unknown[], b: unknown[]): boolean {
   if (a.length !== b.length) {
@@ -506,7 +514,7 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
   }
 
   protected serviceScript(name: string): string {
-    return `/bin/services/${name}.js`;
+    return `bin/services/${name}.js`;
   }
 
   protected doStopService(
