@@ -10,7 +10,7 @@ In an ideal world, a CLI would just be an automatically generated wrapper around
 
 * Input - writing JSON requests by hand is not my idea of a good time
   * Yes, you could auto-generate options based on the API, and end up with the AWS CLI. Also not my idea of a good time. We can (and should) be more ergonomic.
-* Output - readi"Ong JSON responses is also not my idea of a good time. Output needs to be mostly formatted for humans.
+* Output - reading JSON responses is also not my idea of a good time. Output needs to be mostly formatted for humans.
   * To keep things simple, I mostly write output using [log.md](libraries/log.md "mention") (see the screenshot above).
 
 {% hint style="info" %}
