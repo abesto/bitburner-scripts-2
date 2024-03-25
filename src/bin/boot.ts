@@ -1,12 +1,12 @@
 // Start up low-level services in the right order, with some manual plumbing
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Log } from '/log';
-import { freePorts, PORTS } from '/ports';
-import { withClient } from '/services/client_factory';
-import { dbLock } from '/services/Database/client';
-import { SchedulerClient } from '/services/Scheduler/client';
-import { ServiceStatus } from '/services/Scheduler/types';
+import { Log } from "/log";
+import { freePorts, PORTS } from "/ports";
+import { withClient } from "/services/client_factory";
+import { dbLock } from "/services/Database/client";
+import { SchedulerClient } from "/services/Scheduler/client";
+import { ServiceStatus } from "/services/Scheduler/types";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "boot");
@@ -15,15 +15,15 @@ export async function main(ns: NS): Promise<void> {
   const SCHEDULER = "/bin/services/Scheduler.js";
   const PORT_REGISTRY = "/bin/services/PortRegistry.js";
   if (ns.getRunningScript(DATABASE) !== null) {
-    log.tinfo("Database already running");
+    log.terror("Database already running");
     return;
   }
   if (ns.getRunningScript(SCHEDULER) !== null) {
-    log.tinfo("Scheduler already running");
+    log.terror("Scheduler already running");
     return;
   }
   if (ns.getRunningScript(PORT_REGISTRY) !== null) {
-    log.tinfo("PortRegistry already running");
+    log.terror("PortRegistry already running");
     return;
   }
 

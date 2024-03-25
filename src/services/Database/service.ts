@@ -1,17 +1,20 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { match } from 'variant';
+import { match } from "variant";
 
-import { DB, DB_PATH } from '/database';
-import { Log } from '/log';
-import { PORTS } from '/ports';
+import { DB, DB_PATH } from "/database";
+import { Log } from "/log";
+import { PORTS } from "/ports";
 
-import { BaseService, HandleRequestResult } from '../common/BaseService';
-import { TimerManager } from '../TimerManager';
-import { dbSync } from './client';
+import { BaseService, HandleRequestResult } from "../common/BaseService";
+import { TimerManager } from "../TimerManager";
+import { dbSync } from "./client";
 import {
-    DatabaseRequest as Request, DatabaseResponse as Response, LockData, SERVICE_ID as DATABASE
-} from './types';
+  DatabaseRequest as Request,
+  DatabaseResponse as Response,
+  LockData,
+  SERVICE_ID as DATABASE,
+} from "./types";
 
 function arrayEquals(a: unknown[], b: unknown[]): boolean {
   if (a.length !== b.length) {
@@ -30,6 +33,10 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
     super(ns, log);
     if (this.ns.getHostname() !== "home") {
       throw new Error("DatabaseService must be run on home");
+    }
+    if (!this.ns.fileExists(DB_PATH)) {
+      this.ns.write(DB_PATH, "{}", "w");
+      this.log.tinfo("Initialized empty database file at " + DB_PATH);
     }
   }
 
