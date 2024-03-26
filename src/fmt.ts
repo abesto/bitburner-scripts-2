@@ -1,6 +1,6 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import * as colors from '/colors';
+import * as colors from "/colors";
 
 const FORMATS = {
   float: "0.000",
@@ -20,23 +20,23 @@ export class Fmt {
   constructor(private ns: NS) {}
 
   money(n: number): string {
-    return this.ns.nFormat(n, FORMATS.money);
+    return "$" + this.ns.formatNumber(n, 3, 10000);
   }
 
   moneyShort(n: number): string {
-    return this.ns.nFormat(n, FORMATS.moneyShort);
+    return "$" + this.ns.formatNumber(n, 1);
   }
 
   float(n: number): string {
-    return this.ns.nFormat(n, FORMATS.float);
+    return this.ns.formatNumber(n, 3, Infinity);
   }
 
   int(n: number): string {
-    return this.ns.nFormat(n, "0");
+    return this.ns.formatNumber(n, 0, Infinity);
   }
 
   intShort(n: number): string {
-    return this.ns.nFormat(n, "0a");
+    return this.ns.formatNumber(n, 0, 10000);
   }
 
   time(t: number, milliPrecition?: boolean): string {
@@ -44,7 +44,7 @@ export class Fmt {
   }
 
   timeSeconds(t: number): string {
-    return this.ns.nFormat(t / 1000, "0.000") + "s";
+    return this.ns.formatNumber(t / 1000, 3, Infinity) + "s";
   }
 
   timeMs(t: number): string {
@@ -63,7 +63,7 @@ export class Fmt {
   }
 
   memory(t: number): string {
-    return this.ns.nFormat(t * 1000 * 1000 * 1000, FORMATS.memory);
+    return this.ns.formatRam(t);
   }
 
   keyValue(...items: [string, string][]): string {
