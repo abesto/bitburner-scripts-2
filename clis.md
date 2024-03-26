@@ -4,7 +4,7 @@ description: Talking to Services, for Humans
 
 # CLIs
 
-<figure><img src=".gitbook/assets/image (1) (1).png" alt=""><figcaption></figcaption></figure>
+<figure><img src=".gitbook/assets/image (1) (1) (1).png" alt=""><figcaption></figcaption></figure>
 
 In an ideal world, a CLI would just be an automatically generated wrapper around the API for a service. This isn't quite practical for a few reasons, so we need to solve:
 

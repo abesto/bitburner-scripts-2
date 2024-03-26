@@ -71,12 +71,12 @@ Running huge amounts of processes across many servers is a core piece of the Bit
 * The [log.md](libraries/log.md "mention") library provides logging. Main features: timestamps and key-value support.
 * [services-stats.md](services/services-stats.md "mention") is a simple time-series database. Yes, really. Over-engineering, you say? THAT'S THE POINT!
 
-A well-documented approach to the "hacking servers for money" challenge in Bitburner is referred to as HWGW. My implementation of this (at the time of writing) lives in [bin-hwgw-controller.md](other-binaries/bin-hwgw-controller.md "mention") and [bin-hwgw-batch.md](other-binaries/bin-hwgw-batch.md "mention").
+A well-documented approach to the "hacking servers for money" challenge in Bitburner is referred to as HWGW. My implementation of this (at the time of writing) lives in [bin-hwgw-controller](other-binaries/bin-hwgw-controller/ "mention") and [bin-hwgw-batch.md](other-binaries/bin-hwgw-controller/bin-hwgw-batch.md "mention").
 
 * While developing a "HWGW Batcher", a good visualizer is super useful. I built [services-hwgwbatchviz.md](services/services-hwgwbatchviz.md "mention") for this purpose.
-* [bin-hwgw-monitor.md](other-binaries/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
+* [bin-hwgw-monitor.md](other-binaries/bin-hwgw-controller/bin-hwgw-monitor.md "mention") uses [services-stats.md](services/services-stats.md "mention") to display monitoring data over time about each HWGW process.
 
-Turn-up of any complex set of services requires some coordination. In our case: the `Scheduler` manages all services (including the `Database`), but it needs to talk to the `Database` to manage its own state. Plus, it needs `PortRegistry` to talk to `Database` in the first place. That's a circular dependency that needs to be handled _somehow_. And after startup, `Scheduler` needs to be be told about the processes of those services so it can manage them. [bin-boot.md](other-binaries/bin-boot.md "mention") takes care of this.
+Turn-up of any complex set of services requires some coordination. In our case: the `Scheduler` manages all services (including the `Database`), but it needs to talk to the `Database` to manage its own state. Plus, it needs `PortRegistry` to talk to `Database` in the first place. That's a circular dependency that needs to be handled _somehow_. And after startup, `Scheduler` needs to be be told about the processes of those services so it can manage them. [bin-boot.md](cli-operational/bin-boot.md "mention") takes care of this.
 
 ## Future Improvements
 

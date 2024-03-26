@@ -18,6 +18,6 @@ This service exists to help visualize the state of HWGW batching. The X axis is 
 
 ## How Does It Work?
 
-Data is reported by [bin-hwgw-batch.md](../other-binaries/bin-hwgw-batch.md "mention"): whenever a job is planned, started, or finished, it sends a request to the server port of `HwgwBatchViz`. The service updates the UI every second to reflect the current state. The algorithm for rendering the charts is somewhat nuanced, but not very interesting to talk about; check out the code if you're interested!
+Data is reported by [bin-hwgw-batch.md](../other-binaries/bin-hwgw-controller/bin-hwgw-batch.md "mention"): whenever a job is planned, started, or finished, it sends a request to the server port of `HwgwBatchViz`. The service updates the UI every second to reflect the current state. The algorithm for rendering the charts is somewhat nuanced, but not very interesting to talk about; check out the code if you're interested!
 
 Note that Bitburner supports 256-color foreground colors, but not 24-bit foreground colors, and no background colors at all. This still gives us enough color space to do the shading with colors. That's great, as it allows usage of partial block characters to cheat in some extra resolution at the start and end of jobs.

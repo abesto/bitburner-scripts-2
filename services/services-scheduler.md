@@ -9,9 +9,9 @@ description: The Beating Heart of the Machine
   * [services-portregistry.md](services-portregistry.md "mention") and [services-stats.md](services-stats.md "mention") for reporting scheduling latency
   * [services-portregistry.md](services-portregistry.md "mention") for `SchedulerClient`
 * In-game RAM: 5.55GB
-* Related CLIs: [bin-sc.md](../other-binaries/bin-sc.md "mention")
+* Related CLIs: [bin-sc.md](../cli-operational/bin-sc.md "mention")
 
-<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+<figure><img src="../.gitbook/assets/image (4).png" alt=""><figcaption></figcaption></figure>
 
 A service-oriented architecture needs _services_ to be _running_. Bitburner in general also needs you to run a large number of in-game processes with a large number of in-game "threads". This is where it all happens.
 
