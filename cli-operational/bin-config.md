@@ -36,7 +36,7 @@ Running script with 1 thread(s), pid 1589 and args: ["get","autobuyServers.reser
 $10b
 ```
 
-<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption><p>Auto-completion knows about available config keys:</p></figcaption></figure>
+<figure><img src="../.gitbook/assets/image.png" alt=""><figcaption><p>Auto-completion knows about available config keys</p></figcaption></figure>
 
 ## Set config value
 
