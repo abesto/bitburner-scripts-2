@@ -2,13 +2,6 @@ import { NS } from "@ns";
 
 import * as colors from "/colors";
 
-const FORMATS = {
-  float: "0.000",
-  money: "$0.000a",
-  moneyShort: "$0.0a",
-  memory: "0.00 b",
-};
-
 const MoneySuffixes: { [suffix: string]: number } = {
   k: 3,
   m: 6,

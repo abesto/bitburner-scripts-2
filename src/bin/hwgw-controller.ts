@@ -1,15 +1,15 @@
 /* eslint-disable no-constant-condition */
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import { autonuke } from '/autonuke';
-import { Fmt } from '/fmt';
-import { Formulas, stalefish } from '/Formulas';
-import HwgwEstimator from '/HwgwEstimator';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
-import { PortRegistryClient } from '/services/PortRegistry/client';
-import { SchedulerClient } from '/services/Scheduler/client';
-import { HostAffinity, JobId } from '/services/Scheduler/types';
+import { autonuke } from "/autonuke";
+import { Fmt } from "/fmt";
+import { Formulas, stalefish } from "/Formulas";
+import HwgwEstimator from "/HwgwEstimator";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import { SchedulerClient } from "/services/Scheduler/client";
+import { HostAffinity, JobId } from "/services/Scheduler/types";
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([
@@ -21,6 +21,8 @@ export async function main(ns: NS): Promise<void> {
   const host = posArgs[0];
   const server = ns.getServer(host);
   const skipPrepare = args["skip-prepare"] as boolean;
+  const job = args.job as string;
+  const task = args.task as number;
 
   const log = new Log(ns, "hwgw-controller");
 
@@ -35,7 +37,7 @@ export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
   const formulas = new Formulas(ns);
 
-  if (!args.job || args.task < 0) {
+  if (!job || task < 0) {
     const resp = await schedulerClient.start(
       {
         script: "/bin/hwgw-controller.js",
