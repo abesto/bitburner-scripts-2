@@ -1,16 +1,16 @@
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { PortRegistryClient } from '/services/PortRegistry/client';
-import { SchedulerClient } from '/services/Scheduler/client';
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import { SchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "all-grow");
   const fmt = new Fmt(ns);
 
-  const growPayload = "/bin/payloads/grow.js";
-  const weakenPayload = "/bin/payloads/weaken.js";
+  const growPayload = "bin/payloads/grow.js";
+  const weakenPayload = "bin/payloads/weaken.js";
   const host = ns.args[0] as string;
   const scriptmem = ns.getScriptRam(growPayload);
 

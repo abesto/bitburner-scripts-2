@@ -1,11 +1,11 @@
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import { autonuke } from '/autonuke';
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
-import { PortRegistryClient } from '/services/PortRegistry/client';
-import { SchedulerClient } from '/services/Scheduler/client';
+import { autonuke } from "/autonuke";
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import { SchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);
@@ -33,14 +33,14 @@ export async function main(ns: NS): Promise<void> {
       await schedule(
         "weaken",
         host,
-        await calcMaxThreads("/bin/payloads/weaken.js"),
+        await calcMaxThreads("bin/payloads/weaken.js"),
         ns.getWeakenTime(host)
       );
     } else if (await shouldGrow()) {
       await schedule(
         "grow",
         host,
-        await calcMaxThreads("/bin/payloads/grow.js"),
+        await calcMaxThreads("bin/payloads/grow.js"),
         ns.getGrowTime(host)
       );
     } else {
@@ -55,7 +55,7 @@ export async function main(ns: NS): Promise<void> {
     eta: number
   ): Promise<void> {
     const { jobId, threads } = await scheduler.start({
-      script: `/bin/payloads/${kind}.js`,
+      script: `bin/payloads/${kind}.js`,
       args: [host],
       threads: wantThreads,
     });

@@ -467,7 +467,7 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
           hostAffinity?: HostAffinity;
           enableWhenDiscovered?: boolean;
         };
-      } = JSON.parse(this.ns.read("/bin/services/specs.json.txt"));
+      } = JSON.parse(this.ns.read("bin/services/specs.json.txt"));
 
       for (const name of Object.keys(memdb.scheduler.services)) {
         if (raw[name] === undefined) {

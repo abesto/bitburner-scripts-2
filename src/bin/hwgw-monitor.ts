@@ -1,15 +1,15 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { DB } from '/database';
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
-import { PortRegistryClient } from '/services/PortRegistry/client';
-import * as agg from '/services/Stats/agg';
-import { StatsClient } from '/services/Stats/client';
-import { Sparkline } from '/services/Stats/Sparkline';
-import * as transform from '/services/Stats/transform';
-import { AGG_MAP, TSEvent } from '/services/Stats/types';
+import { DB } from "/database";
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import * as agg from "/services/Stats/agg";
+import { StatsClient } from "/services/Stats/client";
+import { Sparkline } from "/services/Stats/Sparkline";
+import * as transform from "/services/Stats/transform";
+import { AGG_MAP, TSEvent } from "/services/Stats/types";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "hwgw-monitor");
@@ -138,7 +138,7 @@ class Monitor {
     for (const job of Object.values(memdb.scheduler.jobs)) {
       for (const kind of ["hack", "grow", "weaken"] as const) {
         if (
-          job.spec.script === `/bin/payloads/${kind}.js` &&
+          job.spec.script === `bin/payloads/${kind}.js` &&
           job.spec.args[0] === this.host
         ) {
           threads[kind] += job.spec.threads;

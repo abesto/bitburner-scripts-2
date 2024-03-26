@@ -1,4 +1,4 @@
-import { fields, TypeNames, variantModule, VariantOf } from 'variant';
+import { fields, TypeNames, variantModule, VariantOf } from "variant";
 
 export const SERVICE_ID = "Scheduler";
 export type ServiceTag = { service: typeof SERVICE_ID };
@@ -52,7 +52,7 @@ export type HostAffinity<T extends TypeNames<typeof HostAffinity> = undefined> =
   VariantOf<typeof HostAffinity, T>;
 
 export type ServiceSpec = {
-  name: string; // script is /bin/services/${name}.js
+  name: string; // script is bin/services/${name}.js
   hostAffinity?: HostAffinity;
 };
 

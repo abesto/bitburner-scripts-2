@@ -5,7 +5,7 @@ export async function main(ns: NS): Promise<void> {
   ns.tprint(
     "Copy-paste:\n" +
       ns
-        .ls(hostname, "/bin/")
+        .ls(hostname, "bin/")
         .filter((file) => file.endsWith(".js") && file.split("/").length === 2)
         .map(
           (file) =>

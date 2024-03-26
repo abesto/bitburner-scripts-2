@@ -1,12 +1,12 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { fields, TypeNames, variantModule, VariantOf } from 'variant';
+import { fields, TypeNames, variantModule, VariantOf } from "variant";
 
-import { highlightJSON } from '/fmt';
-import { Log } from '/log';
-import { PORTS } from '/ports';
-import { withClient } from '/services/client_factory';
-import { DatabaseClient } from '/services/Database/client';
+import { highlightJSON } from "/fmt";
+import { Log } from "/log";
+import { PORTS } from "/ports";
+import { withClient } from "/services/client_factory";
+import { DatabaseClient } from "/services/Database/client";
 
 const R = variantModule({
   pass: fields<{ message: string }>(),
@@ -58,7 +58,7 @@ export async function main(ns: NS): Promise<void> {
     },
 
     schedulerUp: async () => {
-      if (ns.isRunning("/bin/services/Scheduler.js")) {
+      if (ns.isRunning("bin/services/Scheduler.js")) {
         return [R.pass({ message: "Scheduler is running" })];
       } else {
         return [R.fail({ message: "Scheduler is not running" })];

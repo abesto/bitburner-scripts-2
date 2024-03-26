@@ -1,18 +1,25 @@
 // CLI to talk to SchedulerService
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import minimist from 'minimist';
-import { match } from 'variant';
+import * as serviceSpecs from "bin/services/specs.json.txt";
+import minimist from "minimist";
+import { match } from "variant";
 
-import * as serviceSpecs from '/bin/services/specs.json.txt';
-import * as colors from '/colors';
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { withClient } from '/services/client_factory';
-import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
-import { jobThreads, ServiceState, ServiceStatus } from '/services/Scheduler/types';
+import * as colors from "/colors";
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { withClient } from "/services/client_factory";
+import {
+  NoResponseSchedulerClient,
+  SchedulerClient,
+} from "/services/Scheduler/client";
+import {
+  jobThreads,
+  ServiceState,
+  ServiceStatus,
+} from "/services/Scheduler/types";
 
-const SCHEDULER_SCRIPT = "/bin/services/Scheduler.js";
+const SCHEDULER_SCRIPT = "bin/services/Scheduler.js";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

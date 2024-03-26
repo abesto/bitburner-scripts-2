@@ -11,9 +11,9 @@ import { ServiceStatus } from "/services/Scheduler/types";
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "boot");
 
-  const DATABASE = "/bin/services/Database.js";
-  const SCHEDULER = "/bin/services/Scheduler.js";
-  const PORT_REGISTRY = "/bin/services/PortRegistry.js";
+  const DATABASE = "bin/services/Database.js";
+  const SCHEDULER = "bin/services/Scheduler.js";
+  const PORT_REGISTRY = "bin/services/PortRegistry.js";
   if (ns.getRunningScript(DATABASE) !== null) {
     log.terror("Database already running");
     return;
@@ -53,7 +53,7 @@ export async function main(ns: NS): Promise<void> {
   log.tinfo("Started DatabaseService", { pid: dbPid });
 
   // Inject the `PortRegistry` and `Database` services into the `Scheduler` database
-  const spec = JSON.parse(ns.read("/bin/services/specs.json.txt"));
+  const spec = JSON.parse(ns.read("bin/services/specs.json.txt"));
   await dbLock(ns, log, async (memdb) => {
     memdb.scheduler.services.PortRegistry = {
       status: ServiceStatus.running({

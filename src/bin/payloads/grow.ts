@@ -1,7 +1,7 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Log } from '/log';
-import { NoResponseSchedulerClient } from '/services/Scheduler/client';
+import { Log } from "/log";
+import { NoResponseSchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "grow");
@@ -23,7 +23,9 @@ export async function main(ns: NS): Promise<void> {
     await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
     return;
   }
+  log.debug(`Growing ${host}`);
   await ns.grow(host);
+  log.debug(`Finished growing ${host}`);
   // TODO report mult
   await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
 }

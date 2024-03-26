@@ -1,16 +1,16 @@
 // Share a configured percentage of free capacity
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { withClient } from '/services/client_factory';
-import { db } from '/services/Database/client';
-import { SchedulerClient } from '/services/Scheduler/client';
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { withClient } from "/services/client_factory";
+import { db } from "/services/Database/client";
+import { SchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "Share");
   const fmt = new Fmt(ns);
-  const script = "/bin/payloads/share.js";
+  const script = "bin/payloads/share.js";
   const scriptMem = ns.getScriptRam(script);
   await withClient(SchedulerClient, ns, log, async (client) => {
     // eslint-disable-next-line no-constant-condition

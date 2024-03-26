@@ -1,11 +1,11 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Log } from '/log';
+import { Log } from "/log";
 
-import { Formulas, stalefish } from './Formulas';
-import { withClient } from './services/client_factory';
-import { db } from './services/Database/client';
-import { SchedulerClient } from './services/Scheduler/client';
+import { Formulas, stalefish } from "./Formulas";
+import { withClient } from "./services/client_factory";
+import { db } from "./services/Database/client";
+import { SchedulerClient } from "./services/Scheduler/client";
 
 export default class HwgwEstimator {
   private readonly log: Log;
@@ -35,8 +35,8 @@ export default class HwgwEstimator {
     const weakenLength = this.ns.getWeakenTime(host);
 
     const ramRequirement =
-      wantGrowThreads * this.ns.getScriptRam("/bin/payloads/grow.js") +
-      wantGrowWeakenThreads * this.ns.getScriptRam("/bin/payloads/weaken.js");
+      wantGrowThreads * this.ns.getScriptRam("bin/payloads/grow.js") +
+      wantGrowWeakenThreads * this.ns.getScriptRam("bin/payloads/weaken.js");
 
     const batchLen = weakenLength + spacing * 2;
 
@@ -217,7 +217,7 @@ export default class HwgwEstimator {
       );
     }
 
-    const peakRam = threadsMax * this.ns.getScriptRam("/bin/payloads/hack.js");
+    const peakRam = threadsMax * this.ns.getScriptRam("bin/payloads/hack.js");
     return {
       hackMax,
       growMax,

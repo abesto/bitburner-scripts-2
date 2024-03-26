@@ -1,13 +1,16 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import { Formulas } from '/Formulas';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
-import { HwgwBatchVizClient } from '/services/HwgwBatchViz/client';
-import { JobKind } from '/services/HWGwBatchViz/types';
-import { PortRegistryClient } from '/services/PortRegistry/client';
-import { NoResponseSchedulerClient, SchedulerClient } from '/services/Scheduler/client';
+import { Fmt } from "/fmt";
+import { Formulas } from "/Formulas";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
+import { HwgwBatchVizClient } from "/services/HwgwBatchViz/client";
+import { JobKind } from "/services/HWGwBatchViz/types";
+import { PortRegistryClient } from "/services/PortRegistry/client";
+import {
+  NoResponseSchedulerClient,
+  SchedulerClient,
+} from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
   try {
@@ -382,7 +385,7 @@ async function _main(ns: NS): Promise<void> {
     const responsePort = await portRegistryClient.reservePort();
     const schedulerClient = new SchedulerClient(ns, log, responsePort);
     const { jobId, threads } = await schedulerClient.start({
-      script: `/bin/payloads/${kind}.js`,
+      script: `bin/payloads/${kind}.js`,
       threads: wantThreads,
       args: [host],
     });
