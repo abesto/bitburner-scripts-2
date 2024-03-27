@@ -1,5 +1,13 @@
-import { BaseClient } from '../common/BaseClient';
-import { GetAgg, SERVICE_ID, StatsRequest, StatsResponse, Time, TSEvent, Value } from './types';
+import { BaseClient } from "../common/BaseClient";
+import {
+  GetAgg,
+  SERVICE_ID,
+  StatsRequest,
+  StatsResponse,
+  Time,
+  TSEvent,
+  Value,
+} from "./types";
 
 export class StatsClient extends BaseClient<
   typeof StatsRequest,

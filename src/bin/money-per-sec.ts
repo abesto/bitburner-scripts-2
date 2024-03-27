@@ -1,9 +1,9 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import * as asciichart from 'asciichart';
+import * as asciichart from "asciichart";
 
-import { Fmt } from '/fmt';
-import { Log } from '/log';
+import { Fmt } from "/fmt";
+import { Log } from "/log";
 
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");

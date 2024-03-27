@@ -1,6 +1,9 @@
-import { eventTime, eventValue, TSEvent, Value } from './types';
+import { eventTime, eventValue, TSEvent, Value } from "./types";
 
-export function derivative(events: TSEvent[]): TSEvent[] {
+export function derivative(
+  events: TSEvent[] | "not-found"
+): TSEvent[] | "not-found" {
+  if (events === "not-found") return events;
   if (events.length < 2) return events;
 
   const result: TSEvent[] = [];
@@ -14,17 +17,22 @@ export function derivative(events: TSEvent[]): TSEvent[] {
 }
 
 export const max =
-  (n: Value) =>
-  (events: TSEvent[]): TSEvent[] => {
+  (n: Value = -Infinity) =>
+  (events: TSEvent[] | "not-found"): TSEvent[] | "not-found" => {
+    if (events === "not-found") return events;
     return events.map(([time, value]) => [time, Math.max(value, n)]);
   };
 
 export const min =
-  (n: Value) =>
-  (events: TSEvent[]): TSEvent[] => {
+  (n: Value = Infinity) =>
+  (events: TSEvent[] | "not-found"): TSEvent[] | "not-found" => {
+    if (events === "not-found") return events;
     return events.map(([time, value]) => [time, Math.min(value, n)]);
   };
 
-export function negate(events: TSEvent[]): TSEvent[] {
+export function negate(
+  events: TSEvent[] | "not-found"
+): TSEvent[] | "not-found" {
+  if (events === "not-found") return events;
   return events.map(([time, value]) => [time, -value]);
 }

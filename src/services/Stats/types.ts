@@ -1,6 +1,13 @@
-import { augmented, fields, payload, TypeNames, variantModule, VariantOf } from 'variant';
+import {
+  augmented,
+  fields,
+  payload,
+  TypeNames,
+  variantModule,
+  VariantOf,
+} from "variant";
 
-import { avg, count, max, min, p95, p99, sum } from './agg';
+import { avg, count, max, min, p95, p99, sum } from "./agg";
 
 export const SERVICE_ID = "Stats";
 export type ServiceTag = { service: typeof SERVICE_ID };

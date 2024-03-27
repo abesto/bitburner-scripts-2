@@ -89,12 +89,23 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
       });
     }, 1000);
 
-    // Report latency
     timers.setInterval(() => {
+      // Report latency
       const latency = this.latency.splice(0, this.latency.length);
       this.stats.record("scheduler.latency.avg", agg.avg(latency));
       this.stats.record("scheduler.latency.p95", agg.p95(latency));
-    }, 1000);
+
+      // Report capacity
+      const capacity = this.exploreCapacity();
+      const totalMem = capacity.reduce((a, b) => a + b.totalMem, 0);
+      const freeMem = capacity.reduce((a, b) => a + b.freeMem, 0);
+      this.stats.record("scheduler.capacity.total", totalMem);
+      this.stats.record("scheduler.capacity.free", freeMem);
+      this.stats.record(
+        "scheduler.capacity.usedPct",
+        Math.round(((totalMem - freeMem) / totalMem) * 100)
+      );
+    }, 500);
   }
   protected override async handleRequest(
     request: Identity<Request> | null

@@ -59,9 +59,11 @@ class Monitor {
 
   private readonly sparklines: {
     money: Sparkline;
+    moneyDelta: Sparkline;
     security: Sparkline;
     threads: Sparkline;
     schedulerLatency: Sparkline;
+    capacityUsed: Sparkline;
   };
 
   constructor(
@@ -83,6 +85,12 @@ class Monitor {
         format: this.fmt.moneyShort.bind(this.fmt),
         valueMin: 0,
         valueMax: this.maxMoney,
+      }),
+      moneyDelta: new Sparkline(this.ns, {
+        width: sparklineWidth,
+        agg: agg.max,
+        format: this.fmt.moneyShort.bind(this.fmt),
+        valueMin: 0,
       }),
 
       security: new Sparkline(this.ns, {
@@ -110,6 +118,16 @@ class Monitor {
       }).warn
         .gt(100)
         .crit.gt(300),
+
+      capacityUsed: new Sparkline(this.ns, {
+        width: sparklineWidth,
+        agg: agg.avg,
+        valueMin: 0,
+        valueMax: 100,
+        format: this.fmt.int.bind(this.fmt),
+      }).warn
+        .ge(80)
+        .crit.gt(90),
     };
   }
 
@@ -162,14 +180,16 @@ class Monitor {
       this.ns.getServerSecurityLevel(this.host)
     );
     this.recordThreads(memdb);
+    this.stats.record("player.money", this.ns.getPlayer().money);
   }
 
   fetch(
     metric: string,
-    agg: keyof typeof AGG_MAP,
-    t0: number
+    t0: number,
+    agg?: keyof typeof AGG_MAP
   ): Promise<TSEvent[] | "not-found"> {
-    return this.stats.get(metric, "none", this.now - t0 * this.sparklineWidth);
+    const getAgg = agg ? { bucketLength: t0, agg } : "none";
+    return this.stats.get(metric, getAgg, this.now - t0 * this.sparklineWidth);
   }
 
   render(
@@ -196,41 +216,30 @@ class Monitor {
     }
   }
 
-  async fetchAndRender(
-    metric: string,
-    title: string,
-    agg: keyof typeof AGG_MAP,
-    sparkline: Sparkline,
-    t0: number
-  ) {
-    const data = await this.fetch(metric, agg, t0);
-    this.render(metric, title, data, sparkline, t0);
-  }
-
   async report(input: { t0: number; moneyThreshold: number }) {
     await this.record();
     this.now = Date.now();
 
     const threads = {
-      hack: await this.fetch(`hwgw.${this.host}.hack`, "avg", input.t0),
-      weaken: await this.fetch(`hwgw.${this.host}.weaken`, "avg", input.t0),
-      grow: await this.fetch(`hwgw.${this.host}.grow`, "avg", input.t0),
+      hack: await this.fetch(`hwgw.${this.host}.hack`, input.t0),
+      weaken: await this.fetch(`hwgw.${this.host}.weaken`, input.t0),
+      grow: await this.fetch(`hwgw.${this.host}.grow`, input.t0),
     };
-    const money = await this.fetch(
-      `server.${this.host}.money`,
-      "min",
-      input.t0
-    );
-    const security = await this.fetch(
-      `server.${this.host}.security`,
-      "max",
-      input.t0
-    );
+    const money = await this.fetch(`server.${this.host}.money`, input.t0);
+    const moneyDelta = await this.fetch("player.money", input.t0);
+    const security = await this.fetch(`server.${this.host}.security`, input.t0);
     const schedulerLatency = {
-      avg: await this.fetch("scheduler.latency.avg", "avg", input.t0),
-      p95: await this.fetch("scheduler.latency.p95", "avg", input.t0),
+      avg: await this.fetch("scheduler.latency.avg", input.t0),
+      p95: await this.fetch("scheduler.latency.p95", input.t0),
     };
+    const capacityUsed = await this.fetch(
+      "scheduler.capacity.usedPct",
+      input.t0
+    );
     this.ns.clearLog();
+
+    const positive = transform.max(0);
+    const negative = transform.min(0);
 
     const kw: { [key: string]: string | number } = {
       t0: this.fmt.timeSeconds(input.t0),
@@ -249,6 +258,13 @@ class Monitor {
         .crit.le(this.maxMoney * input.moneyThreshold ** 2),
       input.t0
     );
+    this.render(
+      "player.money",
+      "Player Money Delta",
+      transform.derivative(moneyDelta),
+      this.sparklines.moneyDelta,
+      input.t0
+    );
     this.ns.printf("\n\n");
 
     // Security
@@ -262,21 +278,11 @@ class Monitor {
     this.ns.printf("\n\n");
 
     // Threads
-    if (
-      threads.hack === "not-found" ||
-      threads.weaken === "not-found" ||
-      threads.grow === "not-found"
-    ) {
-      this.log.error("Threads not found");
-      return;
-    }
     const derivatives = {
       hack: transform.derivative(threads.hack),
       weaken: transform.derivative(threads.weaken),
       grow: transform.derivative(threads.grow),
     };
-    const positive = transform.max(0);
-    const negative = transform.min(0);
 
     // Started
     for (const kind of ["hack", "weaken", "grow"] as const) {
@@ -327,6 +333,15 @@ class Monitor {
       "P95 Scheduler Latency",
       schedulerLatency.p95,
       this.sparklines.schedulerLatency,
+      input.t0
+    );
+
+    // Capacity used
+    this.render(
+      "scheduler.capacity.usedPct",
+      "Capacity Used %",
+      capacityUsed,
+      this.sparklines.capacityUsed,
       input.t0
     );
   }

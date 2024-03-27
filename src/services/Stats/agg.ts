@@ -1,4 +1,4 @@
-import { eventTime, eventValue, Time, TSEvent, Value } from './types';
+import { eventTime, eventValue, Time, TSEvent, Value } from "./types";
 
 export type Agg = (values: Value[]) => Value;
 

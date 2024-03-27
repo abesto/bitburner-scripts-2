@@ -1,11 +1,17 @@
-import { match } from 'variant';
+import { match } from "variant";
 
-import { BaseService, HandleRequestResult } from '../common/BaseService';
-import { TimerManager } from '../TimerManager';
-import { rebucket } from './agg';
+import { BaseService, HandleRequestResult } from "../common/BaseService";
+import { TimerManager } from "../TimerManager";
+import { rebucket } from "./agg";
 import {
-    AGG_MAP, eventValue, SERVICE_ID, StatsRequest, StatsResponse, Time, TSEvent
-} from './types';
+  AGG_MAP,
+  eventValue,
+  SERVICE_ID,
+  StatsRequest,
+  StatsResponse,
+  Time,
+  TSEvent,
+} from "./types";
 
 // TODO degrade resolution over time
 const RETENTION_MS = 10 * 60 * 1000;
@@ -49,6 +55,7 @@ export class StatsService extends BaseService<
 
   private record(request: StatsRequest<"record">): void {
     const { series, event } = request;
+    this.log.info("record", { series, event });
     if (eventValue(event) === null) {
       return;
     }

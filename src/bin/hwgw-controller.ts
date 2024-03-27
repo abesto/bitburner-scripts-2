@@ -58,7 +58,7 @@ export async function main(ns: NS): Promise<void> {
   // Start monitor
   await schedulerClient.start(
     {
-      script: "bin/hwgw-monitor.js",
+      script: "/bin/hwgw-monitor.js",
       args: [host],
       threads: 1,
     },
@@ -164,7 +164,7 @@ export async function main(ns: NS): Promise<void> {
     try {
       const { jobId } = await schedulerClient.start(
         {
-          script: "bin/hwgw-batch.js",
+          script: "/bin/hwgw-batch.js",
           args: [
             host,
             hack_start.toString(),
@@ -344,7 +344,7 @@ export async function main(ns: NS): Promise<void> {
       const weak_delay_2 = batchEnd - 1 * t0 - weak_time;
 
       const { jobId, threads } = await schedulerClient.start({
-        script: "bin/hwgw-batch.js",
+        script: "/bin/hwgw-batch.js",
         args: [
           host,
           hack_delay.toString(),
