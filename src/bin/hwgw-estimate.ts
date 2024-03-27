@@ -1,9 +1,9 @@
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import HwgwEstimator from '/HwgwEstimator';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
+import { Fmt } from "/fmt";
+import HwgwEstimator from "/HwgwEstimator";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
 
 export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);
@@ -30,7 +30,11 @@ export async function main(ns: NS): Promise<void> {
   });
   log.tinfo(
     "Stable",
-    await estimator.stableMaxDepth(host, moneyThresholdConfig)
+    await estimator.stableMaxDepth(
+      host,
+      memdb.config.hwgw.moneyThreshold,
+      memdb.config.simpleHack.moneyThreshold
+    )
   );
 }
 

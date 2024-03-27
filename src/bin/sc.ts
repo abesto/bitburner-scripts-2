@@ -21,6 +21,42 @@ import {
 
 const SCHEDULER_SCRIPT = "bin/services/Scheduler.js";
 
+const USAGE = `
+Usage: sc <command> [args]
+
+SCHEDULER OPERATIONS:
+  start-daemon    Start the scheduler daemon
+  stop-daemon     Stop the scheduler daemon
+  restart-daemon  Restart the scheduler daemon
+  tail-daemon     Tail logs of the scheduler daemon
+  capacity        Show capacity of all hosts
+
+SERVICE OPERATIONS:
+  services               Show all services
+  reload                 Reload service specs
+  service-status <name>  Show status of a service
+  start-service <name>   Start a service
+  stop-service <name>    Stop a service
+  restart-service <name> Restart a service
+  enable-service <name>  Enable a service: keep it running
+  disable-service <name> Disable a service
+  tail-service <name>    Tail logs of a service
+
+JOB OPERATIONS:
+  status           Show status of all jobs
+  start            Start a job
+  run              Start a job and wait for it to finish
+  kill-all         Kill all jobs
+  kill-job <jobId> Kill a job
+  tail-task <jobId> <taskId>
+      Tail logs of a task. Use 'status --verbose' to find 'jobId' and 'taskId'.
+
+OPTIONS:
+  --threads <n>  Number of threads to use (start, run)
+  --stail        Tail logs of the started job (start, run, start-daemon)
+  --verbose      Show more details (status, capacity, service-status)
+`;
+
 export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
   const log = new Log(ns, "sc");
@@ -65,7 +101,10 @@ export async function main(ns: NS): Promise<void> {
   if (impl) {
     await impl();
   } else {
-    log.terror("Invalid command", { command });
+    if (command) {
+      log.terror("Invalid command", { command });
+    }
+    ns.tprint(USAGE);
   }
 
   async function start() {

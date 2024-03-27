@@ -1,10 +1,10 @@
-import { NetscriptPort, NS, PortData } from '@ns';
+import { NetscriptPort, NS } from "@ns";
 
-import { SERVICE_ID as DATABASE } from './services/Database/types';
-import { SERVICE_ID as HWGW_BATCH_VIZ } from './services/HWGwBatchViz/types';
-import { SERVICE_ID as PORT_REGISTRY } from './services/PortRegistry/types';
-import { SERVICE_ID as SCHEDULER } from './services/Scheduler/types';
-import { SERVICE_ID as STATS } from './services/Stats/types';
+import { SERVICE_ID as DATABASE } from "./services/Database/types";
+import { SERVICE_ID as HWGW_BATCH_VIZ } from "./services/HwgwBatchViz/types";
+import { SERVICE_ID as PORT_REGISTRY } from "./services/PortRegistry/types";
+import { SERVICE_ID as SCHEDULER } from "./services/Scheduler/types";
+import { SERVICE_ID as STATS } from "./services/Stats/types";
 
 export const PORTS = {
   [SCHEDULER]: 1,
@@ -31,8 +31,8 @@ const ping = JSON.stringify({ type: "ping" });
 
 export async function waitForMessage(
   port: NetscriptPort,
-  pred: (data: PortData) => boolean
-): Promise<PortData> {
+  pred: (data: any) => boolean
+): Promise<any> {
   while (port.empty() || !pred(port.peek())) {
     // Ignore pings
     if (port.peek() === ping) {

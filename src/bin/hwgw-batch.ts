@@ -5,7 +5,7 @@ import { Formulas } from "/Formulas";
 import { Log } from "/log";
 import { db } from "/services/Database/client";
 import { HwgwBatchVizClient } from "/services/HwgwBatchViz/client";
-import { JobKind } from "/services/HWGwBatchViz/types";
+import { JobKind } from "/services/HwgwBatchViz/types";
 import { PortRegistryClient } from "/services/PortRegistry/client";
 import {
   NoResponseSchedulerClient,

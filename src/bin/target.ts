@@ -4,11 +4,27 @@ import { discoverServers } from "/discoverServers";
 import { Fmt } from "/fmt";
 import HwgwEstimator from "/HwgwEstimator";
 import { Log } from "/log";
+import { withClient } from "/services/client_factory";
 import { db } from "/services/Database/client";
+import { SchedulerClient } from "/services/Scheduler/client";
 
 export async function main(ns: NS): Promise<void> {
+  const args = ns.flags([["ram", false]]);
   const log = new Log(ns, "target");
+  const fmt = new Fmt(ns);
+
   const estimator = new HwgwEstimator(ns);
+
+  const capacity = await withClient(
+    SchedulerClient,
+    ns,
+    log,
+    async (client) => {
+      const resp = await client.capacity();
+      return resp.capacity.reduce((acc, cur) => acc + cur.freeMem, 0);
+    }
+  );
+  log.tinfo("Capacity", { capacity: fmt.memory(capacity) });
 
   const memdb = await db(ns, log);
 
@@ -17,18 +33,21 @@ export async function main(ns: NS): Promise<void> {
 
   const data = [];
   for (const server of servers) {
-    if (data.length >= 10) {
-      break;
-    }
     const maxMoney = ns.getServerMaxMoney(server);
     if (maxMoney === 0 || ns.hackAnalyze(server) === 0) {
       continue;
     }
+
     const estimate = await estimator.stableMaxDepth(
       server,
       memdb.config.hwgw.moneyThreshold,
       memdb.config.simpleHack.moneyThreshold
     );
+
+    if (args.ram && estimate.peakRam > capacity) {
+      continue;
+    }
+
     data.push({
       server,
       maxMoney,
@@ -36,11 +55,11 @@ export async function main(ns: NS): Promise<void> {
     });
   }
 
-  const fmt = new Fmt(ns);
-  for (const item of data.slice(0, 20)) {
+  for (const item of data) {
     const requiredHackingLevel = ns.getServerRequiredHackingLevel(item.server);
 
     log.tinfo(item.server, {
+      weight: Weight(ns, item.server),
       hackLevel: requiredHackingLevel,
       ...item,
       maxMoney: fmt.money(item.maxMoney),

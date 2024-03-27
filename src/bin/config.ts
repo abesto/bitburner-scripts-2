@@ -1,9 +1,9 @@
-import { AutocompleteData, NS } from '@ns';
+import { AutocompleteData, NS } from "@ns";
 
-import { DEFAULT_DB } from '/database';
-import { highlightValue } from '/fmt';
-import { Log } from '/log';
-import { db, dbLock } from '/services/Database/client';
+import { DEFAULT_DB } from "/database";
+import { highlightValue } from "/fmt";
+import { Log } from "/log";
+import { db, dbLock } from "/services/Database/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "config");
@@ -27,7 +27,8 @@ export async function main(ns: NS): Promise<void> {
   } else if (command === "set") {
     const key = ns.args[1] as string;
     const value = ns.args[2] as string;
-    if (!key || !value) {
+    if (key === undefined || value === undefined) {
+      log.terror("Usage: run config.js get [key]");
       log.terror("Usage: run config.js set <key> <value>");
       return;
     }

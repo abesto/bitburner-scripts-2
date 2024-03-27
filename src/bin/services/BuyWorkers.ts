@@ -1,8 +1,8 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import { Log } from '/log';
-import { db } from '/services/Database/client';
+import { Fmt } from "/fmt";
+import { Log } from "/log";
+import { db } from "/services/Database/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "BuyWorkers");
@@ -63,19 +63,30 @@ export async function main(ns: NS): Promise<void> {
     });
     for (const server of servers) {
       const startRam = ns.getServerMaxRam(server);
-      let ram;
-      for (
-        ram = startRam;
+
+      let ram = startRam;
+      while (
         ram < ns.getPurchasedServerMaxRam() &&
-        ns.getPurchasedServerUpgradeCost(server, ram) <=
-          ns.getPlayer().money - reserveMoney;
-        ram *= 2
+        ns.getPurchasedServerUpgradeCost(server, ram * 2) <=
+          ns.getPlayer().money - reserveMoney
       ) {
-        ns.upgradePurchasedServer(server, ram);
+        ram *= 2;
       }
+
       if (ram > startRam) {
-        log.info("Upgraded server", { server, ram: fmt.memory(ram * 2) });
-        upgraded.push(server);
+        if (ns.upgradePurchasedServer(server, ram)) {
+          log.error("Failed to upgrade server", {
+            server,
+            ram: fmt.memory(ram),
+          });
+        } else {
+          log.info("Upgraded server", {
+            server,
+            ram: fmt.memory(ram),
+            startRam: fmt.memory(startRam),
+          });
+          upgraded.push(server);
+        }
       }
     }
     return upgraded;
