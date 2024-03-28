@@ -1,8 +1,8 @@
 /* eslint-disable no-constant-condition */
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Fmt } from '/fmt';
-import { getProcessInfo } from '/procinfo';
+import { Fmt } from "/fmt";
+import { getProcessInfo } from "/procinfo";
 
 export async function main(ns: NS): Promise<void> {
   const fmt = new Fmt(ns);

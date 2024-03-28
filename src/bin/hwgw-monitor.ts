@@ -31,11 +31,11 @@ export async function main(ns: NS): Promise<void> {
   let lastRun;
   const monitor = await Monitor.new(ns, log, host);
   const memdb = await db(ns, log);
-  const t0 = memdb.config.hwgw.spacing;
-  const moneyThreshold = memdb.config.hwgw.moneyThreshold;
   // eslint-disable-next-line no-constant-condition
   while (true) {
     lastRun = Date.now();
+    const t0 = memdb.config.hwgw.spacing;
+    const moneyThreshold = memdb.config.hwgw.moneyThreshold;
     try {
       await monitor.report({
         t0,
@@ -261,7 +261,7 @@ class Monitor {
     this.render(
       "player.money",
       "Player Money Delta",
-      transform.derivative(moneyDelta),
+      positive(transform.derivative(moneyDelta)),
       this.sparklines.moneyDelta,
       input.t0
     );
