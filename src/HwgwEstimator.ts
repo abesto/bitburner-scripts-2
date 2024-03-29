@@ -72,12 +72,47 @@ export default class HwgwEstimator {
     // Leave headroom for infrastructure
     const totalMem = capacity.reduce((acc, cur) => acc + cur.totalMem, 0) - 22;
 
+    const formulas = new Formulas(this.ns);
+    const hackThreads = formulas.hacksFromToMoneyRatio(
+      server,
+      1,
+      hwgwMoneyThresholdConfig
+    );
+    const hackWeakenThreads = formulas.weakenAfterHacks(hackThreads);
+
+    const moneyMax = server.moneyMax || 0;
+    const moneyStolenPerThread =
+      this.ns.hackAnalyze(server.hostname) * moneyMax;
+    const moneyAfterHack = moneyMax - moneyStolenPerThread * hackThreads;
+    const growThreads = formulas.growthFromToMoneyRatio(
+      server,
+      moneyAfterHack / moneyMax,
+      1
+    );
+    const growWeakenThreads = formulas.weakenAfterGrows(growThreads);
+
+    const weak_time = formulas.getWeakenTime(server);
+    const grow_time = formulas.getGrowTime(server);
+    const hack_time = formulas.getHackTime(server);
+
+    const cache = {
+      spacingConfig,
+      hackThreads,
+      hackWeakenThreads,
+      moneyStolenPerThread,
+      growThreads,
+      growWeakenThreads,
+      weak_time,
+      grow_time,
+      hack_time,
+    };
+
     let maxDepth = 1;
     let stable = await this.stable(
       server,
       hwgwMoneyThresholdConfig,
       maxDepth,
-      spacingConfig
+      cache
     );
     while (stable.peakRam < totalMem && maxDepth < 50) {
       if (stable.peakRam === 0) {
@@ -86,7 +121,7 @@ export default class HwgwEstimator {
             server,
             hwgwMoneyThresholdConfig,
             maxDepth - 1,
-            spacingConfig
+            cache
           );
         }
         break;
@@ -95,7 +130,7 @@ export default class HwgwEstimator {
         server,
         hwgwMoneyThresholdConfig,
         ++maxDepth,
-        spacingConfig
+        cache
       );
     }
 
@@ -119,7 +154,27 @@ export default class HwgwEstimator {
     server: Server,
     moneyThresholdConfig: number,
     maxDepthConfig: number,
-    spacingConfig: number | undefined = undefined
+    {
+      spacingConfig,
+      hackThreads,
+      hackWeakenThreads,
+      moneyStolenPerThread,
+      growThreads,
+      growWeakenThreads,
+      weak_time,
+      grow_time,
+      hack_time,
+    }: {
+      spacingConfig?: number;
+      hackThreads?: number;
+      hackWeakenThreads?: number;
+      moneyStolenPerThread?: number;
+      growThreads?: number;
+      growWeakenThreads?: number;
+      weak_time?: number;
+      grow_time?: number;
+      hack_time?: number;
+    } = {}
   ): Promise<{
     hackMax: number;
     growMax: number;
@@ -133,27 +188,26 @@ export default class HwgwEstimator {
       spacingConfig || (await db(this.ns, this.log)).config.hwgw.spacing;
     const formulas = new Formulas(this.ns);
 
-    const hackThreads = formulas.hacksFromToMoneyRatio(
+    hackThreads ??= formulas.hacksFromToMoneyRatio(
       server,
       1,
       moneyThresholdConfig
     );
-    const hackWeakenThreads = formulas.weakenAfterHacks(hackThreads);
+    hackWeakenThreads ??= formulas.weakenAfterHacks(hackThreads);
 
     const moneyMax = server.moneyMax || 0;
-    const moneyStolenPerThread =
-      this.ns.hackAnalyze(server.hostname) * moneyMax;
+    moneyStolenPerThread ??= this.ns.hackAnalyze(server.hostname) * moneyMax;
     const moneyAfterHack = moneyMax - moneyStolenPerThread * hackThreads;
-    const growThreads = formulas.growthFromToMoneyRatio(
+    growThreads ??= formulas.growthFromToMoneyRatio(
       server,
       moneyAfterHack / moneyMax,
       1
     );
-    const growWeakenThreads = formulas.weakenAfterGrows(growThreads);
+    growWeakenThreads ??= formulas.weakenAfterGrows(growThreads);
 
-    const weak_time = formulas.getWeakenTime(server);
-    const grow_time = formulas.getGrowTime(server);
-    const hack_time = formulas.getHackTime(server);
+    weak_time ??= formulas.getWeakenTime(server);
+    grow_time ??= formulas.getGrowTime(server);
+    hack_time ??= formulas.getHackTime(server);
 
     const stalefishResult = stalefish({
       grow_time_max: grow_time,
