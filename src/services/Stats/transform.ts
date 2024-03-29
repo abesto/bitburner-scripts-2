@@ -67,3 +67,23 @@ export function sum(
 
   return result;
 }
+
+export function fillWithZeros(
+  events: TSEvent[] | "not-found",
+  timeMin: number,
+  timeMax: number,
+  resolution: number
+): TSEvent[] | "not-found" {
+  if (events === "not-found") return events;
+  const result: TSEvent[] = [];
+  let ei = 0;
+  for (let time = timeMin; time <= timeMax; time += resolution) {
+    if (ei < events.length && eventTime(events[ei]) <= time) {
+      result.push(events[ei]);
+      ei++;
+    } else {
+      result.push([time, 0]);
+    }
+  }
+  return result;
+}

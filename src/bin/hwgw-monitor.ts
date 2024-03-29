@@ -190,13 +190,20 @@ class Monitor {
     this.stats.record("player.money", this.ns.getPlayer().money);
   }
 
-  fetch(
+  async fetch(
     metric: string,
     t0: number,
     agg?: keyof typeof AGG_MAP
   ): Promise<TSEvent[] | "not-found"> {
     const getAgg = agg ? { bucketLength: t0, agg } : "none";
-    return this.stats.get(metric, getAgg, this.now - t0 * this.sparklineWidth);
+    const timeMax = this.now;
+    const timeMin = timeMax - t0 * this.sparklineWidth;
+    return transform.fillWithZeros(
+      await this.stats.get(metric, getAgg, timeMin),
+      timeMin,
+      timeMax,
+      t0
+    );
   }
 
   render(
@@ -300,12 +307,13 @@ class Monitor {
     const hackedAmount = await this.fetch(`hack.${this.host}`, input.t0);
     const security = await this.fetch(`server.${this.host}.security`, input.t0);
     const schedulerLatency = {
-      avg: await this.fetch("scheduler.latency.avg", input.t0),
-      p95: await this.fetch("scheduler.latency.p95", input.t0),
+      avg: await this.fetch("scheduler.latency.avg", input.t0, "avg"),
+      p95: await this.fetch("scheduler.latency.p95", input.t0, "avg"),
     };
     const capacityUsed = await this.fetch(
       "scheduler.capacity.usedPct",
-      input.t0
+      input.t0,
+      "avg"
     );
     this.ns.clearLog();
 
