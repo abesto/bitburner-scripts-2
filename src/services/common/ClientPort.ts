@@ -1,9 +1,9 @@
-import { NetscriptPort, NS } from '@ns';
+import { NetscriptPort, NS } from "@ns";
 
-import { VariantModule } from 'variant';
-import { SumType } from 'variant/lib/variant';
+import { VariantModule } from "variant";
+import { SumType } from "variant/lib/variant";
 
-import { Log } from '/log';
+import { Log } from "/log";
 
 export interface ClientWriteOptions {
   backoff?: boolean;
@@ -28,9 +28,9 @@ export class ClientPort<T extends VariantModule> {
     if (this.port === null) {
       return null;
     }
-    const old = this.port.write(JSON.stringify(data));
+    const old = this.port.write(data);
     if (old !== null) {
-      return JSON.parse(old as string);
+      return old;
     }
     return null;
   }
@@ -40,7 +40,7 @@ export class ClientPort<T extends VariantModule> {
       return;
     }
     const backoff = options?.backoff ?? true;
-    let old = this.port.write(JSON.stringify(data));
+    let old = this.port.write(data);
     await this.ns.sleep(0);
     if (!backoff) {
       if (old !== null) {

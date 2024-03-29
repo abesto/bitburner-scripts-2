@@ -1,12 +1,12 @@
-import { NetscriptPort, NS } from '@ns';
+import { NetscriptPort, NS } from "@ns";
 
-import { VariantModule } from 'variant';
-import { SumType } from 'variant/lib/variant';
+import { VariantModule } from "variant";
+import { SumType } from "variant/lib/variant";
 
-import { Log } from '/log';
-import { PORTS } from '/ports';
+import { Log } from "/log";
+import { PORTS } from "/ports";
 
-import { toMessage } from './types';
+import { toMessage } from "./types";
 
 export type ReadOptions = {
   timeout?: number;
@@ -49,8 +49,7 @@ export class ServerPort<T extends VariantModule> {
       return null;
     }
     try {
-      const json = JSON.parse(data.toString());
-      const parsed = this.parse(json);
+      const parsed = this.parse(data);
       if (parsed === null) {
         this.log.terror("Failed to parse message", { data });
       }
@@ -70,8 +69,7 @@ export class ServerPort<T extends VariantModule> {
         continue;
       }
       try {
-        const json = JSON.parse(data.toString());
-        const parsed = this.parse(json);
+        const parsed = this.parse(data);
         if (parsed === null) {
           this.log.terror("Failed to parse message", { data });
         } else {

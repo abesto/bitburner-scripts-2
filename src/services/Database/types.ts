@@ -35,8 +35,8 @@ export type UnlockResult = "ok" | "not-locked" | "locked-by-other";
 export const DatabaseResponse = variantModule(
   augmented(() => SERVICE_TAG, {
     read: fields<{ db: DB }>(),
-    lock: payload<"ack" | string>(),
-    lockDeferred: payload<string>(),
+    lock: payload<"ack" | DB>(),
+    lockDeferred: payload<DB>(),
     unlock: fields<{ result: UnlockResult }>(),
     writeAndUnlock: fields<{
       result: UnlockResult;

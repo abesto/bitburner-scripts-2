@@ -123,7 +123,7 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
     if (memdb.meta.currentLock === null) {
       memdb.meta.currentLock = request.lockData;
       this.saveToDisk(memdb);
-      this.respond(responsePort, Response.lock(JSON.stringify(memdb)));
+      this.respond(responsePort, Response.lock(memdb));
     } else {
       memdb.meta.lockQueue.push(request.lockData);
       this.respond(responsePort, Response.lock("ack"));
@@ -132,10 +132,7 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
 
   private doNextLock(memdb: DB, nextLock: LockData): void {
     memdb.meta.currentLock = nextLock;
-    this.respond(
-      nextLock.responsePort,
-      Response.lockDeferred(JSON.stringify(memdb))
-    );
+    this.respond(nextLock.responsePort, Response.lockDeferred(memdb));
   }
 
   unlock(request: Request<"unlock">, newDb: DB | null = null): void {

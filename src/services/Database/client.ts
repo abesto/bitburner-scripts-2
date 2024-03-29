@@ -55,11 +55,11 @@ export class DatabaseClient extends BaseClient<
       }
     );
     if (resp.payload !== "ack") {
-      return JSON.parse(resp.payload) as DB;
+      return resp.payload;
     } else {
       return await this.receive(
         {
-          lockDeferred: (response) => JSON.parse(response.payload) as DB,
+          lockDeferred: (response) => response.payload,
         },
         { timeout: Infinity }
       );
