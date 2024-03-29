@@ -34,7 +34,7 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
     if (this.ns.getHostname() !== "home") {
       throw new Error("DatabaseService must be run on home");
     }
-    if (!this.ns.fileExists(DB_PATH)) {
+    if (this.ns.read(DB_PATH) == "") {
       this.ns.write(DB_PATH, "{}", "w");
       this.log.tinfo("Initialized empty database file at " + DB_PATH);
     }
