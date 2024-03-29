@@ -2,7 +2,7 @@
 import { AutocompleteData, NS, Player, Server } from "@ns";
 
 import { autonuke } from "/autonuke";
-import { DB } from "/database";
+import { DB, DEFAULT_DB } from "/database";
 import { Fmt } from "/fmt";
 import { Formulas, stalefish } from "/Formulas";
 import HwgwEstimator from "/HwgwEstimator";
@@ -261,11 +261,14 @@ class HwgwController {
   async calculateMaxDepth(oldMemdb: DB): Promise<number> {
     let maxDepth = oldMemdb.config.hwgw.maxDepth;
     try {
-      const newMemdb = await db(this.ns, this.log);
+      const newMemdb = await db(this.ns, this.log, false, true);
       const { depth: etaMaxDepth } = await this.estimator.stableMaxDepth(
         this.server,
-        newMemdb.config.hwgw.moneyThreshold,
-        newMemdb.config.simpleHack.moneyThreshold
+        newMemdb.config.hwgw.moneyThreshold ??
+          DEFAULT_DB.config.hwgw.moneyThreshold,
+        newMemdb.config.simpleHack.moneyThreshold ??
+          DEFAULT_DB.config.simpleHack.moneyThreshold,
+        newMemdb.config.hwgw.spacing ?? DEFAULT_DB.config.hwgw.spacing
       );
       if (etaMaxDepth < maxDepth) {
         maxDepth = etaMaxDepth;

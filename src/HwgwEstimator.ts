@@ -51,7 +51,8 @@ export default class HwgwEstimator {
   async stableMaxDepth(
     server: Server,
     hwgwMoneyThresholdConfig: number,
-    simpleMoneyThresholdConfig: number
+    simpleMoneyThresholdConfig: number,
+    spacingConfig: number | undefined = undefined
   ): Promise<{
     hackMax: number;
     growMax: number;
@@ -72,19 +73,30 @@ export default class HwgwEstimator {
     const totalMem = capacity.reduce((acc, cur) => acc + cur.totalMem, 0) - 22;
 
     let maxDepth = 1;
-    let stable = await this.stable(server, hwgwMoneyThresholdConfig, maxDepth);
+    let stable = await this.stable(
+      server,
+      hwgwMoneyThresholdConfig,
+      maxDepth,
+      spacingConfig
+    );
     while (stable.peakRam < totalMem && maxDepth < 50) {
       if (stable.peakRam === 0) {
         if (maxDepth > 1) {
           stable = await this.stable(
             server,
             hwgwMoneyThresholdConfig,
-            maxDepth - 1
+            maxDepth - 1,
+            spacingConfig
           );
         }
         break;
       }
-      stable = await this.stable(server, hwgwMoneyThresholdConfig, ++maxDepth);
+      stable = await this.stable(
+        server,
+        hwgwMoneyThresholdConfig,
+        ++maxDepth,
+        spacingConfig
+      );
     }
 
     let period = stable.period;
@@ -106,7 +118,8 @@ export default class HwgwEstimator {
   async stable(
     server: Server,
     moneyThresholdConfig: number,
-    maxDepthConfig: number
+    maxDepthConfig: number,
+    spacingConfig: number | undefined = undefined
   ): Promise<{
     hackMax: number;
     growMax: number;
@@ -116,7 +129,8 @@ export default class HwgwEstimator {
     period: number;
     depth: number;
   }> {
-    const memdb = await db(this.ns, this.log);
+    const t0 =
+      spacingConfig || (await db(this.ns, this.log)).config.hwgw.spacing;
     const formulas = new Formulas(this.ns);
 
     const hackThreads = formulas.hacksFromToMoneyRatio(
@@ -140,7 +154,6 @@ export default class HwgwEstimator {
     const weak_time = formulas.getWeakenTime(server);
     const grow_time = formulas.getGrowTime(server);
     const hack_time = formulas.getHackTime(server);
-    const t0 = memdb.config.hwgw.spacing;
 
     const stalefishResult = stalefish({
       grow_time_max: grow_time,

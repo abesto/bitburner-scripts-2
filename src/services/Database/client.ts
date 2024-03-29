@@ -1,15 +1,21 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { deepmerge } from 'deepmerge-ts';
+import { deepmerge } from "deepmerge-ts";
 
-import { DB, DB_PATH, DEFAULT_DB } from '/database';
-import { Log } from '/log';
-import { getProcessInfo } from '/procinfo';
+import { DB, DB_PATH, DEFAULT_DB } from "/database";
+import { Log } from "/log";
+import { getProcessInfo } from "/procinfo";
 
-import { withClient } from '../client_factory';
-import { BaseClient } from '../common/BaseClient';
-import { id } from '../common/Result';
-import { DatabaseRequest, DatabaseResponse, LockData, SERVICE_ID, UnlockResult } from './types';
+import { withClient } from "../client_factory";
+import { BaseClient } from "../common/BaseClient";
+import { id } from "../common/Result";
+import {
+  DatabaseRequest,
+  DatabaseResponse,
+  LockData,
+  SERVICE_ID,
+  UnlockResult,
+} from "./types";
 
 export class DatabaseClient extends BaseClient<
   typeof DatabaseRequest,
@@ -24,7 +30,7 @@ export class DatabaseClient extends BaseClient<
 
   read(): Promise<DB> {
     return this.sendReceive(DatabaseRequest.read(this.rp()), {
-      read: (response) => JSON.parse(response.content) as DB,
+      read: (response) => response.db,
     });
   }
 
@@ -66,10 +72,10 @@ export class DatabaseClient extends BaseClient<
     });
   }
 
-  protected writeAndUnlock(content: DB): Promise<UnlockResult> {
+  protected writeAndUnlock(db: DB): Promise<UnlockResult> {
     return this.sendReceive(
       DatabaseRequest.writeAndUnlock({
-        content: JSON.stringify(content),
+        db,
         ...this.lockData(),
       }),
       {
@@ -112,7 +118,12 @@ export async function dbLock(
   });
 }
 
-export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
+export async function db(
+  ns: NS,
+  log: Log,
+  forceLocal = false,
+  skipDefaults = false
+): Promise<DB> {
   if (!ns.fileExists(DB_PATH)) {
     ns.write(DB_PATH, "{}", "w");
   }
@@ -127,6 +138,9 @@ export async function db(ns: NS, log: Log, forceLocal = false): Promise<DB> {
       log,
       async (client) => await client.read()
     );
+  }
+  if (skipDefaults) {
+    return contents;
   }
   return deepmerge(DEFAULT_DB, contents);
 }

@@ -112,7 +112,7 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
   read(request: Request<"read">): void {
     this.respond(
       request.responsePort,
-      Response.read({ content: JSON.stringify(this.loadFromDisk()) })
+      Response.read({ db: this.loadFromDisk() })
     );
   }
 
@@ -191,6 +191,6 @@ export class DatabaseService extends BaseService<typeof Request, Response> {
   }
 
   writeAndUnlock(request: Request<"writeAndUnlock">): void {
-    this.unlock(Request.unlock(request), JSON.parse(request.content));
+    this.unlock(Request.unlock(request), request.db);
   }
 }

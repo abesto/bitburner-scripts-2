@@ -1,4 +1,13 @@
-import { augmented, fields, payload, TypeNames, variantModule, VariantOf } from 'variant';
+import {
+  augmented,
+  fields,
+  payload,
+  TypeNames,
+  variantModule,
+  VariantOf,
+} from "variant";
+
+import { DB } from "/database";
 
 export const SERVICE_ID = "Database";
 export type ServiceTag = { service: typeof SERVICE_ID };
@@ -17,7 +26,7 @@ export const DatabaseRequest = variantModule(
     read: fields<{ responsePort: number }>(),
     lock: fields<{ lockData: LockData }>(),
     unlock: fields<{ lockData: LockData }>(),
-    writeAndUnlock: fields<{ lockData: LockData; content: string }>(),
+    writeAndUnlock: fields<{ lockData: LockData; db: DB }>(),
     status: fields<{ responsePort: number }>(),
   })
 );
@@ -25,7 +34,7 @@ export const DatabaseRequest = variantModule(
 export type UnlockResult = "ok" | "not-locked" | "locked-by-other";
 export const DatabaseResponse = variantModule(
   augmented(() => SERVICE_TAG, {
-    read: fields<{ content: string }>(),
+    read: fields<{ db: DB }>(),
     lock: payload<"ack" | string>(),
     lockDeferred: payload<string>(),
     unlock: fields<{ result: UnlockResult }>(),
