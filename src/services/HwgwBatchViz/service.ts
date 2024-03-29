@@ -1,12 +1,12 @@
-import { fields, match, TypeNames, variantModule, VariantOf } from 'variant';
+import { fields, match, TypeNames, variantModule, VariantOf } from "variant";
 
-import * as colors from '/colors';
+import * as colors from "/colors";
 
-import { BaseService, HandleRequestResult } from '../common/BaseService';
-import { db } from '../Database/client';
-import { JobId } from '../Scheduler/types';
-import { TimerManager } from '../TimerManager';
-import { HwgwBatchVizRequest, JobKind, SERVICE_ID } from './types';
+import { BaseService, HandleRequestResult } from "../common/BaseService";
+import { db } from "../Database/client";
+import { JobId } from "../Scheduler/types";
+import { TimerManager } from "../TimerManager";
+import { HwgwBatchVizRequest, JobKind, SERVICE_ID } from "./types";
 
 const JobState = variantModule({
   planned: fields<{
@@ -424,11 +424,11 @@ export class HwgwBatchVizService extends BaseService<
     );
     this.ns.printf("%s", ".".repeat(this.width));
     this.log.info("Legend", {
-      hack: jobColors.hack.normal(charNormal),
-      grow: jobColors.grow.normal(charNormal),
+      hack: jobColors["hack"].normal(charNormal),
+      grow: jobColors["grow"].normal(charNormal),
       "hack-weaken": jobColors["hack-weaken"].normal(charNormal),
       "grow-weaken": jobColors["grow-weaken"].normal(charNormal),
-      planned: jobColors.hack.planned(charNormal),
+      planned: jobColors["hack"].planned(charNormal),
       early: charEarly,
       late: charLate,
       ".": this.fmt.time(chartStep, true),
