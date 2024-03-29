@@ -38,11 +38,17 @@ export async function main(ns: NS): Promise<void> {
       continue;
     }
 
-    const estimate = await estimator.stableMaxDepth(
-      server,
-      memdb.config.hwgw.moneyThreshold,
-      memdb.config.simpleHack.moneyThreshold
-    );
+    let estimate;
+    try {
+      estimate = await estimator.stableMaxDepth(
+        server,
+        memdb.config.hwgw.moneyThreshold,
+        memdb.config.simpleHack.moneyThreshold
+      );
+    } catch (e) {
+      log.terror("Failed to estimate", { server, e });
+      continue;
+    }
 
     if (args.ram && estimate.peakRam > capacity) {
       continue;
