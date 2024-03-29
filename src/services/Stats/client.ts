@@ -1,4 +1,7 @@
+import { PORTS } from "/ports";
+
 import { BaseClient } from "../common/BaseClient";
+import { BaseNoResponseClient } from "../common/BaseNoResponseClient";
 import {
   GetAgg,
   SERVICE_ID,
@@ -41,5 +44,17 @@ export class StatsClient extends BaseClient<
         get: (resp) => resp.payload,
       }
     );
+  }
+}
+
+export class NoResponseStatsClient extends BaseNoResponseClient<
+  typeof StatsRequest
+> {
+  protected override requestPortNumber(): number {
+    return PORTS[SERVICE_ID];
+  }
+
+  record(series: string, value: Value): void {
+    this.sendSync(StatsRequest.record({ series, event: [Date.now(), value] }));
   }
 }

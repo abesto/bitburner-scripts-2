@@ -36,3 +36,34 @@ export function negate(
   if (events === "not-found") return events;
   return events.map(([time, value]) => [time, -value]);
 }
+
+export function sum(
+  a: TSEvent[] | "not-found",
+  b: TSEvent[] | "not-found"
+): TSEvent[] | "not-found" {
+  if (a === "not-found" && b !== "not-found") return b;
+  if (b === "not-found" && a !== "not-found") return a;
+  a = a as TSEvent[];
+  b = b as TSEvent[];
+
+  const result: TSEvent[] = [];
+  let ai = 0;
+  let bi = 0;
+  while (ai < a.length && bi < b.length) {
+    const [at, av] = a[ai];
+    const [bt, bv] = b[bi];
+    if (at === bt) {
+      result.push([at, av + bv]);
+      ai++;
+      bi++;
+    } else if (at < bt) {
+      result.push([at, av]);
+      ai++;
+    } else {
+      result.push([bt, bv]);
+      bi++;
+    }
+  }
+
+  return result;
+}

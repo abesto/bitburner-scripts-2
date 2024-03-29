@@ -70,6 +70,7 @@ class CodingContracts {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const solvers: { [type: string]: (raw: unknown) => string | number | any[] } =
   {};
+const tests: { [type: string]: { input: unknown; expected: unknown }[] } = {};
 
 solvers["<BROKEN> Array Jumping Game II"] = (raw: unknown) => {
   const data = raw as number[];
@@ -90,6 +91,7 @@ solvers["<BROKEN> Array Jumping Game II"] = (raw: unknown) => {
   }
   return jumpCounts[0];
 };
+tests["<BROKEN> Array Jumping Game II"] = [];
 
 solvers["Proper 2-Coloring of a Graph"] = (raw: unknown) => {
   // The first element of the data represents the number of vertices in the
@@ -134,38 +136,69 @@ solvers["Proper 2-Coloring of a Graph"] = (raw: unknown) => {
 
   return colors;
 };
-
-const tests: { [type: string]: { data: unknown; answer: unknown }[] } = {
-  "<BROKEN> Array Jumping Game II": [
-    // TODO next time it comes up
-  ],
-
-  "Proper 2-Coloring of a Graph": [
-    {
-      data: [
-        4,
-        [
-          [0, 2],
-          [0, 3],
-          [1, 2],
-          [1, 3],
-        ],
+tests["Proper 2-Coloring of a Graph"] = [
+  {
+    input: [
+      4,
+      [
+        [0, 2],
+        [0, 3],
+        [1, 2],
+        [1, 3],
       ],
-      answer: [0, 0, 1, 1],
-    },
-    {
-      data: [
-        3,
-        [
-          [0, 1],
-          [0, 2],
-          [1, 2],
-        ],
+    ],
+    expected: [0, 0, 1, 1],
+  },
+  {
+    input: [
+      3,
+      [
+        [0, 1],
+        [0, 2],
+        [1, 2],
       ],
-      answer: [],
-    },
-  ],
+    ],
+    expected: [],
+  },
+];
+
+solvers["HammingCodes: Integer to Encoded Binary"] = (raw: unknown) => {
+  /*
+   Convert it to a binary representation and encode it as an 'extended Hamming code'. Eg:
+  Value 8 is expressed in binary as '1000', which will be encoded with the pattern 'pppdpddd', where p is a parity bit and d a data bit. The encoding of
+ 8 is 11110000. As another example, '10101' (Value 21) will result into (pppdpdddpd) '1001101011'.
+ The answer should be given as a string containing only 1s and 0s.
+ NOTE: the endianness of the data bits is reversed in relation to the endianness of the parity bits.
+ NOTE: The bit at index zero is the overall parity bit, this should be set last.
+ NOTE 2: You should watch the Hamming Code video from 3Blue1Brown, which explains the 'rule' of encoding, including the first index parity bit mentioned in the previous note.
+
+ Extra rule for encoding:
+ There should be no leading zeros in the 'data bit' section
+ */
+  const data = raw as number;
+
+  const binary = data.toString(2).split("").reverse();
+  const parityBits = [0, 1, 3, 7];
+  const result: number[] = Array.from({ length: 11 }, () => 0);
+
+  for (let i = 0; i < binary.length; i++) {
+    result[parityBits[i]] = parseInt(binary[i]);
+  }
+
+  for (let i = 0; i < binary.length; i++) {
+    result[1 << i] = parseInt(binary[i]);
+  }
+
+  for (let i = 0; i < parityBits.length; i++) {
+    result[0] ^= result[parityBits[i]];
+  }
+
+  return result.join("");
 };
+tests["HammingCodes: Integer to Encoded Binary"] = [
+  { input: 8, expected: "11110000" },
+  { input: 21, expected: "1001101011" },
+];
 
 function runTests(ns: NS) {
   const log = new Log(ns, "CodingContracts/test");
@@ -174,19 +207,19 @@ function runTests(ns: NS) {
   let fail = 0;
 
   for (const type in tests) {
-    for (const { data, answer: expected } of tests[type]) {
+    for (const { input, expected } of tests[type]) {
       const solver = solvers[type];
       if (solver === undefined) {
         log.terror("Unknown contract type", { type });
         continue;
       }
 
-      const actual = solver(data);
+      const actual = solver(input);
       if (!deepEqual(actual, expected, { strict: true })) {
-        log.terror("Test failed", { type, data, expected, actual });
+        log.terror("Test failed", { type, input, expected, actual });
         fail += 1;
       } else {
-        log.tinfo("Test passed", { type, data, expected, actual });
+        log.tinfo("Test passed", { type, input, expected, actual });
         pass += 1;
       }
     }

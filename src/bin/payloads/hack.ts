@@ -1,8 +1,8 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import { Log } from '/log';
-import { NoResponseSchedulerClient } from '/services/Scheduler/client';
-import { StatsClient } from '/services/Stats/client';
+import { Log } from "/log";
+import { NoResponseSchedulerClient } from "/services/Scheduler/client";
+import { NoResponseStatsClient } from "/services/Stats/client";
 
 export async function main(ns: NS): Promise<void> {
   const log = new Log(ns, "grow");
@@ -24,7 +24,10 @@ export async function main(ns: NS): Promise<void> {
     await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
     return;
   }
-  await ns.hack(host);
-  // TODO report moneys
+
+  const hackedMonies = await ns.hack(host);
   await new NoResponseSchedulerClient(ns, log).taskFinished(jobId, taskId);
+
+  const stats = new NoResponseStatsClient(ns, log);
+  stats.record(`hack.${host}`, hackedMonies);
 }

@@ -2,6 +2,7 @@ import { NS } from "@ns";
 
 import { DB } from "/database";
 import { Fmt } from "/fmt";
+import * as layout from "/layout";
 import { Log } from "/log";
 import { db } from "/services/Database/client";
 import { PortRegistryClient } from "/services/PortRegistry/client";
@@ -12,21 +13,23 @@ import * as transform from "/services/Stats/transform";
 import { AGG_MAP, TSEvent } from "/services/Stats/types";
 
 export async function main(ns: NS): Promise<void> {
+  const flags = ns.flags([
+    ["job", ""],
+    ["task", ""],
+    ["overview", false],
+  ]);
+
   const log = new Log(ns, "hwgw-monitor");
-  const host = (
-    ns.flags([
-      ["job", ""],
-      ["task", ""],
-    ])._ as string[]
-  )[0];
-  if (!host) {
+  let host = (flags._ as string[])[0];
+  const overview = flags.overview as boolean;
+  if (!overview && !host) {
     throw new Error("missing host");
   }
+  if (overview) {
+    host = "n00dles";
+  }
 
-  ns.tail();
-  await ns.sleep(0);
-  ns.moveTail(1413, 350);
-  ns.resizeTail(1145, 890);
+  await layout.hwgwMonitor(ns);
 
   let lastRun;
   const monitor = await Monitor.new(ns, log, host);
@@ -37,10 +40,14 @@ export async function main(ns: NS): Promise<void> {
     const t0 = memdb.config.hwgw.spacing;
     const moneyThreshold = memdb.config.hwgw.moneyThreshold;
     try {
-      await monitor.report({
-        t0,
-        moneyThreshold,
-      });
+      if (overview) {
+        await monitor.reportOverview({ t0, moneyThreshold });
+      } else {
+        await monitor.reportHost({
+          t0,
+          moneyThreshold,
+        });
+      }
     } catch (e) {
       if (e instanceof Error) {
         log.error("Error", { message: e.message, stack: e.stack });
@@ -59,7 +66,7 @@ class Monitor {
 
   private readonly sparklines: {
     money: Sparkline;
-    moneyDelta: Sparkline;
+    hackedAmount: Sparkline;
     security: Sparkline;
     threads: Sparkline;
     schedulerLatency: Sparkline;
@@ -86,9 +93,9 @@ class Monitor {
         valueMin: 0,
         valueMax: this.maxMoney,
       }),
-      moneyDelta: new Sparkline(this.ns, {
+      hackedAmount: new Sparkline(this.ns, {
         width: sparklineWidth,
-        agg: agg.max,
+        agg: agg.sum,
         format: this.fmt.moneyShort.bind(this.fmt),
         valueMin: 0,
       }),
@@ -216,7 +223,71 @@ class Monitor {
     }
   }
 
-  async report(input: { t0: number; moneyThreshold: number }) {
+  async reportOverview(input: { t0: number; moneyThreshold: number }) {
+    this.now = Date.now();
+
+    const latency = await this.fetch("scheduler.latency.p95", input.t0, "avg");
+    const capacity = await this.fetch(
+      "scheduler.capacity.usedPct",
+      input.t0,
+      "avg"
+    );
+    const incomes: [string, TSEvent[] | "not-found"][] = [];
+    let totalIncome: TSEvent[] | "not-found" = "not-found";
+    for (const seriesName of await this.stats.listSeries("hack.")) {
+      const seriesData = await this.fetch(seriesName, input.t0, "sum");
+      totalIncome = transform.sum(totalIncome, seriesData);
+      incomes.push([seriesName, seriesData]);
+    }
+
+    this.ns.clearLog();
+
+    const kw: { [key: string]: string | number } = {
+      t0: this.fmt.timeSeconds(input.t0),
+      moneyThreshold: this.fmt.float(input.moneyThreshold),
+    };
+    this.log.info("Stalefish", kw);
+
+    this.render(
+      "scheduler.latency.p95",
+      "P95 Scheduler Latency",
+      latency,
+      this.sparklines.schedulerLatency,
+      input.t0
+    );
+
+    this.render(
+      "scheduler.capacity.usedPct",
+      "Capacity Used %",
+      capacity,
+      this.sparklines.capacityUsed,
+      input.t0
+    );
+
+    this.ns.printf("\n\n");
+
+    for (const [seriesName, seriesData] of incomes) {
+      this.render(
+        seriesName,
+        seriesName.split(".")[1] + " income",
+        seriesData,
+        this.sparklines.hackedAmount,
+        input.t0
+      );
+    }
+
+    this.ns.printf("\n\n");
+
+    this.render(
+      "hack.total",
+      "Total income",
+      totalIncome,
+      this.sparklines.hackedAmount,
+      input.t0
+    );
+  }
+
+  async reportHost(input: { t0: number; moneyThreshold: number }) {
     await this.record();
     this.now = Date.now();
 
@@ -226,7 +297,7 @@ class Monitor {
       grow: await this.fetch(`hwgw.${this.host}.grow`, input.t0),
     };
     const money = await this.fetch(`server.${this.host}.money`, input.t0);
-    const moneyDelta = await this.fetch("player.money", input.t0);
+    const hackedAmount = await this.fetch(`hack.${this.host}`, input.t0);
     const security = await this.fetch(`server.${this.host}.security`, input.t0);
     const schedulerLatency = {
       avg: await this.fetch("scheduler.latency.avg", input.t0),
@@ -259,10 +330,10 @@ class Monitor {
       input.t0
     );
     this.render(
-      "player.money",
-      "Player Money Delta",
-      positive(transform.derivative(moneyDelta)),
-      this.sparklines.moneyDelta,
+      `hack.${this.host}`,
+      "Hack Income",
+      hackedAmount,
+      this.sparklines.hackedAmount,
       input.t0
     );
     this.ns.printf("\n\n");

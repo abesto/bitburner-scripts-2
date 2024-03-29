@@ -6,6 +6,7 @@ import { DB } from "/database";
 import { Fmt } from "/fmt";
 import { Formulas, stalefish } from "/Formulas";
 import HwgwEstimator from "/HwgwEstimator";
+import * as layout from "/layout";
 import { Log } from "/log";
 import { db } from "/services/Database/client";
 import { PortRegistryClient } from "/services/PortRegistry/client";
@@ -144,13 +145,6 @@ class HwgwController {
       this.log.info("Batch started", { jobId });
       await this.schedulerClient.waitForJobFinished(jobId);
     }
-  }
-
-  async positionTail() {
-    this.ns.tail();
-    await this.ns.sleep(0);
-    this.ns.resizeTail(930, 345);
-    this.ns.moveTail(1413, 0);
   }
 
   async run() {
@@ -407,7 +401,7 @@ export async function main(ns: NS): Promise<void> {
   const prepareHwgwController = await HwgwController.new(ns, log, host);
   await prepareHwgwController.startMonitor();
   if (!skipPrepare) {
-    await prepareHwgwController.positionTail();
+    await layout.hwgwController(ns);
     await prepareHwgwController.prepare();
   } else {
     log.info("Skipping initial preparation");
@@ -416,7 +410,7 @@ export async function main(ns: NS): Promise<void> {
   log.info("Starting batched hacking");
   while (true) {
     const hwgwController = await HwgwController.new(ns, log, host);
-    await hwgwController.positionTail();
+    await layout.hwgwController(ns);
     await hwgwController.run();
   }
 }
