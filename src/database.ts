@@ -1,5 +1,5 @@
-import { LockData } from './services/Database/types';
-import { Job, JobId, ServiceState, TaskId } from './services/Scheduler/types';
+import { LockData } from "./services/Database/types";
+import { Job, JobId, ServiceState, TaskId } from "./services/Scheduler/types";
 
 export type DB = {
   config: {

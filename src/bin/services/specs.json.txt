@@ -25,5 +25,6 @@
   },
   "Stats": {
     "enableWhenDiscovered": true
-  }
+  },
+  "CodingContracts": {}
 }
