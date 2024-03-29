@@ -1,11 +1,11 @@
-import { NS } from '@ns';
+import { NS } from "@ns";
 
-import * as colors from 'colors';
+import * as colors from "colors";
 
-import { Fmt, formatKeyvalue } from '/fmt';
+import { Fmt, formatKeyvalue } from "/fmt";
 
-import { Agg, avg, last, max, min, p95, rebucket } from './agg';
-import { eventTime, eventValue, Series, Time, Value } from './types';
+import { Agg, avg, last, lastNonZero, max, min, p95, rebucket } from "./agg";
+import { eventTime, eventValue, Series, Time, Value } from "./types";
 
 const CHARS = "▁▂▃▄▅▆▇█" as const;
 
@@ -116,13 +116,13 @@ export class Sparkline {
         : Math.min(...times));
     const timeRange = timeMax - timeMin;
 
-    const values = events.map(eventValue);
+    const charLength = config.resolution ?? Math.ceil(timeRange / config.width);
+    const buckets = rebucket(events, config.agg, charLength);
+
+    const values = buckets.map(eventValue);
     const valueMin = config?.valueMin ?? Math.min(...values);
     const valueMax = config?.valueMax ?? Math.max(...values);
     const valueRange = valueMax - valueMin;
-
-    const charLength = config.resolution ?? Math.ceil(timeRange / config.width);
-    const buckets = rebucket(events, config.agg, charLength);
 
     let sparkline = new Array(config.width).fill(" ");
     for (const bucket of buckets) {
@@ -153,6 +153,7 @@ export class Sparkline {
     const scale = formatKeyvalue({
       ".": this.fmt.timeSeconds(charLength),
       last: this.format(last(values)),
+      lastNonZero: this.format(lastNonZero(values)),
     });
 
     const tsStart = this.fmt.timestamp(timeMin);

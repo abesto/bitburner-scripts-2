@@ -26,10 +26,18 @@ export function last(values: Value[]): Value {
   return values[values.length - 1];
 }
 
+export function lastNonZero(values: Value[]): Value {
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (values[i] !== 0) return values[i];
+  }
+  return 0;
+}
+
 export function percentile(p: number, values: Value[]): Value {
-  values.sort();
-  const index = Math.floor(p * values.length);
-  return values[index] || 0;
+  const sorted = [...values];
+  sorted.sort();
+  const index = Math.floor(p * sorted.length);
+  return sorted[index] || 0;
 }
 
 export const p99 = percentile.bind(null, 0.99);
