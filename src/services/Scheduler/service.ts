@@ -932,11 +932,12 @@ export class SchedulerService extends BaseService<typeof Request, Response> {
     const hostnames = discoverServers(this.ns);
     const capacities = [];
     for (const hostname of hostnames) {
-      if (!autonuke(this.ns, hostname)) {
+      const server = this.ns.getServer(hostname);
+      if (!autonuke(this.ns, server)) {
         continue;
       }
-      const maxRam = this.ns.getServerMaxRam(hostname);
-      let freeMem = maxRam - this.ns.getServerUsedRam(hostname);
+      const maxRam = server.maxRam;
+      let freeMem = maxRam - server.ramUsed;
       if (hostname === "home") {
         freeMem -= memdb.config.scheduler.reserveHomeRam;
         freeMem = Math.max(0, freeMem);

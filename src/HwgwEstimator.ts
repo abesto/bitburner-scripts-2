@@ -1,4 +1,4 @@
-import { NS } from "@ns";
+import { NS, Server } from "@ns";
 
 import { Log } from "/log";
 
@@ -14,7 +14,7 @@ export default class HwgwEstimator {
     this.log = new Log(ns, "HwgwEstimator");
   }
 
-  async initial(host: string): Promise<{
+  async initial(server: Server): Promise<{
     wantGrowThreads: number;
     wantGrowWeakenThreads: number;
     ramRequirement: number;
@@ -23,16 +23,16 @@ export default class HwgwEstimator {
     const memdb = await db(this.ns, this.log);
     const spacing = memdb.config.hwgw.spacing;
 
-    const moneyMax = this.ns.getServerMaxMoney(host);
+    const moneyMax = server.moneyMax || 0;
 
-    const growMultiplier = moneyMax / this.ns.getServerMoneyAvailable(host);
+    const growMultiplier = moneyMax / (server.moneyAvailable || 0);
     const wantGrowThreads = Math.ceil(
-      this.ns.growthAnalyze(host, growMultiplier)
+      this.ns.growthAnalyze(server.hostname, growMultiplier)
     );
     const growSecurityGrowth = this.ns.growthAnalyzeSecurity(wantGrowThreads);
     const wantGrowWeakenThreads = Math.ceil(growSecurityGrowth / 0.05);
 
-    const weakenLength = this.ns.getWeakenTime(host);
+    const weakenLength = this.ns.getWeakenTime(server.hostname);
 
     const ramRequirement =
       wantGrowThreads * this.ns.getScriptRam("bin/payloads/grow.js") +
@@ -49,7 +49,7 @@ export default class HwgwEstimator {
   }
 
   async stableMaxDepth(
-    host: string,
+    server: Server,
     hwgwMoneyThresholdConfig: number,
     simpleMoneyThresholdConfig: number
   ): Promise<{
@@ -72,19 +72,19 @@ export default class HwgwEstimator {
     const totalMem = capacity.reduce((acc, cur) => acc + cur.totalMem, 0) - 22;
 
     let maxDepth = 1;
-    let stable = await this.stable(host, hwgwMoneyThresholdConfig, maxDepth);
+    let stable = await this.stable(server, hwgwMoneyThresholdConfig, maxDepth);
     while (stable.peakRam < totalMem && maxDepth < 50) {
       if (stable.peakRam === 0) {
         if (maxDepth > 1) {
           stable = await this.stable(
-            host,
+            server,
             hwgwMoneyThresholdConfig,
             maxDepth - 1
           );
         }
         break;
       }
-      stable = await this.stable(host, hwgwMoneyThresholdConfig, ++maxDepth);
+      stable = await this.stable(server, hwgwMoneyThresholdConfig, ++maxDepth);
     }
 
     let period = stable.period;
@@ -92,19 +92,19 @@ export default class HwgwEstimator {
       // We're in sequential, simple hacking mode
       const formulas = new Formulas(this.ns);
       period =
-        formulas.getGrowTime(host) +
-        formulas.getWeakenTime(host) +
-        formulas.getHackTime(host);
+        formulas.getGrowTime(server) +
+        formulas.getWeakenTime(server) +
+        formulas.getHackTime(server);
     }
     const moneyPerPeriod =
-      this.ns.getServerMaxMoney(host) * (1 - simpleMoneyThresholdConfig);
+      (server.moneyMax || 0) * (1 - simpleMoneyThresholdConfig);
     const moneyPerSec = moneyPerPeriod / (period / 1000);
 
     return { ...stable, moneyPerSec };
   }
 
   async stable(
-    host: string,
+    server: Server,
     moneyThresholdConfig: number,
     maxDepthConfig: number
   ): Promise<{
@@ -120,26 +120,26 @@ export default class HwgwEstimator {
     const formulas = new Formulas(this.ns);
 
     const hackThreads = formulas.hacksFromToMoneyRatio(
-      host,
+      server,
       1,
       moneyThresholdConfig
     );
     const hackWeakenThreads = formulas.weakenAfterHacks(hackThreads);
 
-    const moneyMax = this.ns.getServerMaxMoney(host);
-    const moneyStolenPerThread = this.ns.hackAnalyze(host) * moneyMax;
-    const moneyAfterHack =
-      this.ns.getServerMaxMoney(host) - moneyStolenPerThread * hackThreads;
+    const moneyMax = server.moneyMax || 0;
+    const moneyStolenPerThread =
+      this.ns.hackAnalyze(server.hostname) * moneyMax;
+    const moneyAfterHack = moneyMax - moneyStolenPerThread * hackThreads;
     const growThreads = formulas.growthFromToMoneyRatio(
-      host,
+      server,
       moneyAfterHack / moneyMax,
       1
     );
     const growWeakenThreads = formulas.weakenAfterGrows(growThreads);
 
-    const weak_time = formulas.getWeakenTime(host);
-    const grow_time = formulas.getGrowTime(host);
-    const hack_time = formulas.getHackTime(host);
+    const weak_time = formulas.getWeakenTime(server);
+    const grow_time = formulas.getGrowTime(server);
+    const hack_time = formulas.getHackTime(server);
     const t0 = memdb.config.hwgw.spacing;
 
     const stalefishResult = stalefish({

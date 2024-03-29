@@ -32,9 +32,10 @@ export async function main(ns: NS): Promise<void> {
   servers.sort((a, b) => Weight(ns, b) - Weight(ns, a));
 
   const data = [];
-  for (const server of servers) {
-    const maxMoney = ns.getServerMaxMoney(server);
-    if (maxMoney === 0 || ns.hackAnalyze(server) === 0) {
+  for (const hostname of servers) {
+    const server = ns.getServer(hostname);
+    const maxMoney = server.moneyMax || 0;
+    if (maxMoney === 0 || ns.hackAnalyze(server.hostname) === 0) {
       continue;
     }
 
@@ -62,10 +63,12 @@ export async function main(ns: NS): Promise<void> {
   }
 
   for (const item of data) {
-    const requiredHackingLevel = ns.getServerRequiredHackingLevel(item.server);
+    const requiredHackingLevel = ns.getServerRequiredHackingLevel(
+      item.server.hostname
+    );
 
-    log.tinfo(item.server, {
-      weight: Weight(ns, item.server),
+    log.tinfo(item.server.hostname, {
+      weight: Weight(ns, item.server.hostname),
       hackLevel: requiredHackingLevel,
       ...item,
       maxMoney: fmt.money(item.maxMoney),

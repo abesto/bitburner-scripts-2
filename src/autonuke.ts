@@ -1,12 +1,13 @@
-import { NS } from "@ns";
+import { NS, Server } from "@ns";
 
-export function autonuke(ns: NS, host: string, verbose?: boolean): boolean {
-  if (ns.hasRootAccess(host)) {
+export function autonuke(ns: NS, server: Server, verbose?: boolean): boolean {
+  if (server.hasAdminRights) {
     return true;
   }
 
-  const hackingLevel = ns.getHackingLevel();
-  const hostHackingLevel = ns.getServerRequiredHackingLevel(host);
+  const host = server.hostname;
+  const hackingLevel = ns.getPlayer().skills.hacking;
+  const hostHackingLevel = server.requiredHackingSkill || 0;
 
   if (hackingLevel < hostHackingLevel) {
     if (verbose) {

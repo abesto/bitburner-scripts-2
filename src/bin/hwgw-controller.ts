@@ -13,7 +13,7 @@ import { SchedulerClient } from "/services/Scheduler/client";
 import { HostAffinity, JobId } from "/services/Scheduler/types";
 
 class HwgwController {
-  private readonly server: Server;
+  private server: Server;
   private readonly fmt: Fmt;
   private readonly formulas: Formulas;
   private readonly estimator: HwgwEstimator;
@@ -71,10 +71,9 @@ class HwgwController {
   }
 
   shouldWeaken(): boolean {
-    const minSecurity = this.ns.getServerMinSecurityLevel(this.server.hostname);
-    const currentSecurity = this.ns.getServerSecurityLevel(
-      this.server.hostname
-    );
+    const minSecurity = this.server.minDifficulty || 0;
+    const currentSecurity =
+      this.ns.getServer(this.server.hostname).hackDifficulty || 0;
 
     if (currentSecurity > minSecurity) {
       this.log.info("Security needs weakening", {
@@ -87,10 +86,8 @@ class HwgwController {
   }
 
   async shouldGrow(): Promise<boolean> {
-    const moneyAvailable = this.ns.getServerMoneyAvailable(
-      this.server.hostname
-    );
-    const moneyCapacity = this.ns.getServerMaxMoney(this.server.hostname);
+    const moneyAvailable = this.server.moneyAvailable || 0;
+    const moneyCapacity = this.server.moneyMax || 0;
 
     if (moneyAvailable < moneyCapacity) {
       this.log.info("Money needs growing", {
@@ -108,12 +105,15 @@ class HwgwController {
 
   async prepare() {
     this.log.info("Initial preparation: weaken, grow, weaken");
+    this.server = this.ns.getServer(this.server.hostname);
+
     while (await this.needsPreparation()) {
+      this.server = this.ns.getServer(this.server.hostname);
       const t0 = (await db(this.ns, this.log)).config.hwgw.spacing;
 
-      const hack_time = this.formulas.getHackTime(this.server.hostname);
-      const weak_time = this.formulas.getWeakenTime(this.server.hostname);
-      const grow_time = this.formulas.getGrowTime(this.server.hostname);
+      const hack_time = this.formulas.getHackTime(this.server);
+      const weak_time = this.formulas.getWeakenTime(this.server);
+      const grow_time = this.formulas.getGrowTime(this.server);
 
       const batchEnd = Date.now() + weak_time + 5 * t0;
 
@@ -166,6 +166,8 @@ class HwgwController {
 
     while (true) {
       await this.consumeFinishedJobs();
+      this.server = this.ns.getServer(this.server.hostname);
+
       if (this.ns.getPlayer().skills.hacking > validUpTo.skills.hacking) {
         this.log.warn(
           "Hacking skill increased, waiting for jobs to finish and restarting"
@@ -173,10 +175,11 @@ class HwgwController {
         await this.waitForAllJobsToFinish();
         return;
       }
+
       const maxDepth = await this.calculateMaxDepth(memdb);
-      const hack_time = this.formulas.getHackTime(this.server.hostname);
-      const weak_time = this.formulas.getWeakenTime(this.server.hostname);
-      const grow_time = this.formulas.getGrowTime(this.server.hostname);
+      const hack_time = this.formulas.getHackTime(this.server);
+      const weak_time = this.formulas.getWeakenTime(this.server);
+      const grow_time = this.formulas.getGrowTime(this.server);
 
       this.recalculateStalefish(
         weak_time,
@@ -266,7 +269,7 @@ class HwgwController {
     try {
       const newMemdb = await db(this.ns, this.log);
       const { depth: etaMaxDepth } = await this.estimator.stableMaxDepth(
-        this.server.hostname,
+        this.server,
         newMemdb.config.hwgw.moneyThreshold,
         newMemdb.config.simpleHack.moneyThreshold
       );
@@ -395,8 +398,8 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  autonuke(ns, host);
-  if (!ns.hasRootAccess(host)) {
+  const server = ns.getServer(host);
+  if (!autonuke(ns, server)) {
     log.terror("Need root access to host", { host });
     return;
   }

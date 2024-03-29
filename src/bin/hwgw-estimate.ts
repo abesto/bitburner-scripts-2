@@ -22,7 +22,8 @@ export async function main(ns: NS): Promise<void> {
     return;
   }
 
-  const initial = await estimator.initial(host);
+  const server = ns.getServer(host);
+  const initial = await estimator.initial(server);
   log.tinfo("Initial grow/weaken", {
     ...initial,
     ramRequirement: fmt.memory(initial.ramRequirement),
@@ -31,7 +32,7 @@ export async function main(ns: NS): Promise<void> {
   log.tinfo(
     "Stable",
     await estimator.stableMaxDepth(
-      host,
+      server,
       memdb.config.hwgw.moneyThreshold,
       memdb.config.simpleHack.moneyThreshold
     )

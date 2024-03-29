@@ -11,6 +11,7 @@ export async function main(ns: NS): Promise<void> {
   const args = ns.flags([]);
   const posArgs = args._ as string[];
   const host = posArgs[0];
+  const server = ns.getServer(host);
 
   const log = new Log(ns, "simple-hack-distributed");
   const portRegistry = new PortRegistryClient(ns, log);
@@ -25,7 +26,7 @@ export async function main(ns: NS): Promise<void> {
   ns.disableLog("ALL");
   const fmt = new Fmt(ns);
 
-  autonuke(ns, host);
+  autonuke(ns, server);
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -71,8 +72,8 @@ export async function main(ns: NS): Promise<void> {
   }
 
   async function shouldWeaken(): Promise<boolean> {
-    const minSecurity = ns.getServerMinSecurityLevel(host);
-    const currentSecurity = ns.getServerSecurityLevel(host);
+    const minSecurity = server.minDifficulty || 0;
+    const currentSecurity = ns.getServer(host).hackDifficulty || 0;
     const threshold =
       (await db(ns, log)).config.simpleHack.securityThreshold + minSecurity;
 

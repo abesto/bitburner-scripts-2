@@ -34,15 +34,16 @@ async function _main(ns: NS): Promise<void> {
     ["initial", false],
     ["dry-run", false],
   ]);
-  const host = (args._ as string[])[0];
+  const hostname = (args._ as string[])[0];
+  const server = ns.getServer(hostname);
 
   const jobId = args["job"] as string;
   const taskId = args["task"] as number;
   const initial = args["initial"] as boolean;
 
-  if (!host || !jobId || taskId < 0) {
+  if (!hostname || !jobId || taskId < 0) {
     log.terror(
-      "Usage: run hwgw-batch.js <host> --job <jobId> --task <taskId> [--initial] [--dry-run]",
+      "Usage: run hwgw-batch.js <hostname> --job <jobId> --task <taskId> [--initial] [--dry-run]",
       { args }
     );
     return;
@@ -82,15 +83,15 @@ async function _main(ns: NS): Promise<void> {
   const formulas = new Formulas(ns);
   const spacing = memdb.config.hwgw.spacing;
 
-  const moneyMax = ns.getServerMaxMoney(host);
-  const securityMin = ns.getServerMinSecurityLevel(host);
-  const moneyStolenPerThread = ns.hackAnalyze(host) * moneyMax;
+  const moneyMax = server.moneyMax || 0;
+  const securityMin = server.minDifficulty || 0;
+  const moneyStolenPerThread = ns.hackAnalyze(hostname) * moneyMax;
   if (moneyStolenPerThread === 0) {
     log.terror("moneyStolePerThread=0", {
-      host,
+      hostname,
       moneyMax,
-      currentMoney: fmt.money(ns.getServerMoneyAvailable(host)),
-      securityLevel: ns.getServerSecurityLevel(host),
+      currentMoney: fmt.money(server.moneyAvailable || 0),
+      securityLevel: server.hackDifficulty || 0,
     });
     return await finished();
   }
@@ -98,7 +99,7 @@ async function _main(ns: NS): Promise<void> {
   const moneySteal = moneyMax * (1 - moneyThreshold);
 
   const wantHackThreads = formulas.hacksFromToMoneyRatio(
-    host,
+    server,
     1,
     moneyThreshold
   );
@@ -109,11 +110,11 @@ async function _main(ns: NS): Promise<void> {
     ? 1
     : Math.max(
         1.1,
-        ns.getServerSecurityLevel(host) / (securityMin + hackSecurityGrowth)
+        (server.hackDifficulty || 0) / (securityMin + hackSecurityGrowth)
       );
   const wantHackWeakenThreads = Math.ceil(
     (initial
-      ? formulas.weakenToMinimum(host)
+      ? formulas.weakenToMinimum(server)
       : formulas.weakenAfterHacks(wantHackThreads)) * overWeaken
   );
 
@@ -121,12 +122,12 @@ async function _main(ns: NS): Promise<void> {
     ? 1
     : Math.max(
         1.1,
-        ns.getServerMaxMoney(host) / ns.getServerMoneyAvailable(host)
+        (server.moneyMax || 0) / (server.moneyAvailable || Infinity)
       );
   const wantGrowThreads = Math.ceil(
     initial
-      ? formulas.growthToTargetMoneyRatio(host, 1)
-      : formulas.growthFromToMoneyRatio(host, moneyAfterHack / moneyMax, 1) *
+      ? formulas.growthToTargetMoneyRatio(server, 1)
+      : formulas.growthFromToMoneyRatio(server, moneyAfterHack / moneyMax, 1) *
           overGrow
   );
 
@@ -134,9 +135,9 @@ async function _main(ns: NS): Promise<void> {
     formulas.weakenAfterGrows(wantGrowThreads) * overWeaken
   );
 
-  const weakenLength = formulas.getWeakenTime(host);
-  const growLength = formulas.getGrowTime(host);
-  const hackLength = formulas.getHackTime(host);
+  const weakenLength = formulas.getWeakenTime(server);
+  const growLength = formulas.getGrowTime(server);
+  const hackLength = formulas.getHackTime(server);
 
   let shouldHack = wantHackThreads > 0 && !initial;
   let noHackReason = initial
@@ -149,7 +150,7 @@ async function _main(ns: NS): Promise<void> {
     log.terror("wtf", {
       jobId,
       taskId,
-      host,
+      hostname,
       moneyMax,
       moneyStolenPerThread,
       moneyThreshold,
@@ -167,7 +168,7 @@ async function _main(ns: NS): Promise<void> {
   log.info("startup", {
     jobId,
     taskId,
-    host,
+    hostname,
     overWeaken,
     overGrow,
     moneyMax: fmt.money(moneyMax),
@@ -244,7 +245,7 @@ async function _main(ns: NS): Promise<void> {
   desyncCheckBefore();
   const { jobId: hackWeakenJobId, client: hackWeakenClient } = await schedule(
     "weaken",
-    host,
+    hostname,
     wantHackWeakenThreads,
     weakenLength
   );
@@ -265,11 +266,11 @@ async function _main(ns: NS): Promise<void> {
     jobId: growWeakenJobId,
     threads: scheduledGrowWeakenThreads,
     client: growWeakenClient,
-  } = await schedule("weaken", host, wantGrowWeakenThreads, weakenLength);
+  } = await schedule("weaken", hostname, wantGrowWeakenThreads, weakenLength);
   if (scheduledGrowWeakenThreads !== wantGrowWeakenThreads) {
     log.terror(
       "Scheduled grow-weaken threads does not match requested grow-weaken threads",
-      { host, scheduledGrowWeakenThreads, wantGrowWeakenThreads }
+      { hostname, scheduledGrowWeakenThreads, wantGrowWeakenThreads }
     );
     return await finished();
   }
@@ -290,13 +291,13 @@ async function _main(ns: NS): Promise<void> {
     jobId: growJobId,
     threads: scheduledGrowThreads,
     client: growClient,
-  } = await schedule("grow", host, wantGrowThreads, growLength);
+  } = await schedule("grow", hostname, wantGrowThreads, growLength);
   if (
     scheduledGrowThreads !== wantGrowThreads &&
     ((initial && scheduledGrowThreads === 0) || !initial)
   ) {
     log.terror("Scheduled grow threads does not match requested grow threads", {
-      host,
+      hostname,
       scheduledGrowThreads,
       wantGrowThreads,
     });
@@ -323,13 +324,13 @@ async function _main(ns: NS): Promise<void> {
       jobId: _hackJobId,
       threads: scheduledHackThreads,
       client: _hackClient,
-    } = await schedule("hack", host, wantHackThreads, hackLength);
+    } = await schedule("hack", hostname, wantHackThreads, hackLength);
     hackJobId = _hackJobId;
     hackClient = _hackClient;
     if (scheduledHackThreads !== wantHackThreads) {
       log.terror(
         "Scheduled hack threads does not match requested hack threads",
-        { host, scheduledHackThreads, wantHackThreads }
+        { hostname, scheduledHackThreads, wantHackThreads }
       );
     }
     if (!desyncCheckAfter("hack", hackStart)) {
@@ -377,7 +378,7 @@ async function _main(ns: NS): Promise<void> {
 
   async function schedule(
     kind: string,
-    host: string,
+    hostname: string,
     wantThreads: number,
     eta: number
   ): Promise<{ jobId: string; threads: number; client: SchedulerClient }> {
@@ -387,7 +388,7 @@ async function _main(ns: NS): Promise<void> {
     const { jobId, threads } = await schedulerClient.start({
       script: `bin/payloads/${kind}.js`,
       threads: wantThreads,
-      args: [host],
+      args: [hostname],
     });
     log.info("Started job", { kind, jobId, threads, wantThreads });
     return { jobId, threads, client: schedulerClient };
@@ -397,13 +398,13 @@ async function _main(ns: NS): Promise<void> {
     if (initial || !shouldHack) {
       return;
     }
-    const money = ns.getServerMoneyAvailable(host);
+    const money = ns.getServer(hostname).moneyAvailable || 0;
     if (money < moneyMax) {
       shouldHack = false;
       noHackReason = "moneyLow";
       return;
     }
-    const security = ns.getServerSecurityLevel(host);
+    const security = ns.getServer(hostname).hackDifficulty || 0;
     if (security > securityMin) {
       shouldHack = false;
       noHackReason = "securityHigh";

@@ -1,4 +1,4 @@
-import { NS } from '@ns';
+import { NS, Server } from "@ns";
 
 export class Formulas {
   private lastFormulasCheck = 0;
@@ -14,21 +14,20 @@ export class Formulas {
     return this._haveFormulas;
   }
 
-  moneyRatio(server: string): number {
-    return (
-      this.ns.getServerMoneyAvailable(server) /
-      this.ns.getServerMaxMoney(server)
-    );
+  moneyRatio(server: Server): number {
+    return (server.moneyAvailable || 0) / (server.moneyMax || Infinity);
   }
 
   growthForMoneyMultiplier(
-    server: string,
+    server: Server,
     targetMultiplier: number,
     atSecurity: number | null = null
   ): number {
-    let threads = Math.ceil(this.ns.growthAnalyze(server, targetMultiplier));
+    let threads = Math.ceil(
+      this.ns.growthAnalyze(server.hostname, targetMultiplier)
+    );
     if (this.haveFormulas) {
-      const serverObj = this.ns.getServer(server);
+      const serverObj = { ...server };
       const player = this.ns.getPlayer();
       serverObj.hackDifficulty = atSecurity || serverObj.minDifficulty;
       while (
@@ -41,14 +40,14 @@ export class Formulas {
     return Math.max(0, Math.ceil(threads));
   }
 
-  growthToTargetMoneyRatio(server: string, targetMoneyRatio: number): number {
+  growthToTargetMoneyRatio(server: Server, targetMoneyRatio: number): number {
     const currentMoneyRatio = this.moneyRatio(server);
     const targetMultiplier = targetMoneyRatio / currentMoneyRatio;
     return this.growthForMoneyMultiplier(server, targetMultiplier);
   }
 
   growthFromToMoneyRatio(
-    server: string,
+    server: Server,
     from: number,
     to: number,
     atSecurity: number | null = null
@@ -68,13 +67,13 @@ export class Formulas {
     return Math.log(x) / Math.log(base);
   }
 
-  hacksFromToMoneyRatio(server: string, from: number, to: number): number {
+  hacksFromToMoneyRatio(server: Server, from: number, to: number): number {
     if (from < to) {
       return 0;
     }
     const targetPercent = from - to;
     if (this.haveFormulas) {
-      const serverObj = this.ns.getServer(server);
+      const serverObj = { ...server };
       serverObj.hackDifficulty = serverObj.minDifficulty;
       const hackPercent = this.ns.formulas.hacking.hackPercent(
         serverObj,
@@ -83,9 +82,9 @@ export class Formulas {
       return Math.ceil(targetPercent / hackPercent);
       //return Math.ceil(getBaseLog(1 - hackPercent, targetPercent));
     }
-    const targetMoneyStolen = this.ns.getServerMaxMoney(server) * targetPercent;
+    const targetMoneyStolen = (server.moneyMax || 0) * targetPercent;
     const threads = Math.floor(
-      this.ns.hackAnalyzeThreads(server, targetMoneyStolen)
+      this.ns.hackAnalyzeThreads(server.hostname, targetMoneyStolen)
     );
     return Math.max(0, threads);
   }
@@ -100,10 +99,9 @@ export class Formulas {
     return Math.max(0, Math.ceil(threads));
   }
 
-  weakenToMinimum(server: string): number {
+  weakenToMinimum(server: Server): number {
     return this.weakenForSecurityDecrease(
-      this.ns.getServerSecurityLevel(server) -
-        this.ns.getServerMinSecurityLevel(server)
+      (server.hackDifficulty || 0) - (server.minDifficulty || 0)
     );
   }
 
@@ -117,36 +115,33 @@ export class Formulas {
     return this.weakenForSecurityDecrease(security);
   }
 
-  getWeakenTime(server: string): number {
+  getWeakenTime(server: Server): number {
     if (this.haveFormulas) {
-      return this.ns.formulas.hacking.weakenTime(
-        this.ns.getServer(server),
-        this.ns.getPlayer()
-      );
+      return this.ns.formulas.hacking.weakenTime(server, this.ns.getPlayer());
     }
-    return this.ns.getWeakenTime(server);
+    return this.ns.getWeakenTime(server.hostname);
   }
 
-  getHackTime(server: string): number {
+  getHackTime(server: Server): number {
     if (this.haveFormulas) {
-      const serverObj = this.ns.getServer(server);
+      const serverObj = { ...server };
       serverObj.hackDifficulty = serverObj.minDifficulty;
       return this.ns.formulas.hacking.hackTime(serverObj, this.ns.getPlayer());
     }
-    return this.ns.getHackTime(server);
+    return this.ns.getHackTime(server.hostname);
   }
 
-  getGrowTime(server: string): number {
+  getGrowTime(server: Server): number {
     if (this.haveFormulas) {
-      const serverObj = this.ns.getServer(server);
+      const serverObj = { ...server };
       serverObj.hackDifficulty = serverObj.minDifficulty;
       return this.ns.formulas.hacking.growTime(serverObj, this.ns.getPlayer());
     }
-    return this.ns.getGrowTime(server);
+    return this.ns.getGrowTime(server.hostname);
   }
 
   estimateStableThreadCount(
-    server: string,
+    server: Server,
     targetMoneyRatio: number,
     tickLength: number
   ): number {
