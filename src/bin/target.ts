@@ -47,7 +47,7 @@ export async function main(ns: NS): Promise<void> {
         memdb.config.simpleHack.moneyThreshold
       );
     } catch (e) {
-      log.terror("Failed to estimate", { server, e });
+      log.terror("Failed to estimate", { server: server.hostname, e });
       continue;
     }
 
@@ -56,26 +56,37 @@ export async function main(ns: NS): Promise<void> {
     }
 
     data.push({
-      server,
+      hostname: server.hostname,
+      requiredHackingSkill: server.requiredHackingSkill,
       maxMoney,
       ...estimate,
     });
   }
 
-  for (const item of data) {
-    const requiredHackingLevel = ns.getServerRequiredHackingLevel(
-      item.server.hostname
-    );
-
-    log.tinfo(item.server.hostname, {
-      weight: Weight(ns, item.server.hostname),
-      hackLevel: requiredHackingLevel,
-      ...item,
-      maxMoney: fmt.money(item.maxMoney),
-      period: fmt.timeSeconds(item.period),
-      peakRam: fmt.memory(item.peakRam),
-      moneyPerSec: fmt.money(item.moneyPerSec),
-    });
+  const table = fmt.table(
+    [
+      "hostname",
+      "weight",
+      "hackLevel",
+      "maxMoney",
+      "period",
+      "peakRam",
+      "depth",
+      "moneyPerSec",
+    ],
+    ...data.map((item) => [
+      item.hostname,
+      fmt.int(Weight(ns, item.hostname)),
+      fmt.int(item.requiredHackingSkill || 0),
+      fmt.moneyShort(item.maxMoney),
+      fmt.time(item.period),
+      fmt.memory(item.peakRam),
+      fmt.int(item.depth),
+      fmt.money(item.moneyPerSec),
+    ])
+  );
+  for (const line of table) {
+    ns.tprintf("%s", line);
   }
 }
 

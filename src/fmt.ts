@@ -99,7 +99,9 @@ export class Fmt {
     );
 
     return [
-      headers.map((header, i) => header.padEnd(maxColumnLengths[i])).join("\t"),
+      headers
+        .map((header, i) => colors.white(header.padEnd(maxColumnLengths[i])))
+        .join("\t"),
       ...rows.map((row) =>
         row.map((field, i) => field.padEnd(maxColumnLengths[i])).join("\t")
       ),
