@@ -27,15 +27,16 @@ export class Formulas {
       this.ns.growthAnalyze(server.hostname, targetMultiplier)
     );
     if (this.haveFormulas) {
-      const serverObj = { ...server };
+      const oldValue = server.hackDifficulty;
       const player = this.ns.getPlayer();
-      serverObj.hackDifficulty = atSecurity || serverObj.minDifficulty;
+      server.hackDifficulty = atSecurity || server.minDifficulty;
       while (
-        this.ns.formulas.hacking.growPercent(serverObj, threads, player) <
+        this.ns.formulas.hacking.growPercent(server, threads, player) <
         targetMultiplier
       ) {
         threads *= 1.01;
       }
+      server.hackDifficulty = oldValue;
     }
     return Math.max(0, Math.ceil(threads));
   }
@@ -73,12 +74,13 @@ export class Formulas {
     }
     const targetPercent = from - to;
     if (this.haveFormulas) {
-      const serverObj = { ...server };
-      serverObj.hackDifficulty = serverObj.minDifficulty;
+      const oldValue = server.hackDifficulty;
+      server.hackDifficulty = server.minDifficulty;
       const hackPercent = this.ns.formulas.hacking.hackPercent(
-        serverObj,
+        server,
         this.ns.getPlayer()
       );
+      server.hackDifficulty = oldValue;
       return Math.ceil(targetPercent / hackPercent);
       //return Math.ceil(getBaseLog(1 - hackPercent, targetPercent));
     }
@@ -124,18 +126,28 @@ export class Formulas {
 
   getHackTime(server: Server): number {
     if (this.haveFormulas) {
-      const serverObj = { ...server };
-      serverObj.hackDifficulty = serverObj.minDifficulty;
-      return this.ns.formulas.hacking.hackTime(serverObj, this.ns.getPlayer());
+      const oldValue = server.hackDifficulty;
+      server.hackDifficulty = server.minDifficulty;
+      const result = this.ns.formulas.hacking.hackTime(
+        server,
+        this.ns.getPlayer()
+      );
+      server.hackDifficulty = oldValue;
+      return result;
     }
     return this.ns.getHackTime(server.hostname);
   }
 
   getGrowTime(server: Server): number {
     if (this.haveFormulas) {
-      const serverObj = { ...server };
-      serverObj.hackDifficulty = serverObj.minDifficulty;
-      return this.ns.formulas.hacking.growTime(serverObj, this.ns.getPlayer());
+      const oldValue = server.hackDifficulty;
+      server.hackDifficulty = server.minDifficulty;
+      const result = this.ns.formulas.hacking.growTime(
+        server,
+        this.ns.getPlayer()
+      );
+      server.hackDifficulty = oldValue;
+      return result;
     }
     return this.ns.getGrowTime(server.hostname);
   }
