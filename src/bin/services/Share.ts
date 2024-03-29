@@ -21,7 +21,7 @@ export async function main(ns: NS): Promise<void> {
         0
       );
       const memdb = await db(ns, log);
-      const config = memdb.config.share;
+      const config = memdb.config["share"];
       const percentage = config.percentage;
       const max = config.max ?? Infinity;
 
