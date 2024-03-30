@@ -6,7 +6,7 @@ description: Manage the Scheduler
 
 `sc` is short for "Scheduler Control". It's the CLI used to manage the [`Scheduler`](../services/services-scheduler.md).
 
-Important nouns:
+Refresher on important nouns (refer to [services/Scheduler: Workload Management](../services/services-scheduler.md#workload-management) for more details):
 
 * Service: a long-running, unique process
 * Job: a one-off execution of an arbitrary script with a configurable number of threads. Possibly split across multiple hosts. Has _at least_ one Task.
